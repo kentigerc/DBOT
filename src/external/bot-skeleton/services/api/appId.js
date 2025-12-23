@@ -7,7 +7,15 @@ import APIMiddleware from './api-middleware';
 export const generateDerivApiInstance = () => {
     const cleanedServer = getSocketURL().replace(/[^a-zA-Z0-9.]/g, '');
     const cleanedAppId = getAppId()?.replace?.(/[^a-zA-Z0-9]/g, '') ?? getAppId();
-    const socket_url = `wss://${cleanedServer}/websockets/v3?app_id=${cleanedAppId}&l=${getInitialLanguage()}&brand=${website_name.toLowerCase()}`;
+    const affiliateToken = import.meta.env.VITE_DERIV_AFFILIATE_TOKEN || process.env.DERIV_AFFILIATE_TOKEN;
+    
+    let socket_url = `wss://${cleanedServer}/websockets/v3?app_id=${cleanedAppId}&l=${getInitialLanguage()}&brand=${website_name.toLowerCase()}`;
+    
+    // Add affiliate token to track commissions
+    if (affiliateToken) {
+        socket_url += `&affiliate_token=${affiliateToken}`;
+    }
+    
     const deriv_socket = new WebSocket(socket_url);
     const deriv_api = new DerivAPIBasic({
         connection: deriv_socket,
