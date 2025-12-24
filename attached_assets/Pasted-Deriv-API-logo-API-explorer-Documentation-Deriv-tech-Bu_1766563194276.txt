@@ -1,0 +1,70 @@
+Deriv API logo
+API explorer
+Documentation
+Deriv tech
+Bug bounty
+Dashboard
+EN
+Home
+
+Dashboard
+
+Edit application
+
+App’s name
+Enter the name of the application you want to register:
+
+netoacademy
+Only alphanumeric characters with spaces and underscores are allowed.
+The name can contain up to 48 characters.
+The name cannot contain “Binary”, “Deriv”, or similar words.
+
+Markup
+Add a markup to the price of each trade to help you earn a commission. Enter your markup percentage below. Learn more about markup calculations in our detailed documentation.
+
+Markup is only available for real accounts and trading applications.
+
+
+3
+%
+
+OAuth settings
+Log in to your app using your Deriv account without an API token. With OAuth, third-party applications can securely authorise access without requiring password sharing, enhancing both security and user control.
+
+Use OAuth if your application requires other users to sign in.
+Redirect URL is mandatory to enable OAuth on your app.
+
+URL Configuration
+To set up OAuth for your app, specify the URL where users should be redirected after authorisation.
+
+https://bye-boots-yacht-dynamic.trycloudflare.com/callback
+If your app includes verification logic, enter the email verification URL below (e.g. for account opening, verification, and password reset):
+
+https://bye-boots-yacht-dynamic.trycloudflare.com/callback
+Once set, this URL can't be removed, but you can update it anytime. We'll use it for email verification. If left blank, we'll use the redirect URL instead.
+
+Scopes of authorisation
+Select the scope for your app:
+
+
+Read:You'll have full access to your clients' information.
+
+
+Trade:You'll be able to buy and sell contracts on your clients' behalf.
+
+
+Trading information:You'll be able to view your clients' trading information, including their account balance.
+
+
+Payments:You'll be able to perform deposits and withdrawals on your clients' behalf.
+
+
+Admin:Full account access, including the access to manage security tokens.
+
+Grant admin access only when it's essential for your app's workflow.
+
+
+Cancel
+
+
+Update application
