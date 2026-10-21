@@ -1,9 +1,12 @@
 .neto-header {
+    position: relative;
+    z-index: 20;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 1.6rem;
-    padding: 1.2rem;
+    min-height: 6.4rem;
+    padding: 0.8rem 2.4rem;
     border-bottom: 1px solid var(--general-section-1);
     background: var(--general-main-1);
     color: var(--text-prominent);
@@ -12,8 +15,7 @@
     &__account {
         display: flex;
         align-items: center;
-        flex-wrap: wrap;
-        gap: 1.2rem;
+        gap: 1.6rem;
     }
     a {
         color: var(--text-prominent);
@@ -22,73 +24,202 @@
     &__account {
         margin-inline-start: auto;
     }
-    &__trading-account {
-        display: grid;
-        gap: 0.6rem;
-        padding: 0.8rem 1.2rem;
-        border: 1px solid var(--general-section-1);
-        border-radius: 0.8rem;
-        min-width: 0;
+    button,
+    &__signup {
+        padding: 0.8rem 1.6rem;
+        border: 1px solid transparent;
+        border-radius: 0.6rem;
+        cursor: pointer;
+        font: inherit;
+        background: #ff444f;
+        color: #fff;
     }
-    &__account-summary {
+    button:focus-visible,
+    summary:focus-visible,
+    a:focus-visible {
+        outline: 2px solid #85acff;
+        outline-offset: 3px;
+    }
+    &__account-menu {
+        position: relative;
+    }
+    &__account-trigger {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 1.2rem;
+        gap: 1rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 0.8rem;
+        list-style: none;
+        cursor: pointer;
+        user-select: none;
+        &::-webkit-details-marker {
+            display: none;
+        }
+        &:hover {
+            background: var(--general-section-1);
+        }
     }
-    &__account-type {
-        padding: 0.4rem 0.8rem;
-        border-radius: 0.4rem;
-        font-size: 1.2rem;
+    &__currency-icon {
+        display: block;
+        width: 3.2rem;
+        height: 3.2rem;
+        flex: 0 0 3.2rem;
+        border-radius: 50%;
+        box-shadow: 0 0 0 1px rgb(128 128 128 / 16%);
+    }
+    &__currency-code {
+        display: grid;
+        place-items: center;
+        background: #e8efff;
+        color: #294c91;
+        font-size: 1rem;
         font-weight: 700;
+    }
+    &__account-caption {
+        display: flex;
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+    &__balance {
+        white-space: nowrap;
+        font-size: 1.4rem;
+        line-height: 1.8rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    &__account-badge {
+        padding: 0.1rem 0.6rem;
+        border-radius: 0.4rem;
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1.4rem;
         &--demo {
-            background: #e7f2ff;
-            color: #1859a6;
+            background: #fff0d2;
+            color: #8a5700;
         }
         &--real {
-            background: #e1f5eb;
+            background: #def5e9;
             color: #166543;
         }
     }
-    &__balance {
-        font-size: 1.6rem;
-        font-variant-numeric: tabular-nums;
+    &__chevron {
+        width: 0.8rem;
+        height: 0.8rem;
+        flex: 0 0 0.8rem;
+        border-right: 1.5px solid currentColor;
+        border-bottom: 1.5px solid currentColor;
+        transform: rotate(45deg);
+        margin-inline-start: 0.8rem;
+        transition: transform 150ms ease;
     }
-    &__account-switcher {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.8rem;
-        font-size: 1.2rem;
-        select {
-            max-width: 100%;
-            min-width: 0;
-            background: var(--general-main-1);
-            color: var(--text-prominent);
+    &__account-menu[open] &__chevron {
+        transform: rotate(225deg);
+    }
+    &__account-dropdown {
+        position: absolute;
+        inset-inline-end: 0;
+        top: calc(100% + 1.2rem);
+        width: 30rem;
+        max-width: calc(100vw - 2.4rem);
+        max-height: 70vh;
+        overflow-y: auto;
+        padding: 0.8rem;
+        border: 1px solid var(--general-section-1);
+        border-radius: 1.2rem;
+        background: var(--general-main-1);
+        box-shadow: 0 8px 32px rgb(0 0 0 / 16%);
+    }
+    &__dropdown-title {
+        padding: 1.2rem;
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+    &__account-group {
+        padding: 0.4rem 0 0.8rem;
+        h2 {
+            margin: 0;
+            padding: 0.8rem 1.2rem;
+            color: var(--text-less-prominent);
+            font-size: 1.2rem;
+            font-weight: 500;
         }
     }
-    button,
-    select,
-    &__signup {
-        padding: 0.8rem 1.2rem;
-        border: 1px solid var(--general-section-1);
-        border-radius: 0.6rem;
-        cursor: pointer;
+    button.neto-header__account-option {
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+        width: 100%;
+        padding: 1.2rem;
+        border-radius: 0.8rem;
+        background: transparent;
+        color: var(--text-prominent);
+        text-align: start;
+        &:hover {
+            background: var(--general-section-1);
+        }
+        &--selected {
+            border-color: #ff444f;
+        }
     }
-    button,
-    &__signup {
-        background: #ff444f;
-        color: #fff !important;
+    &__option-caption {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        span {
+            font-size: 1.2rem;
+            color: var(--text-less-prominent);
+        }
+    }
+    &__selected-check {
+        margin-inline-start: auto;
+        color: #ff444f;
+        font-weight: 700;
+    }
+    button.neto-header__logout {
+        width: 100%;
+        margin-top: 0.4rem;
+        padding: 1.2rem;
+        border-top: 1px solid var(--general-section-1);
+        border-radius: 0;
+        background: transparent;
+        color: var(--text-prominent);
+        text-align: start;
+        &:hover {
+            color: #ff444f;
+        }
+    }
+    &__empty-account {
+        padding: 1.2rem;
+        line-height: 1.5;
     }
     &__error {
         width: 100%;
         color: var(--text-loss-danger);
     }
     @media (max-width: 600px) {
-        &__account {
+        gap: 0.8rem;
+        padding: 0.8rem 1.2rem;
+        nav {
+            order: 3;
             width: 100%;
+            padding-top: 0.8rem;
+            border-top: 1px solid var(--general-section-1);
+            font-size: 1.2rem;
+        }
+        &__account {
+            gap: 0.6rem;
+        }
+        &__balance {
+            font-size: 1.2rem;
+        }
+        &__chevron {
             margin-inline-start: 0;
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &__chevron {
+            transition: none;
         }
     }
 }
