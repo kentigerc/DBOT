@@ -56,13 +56,18 @@ const AppHeader = observer(() => {
                 {session.authenticated ? (
                     <details className='neto-header__account-menu' ref={accountMenu}>
                         <summary className='neto-header__account-trigger'>
-                            {currency === 'USD' ? (
-                                <img className='neto-header__currency-icon' src='/currency-usd.svg' alt='US dollar' />
-                            ) : (
-                                <span className='neto-header__currency-icon neto-header__currency-code'>
-                                    {currency || '—'}
-                                </span>
-                            )}
+                            {activeAccount?.account_type === 'real' &&
+                                (currency === 'USD' ? (
+                                    <img
+                                        className='neto-header__currency-icon'
+                                        src='/currency-usd.svg'
+                                        alt='US dollar'
+                                    />
+                                ) : (
+                                    <span className='neto-header__currency-icon neto-header__currency-code'>
+                                        {currency || '—'}
+                                    </span>
+                                ))}
                             <span className='neto-header__account-caption'>
                                 <strong className='neto-header__balance'>
                                     {formattedBalance} {currency}
@@ -111,17 +116,18 @@ const AppHeader = observer(() => {
                                                         window.location.assign('/');
                                                     }}
                                                 >
-                                                    {account.currency === 'USD' ? (
-                                                        <img
-                                                            className='neto-header__currency-icon'
-                                                            src='/currency-usd.svg'
-                                                            alt=''
-                                                        />
-                                                    ) : (
-                                                        <span className='neto-header__currency-icon neto-header__currency-code'>
-                                                            {account.currency}
-                                                        </span>
-                                                    )}
+                                                    {type === 'real' &&
+                                                        (account.currency === 'USD' ? (
+                                                            <img
+                                                                className='neto-header__currency-icon'
+                                                                src='/currency-usd.svg'
+                                                                alt=''
+                                                            />
+                                                        ) : (
+                                                            <span className='neto-header__currency-icon neto-header__currency-code'>
+                                                                {account.currency}
+                                                            </span>
+                                                        ))}
                                                     <span className='neto-header__option-caption'>
                                                         <strong>
                                                             {account.currency} {type === 'demo' ? 'Demo' : 'Real'}
