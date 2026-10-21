@@ -4,13 +4,16 @@ import { Link } from 'react-router-dom';
 import { CurrencyIcon } from '@/components/currency/currency-icon';
 import { api_base } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
+import useThemeSwitcher from '@/hooks/useThemeSwitcher';
 import { getDerivSession, logoutDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/deriv-session';
 import { affiliate_signup_url } from '@/utils/site-config';
+import { LegacyThemeDarkIcon, LegacyThemeLightIcon } from '@deriv/quill-icons/Legacy';
 import { AppLogo } from '../app-logo';
 import './neto-header.scss';
 
 const AppHeader = observer(() => {
     const { client } = useStore() ?? {};
+    const { is_dark_mode_on, toggleTheme } = useThemeSwitcher();
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
     const accountMenu = useRef<HTMLDetailsElement>(null);
@@ -72,6 +75,22 @@ const AppHeader = observer(() => {
             <nav aria-label='Main navigation'>
                 <Link to='/#bot_builder'>Bot Builder</Link>
                 <Link to='/free-bots'>Trading Bots</Link>
+                <button
+                    type='button'
+                    className='neto-header__theme-toggle'
+                    role='switch'
+                    aria-label='Dark mode'
+                    aria-checked={is_dark_mode_on}
+                    title={is_dark_mode_on ? 'Switch to light mode' : 'Switch to dark mode'}
+                    onClick={toggleTheme}
+                >
+                    <span className='neto-header__theme-sun' aria-hidden='true'>
+                        <LegacyThemeLightIcon iconSize='xs' />
+                    </span>
+                    <span className='neto-header__theme-moon' aria-hidden='true'>
+                        <LegacyThemeDarkIcon iconSize='xs' />
+                    </span>
+                </button>
             </nav>
             <div className='neto-header__account'>
                 {session.authenticated ? (
