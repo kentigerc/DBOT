@@ -37,16 +37,16 @@ Do not run a build concurrently with the development server: they may share gene
 
 ## Deploy on Render
 
-`render.yaml` describes a Node web service with WebSocket support, an automatically generated session secret and the NetoAcademy domain. It selects the paid Starter plan to avoid free-service sleep; creating a service and accepting charges require the owner's action. No hosting service or charge was created by these changes.
+`render.yaml` selects Render's Free plan for previewing the site, with WebSocket support and an automatically generated session secret. Free services sleep when idle; use an always-on paid plan for continuous trading.
 
-1. Push the reviewed changes to the repository and connect it to a Render Blueprint.
-2. Review the service and plan. Render builds with `npm ci && npm run build` and starts `npm run start:production`.
-3. Confirm `NETO_ORIGIN=https://netoacademy.com`. Keep Render's generated `NETO_SESSION_SECRET` private and persistent; changing it signs users out.
-4. Add the DNS records Render provides at the domain registrar. Wait for domain verification and HTTPS to become active. This repository does not register the domain or configure DNS.
-5. In the Deriv dashboard, verify the app is an OAuth2 application with the exact production callback above and the `trade` scope.
-6. Open the domain, log in yourself, select a demo account, import a bot and test a demo trade through its lifecycle before allowing real trading. Confirm partner attribution/markup in the Deriv dashboard.
+1. Connect the repository's `main` branch to a Render Blueprint and confirm the plan says Free before deploying.
+2. Render builds with `npm ci && npm run build` and starts `npm run start:production`.
+3. The server automatically uses Render's `RENDER_EXTERNAL_URL` as its origin. If you previously set `NETO_ORIGIN=https://netoacademy.com`, remove that override for the preview. Keep the generated `NETO_SESSION_SECRET` private and persistent.
+4. Copy the actual HTTPS `.onrender.com` address from Render. In the Deriv dashboard, register that exact address followed by `/callback` for the OAuth2 app with the `trade` scope.
+5. Open the Render address, log in yourself, select a demo account, import a bot and test a demo trade through its lifecycle before allowing real trading. Confirm partner attribution/markup in the Deriv dashboard.
+6. When the custom domain is registered, add it in Render, configure its DNS and set `NETO_ORIGIN=https://netoacademy.com`. Keep the production callback registered in Deriv.
 
-The static-only Cloudflare/Vercel configurations inherited from the template do not run this backend. Use the Render service for this integration. The app intentionally uses the NetoAcademy production Origin; login on an alternate Render subdomain will need a separately registered callback and a matching `NETO_ORIGIN`.
+The static-only Cloudflare/Vercel configurations inherited from the template do not run this backend. Use the Render service for this integration.
 
 For another Node host, build then run `npm start`, set `NETO_ORIGIN` and a private `NETO_SESSION_SECRET` of at least 32 bytes, route HTTPS and WebSocket upgrades to its `PORT`, and preserve cookies. `/api/health` is the health-check path. TLS verification remains enabled for Deriv requests; the server supports an HTTPS proxy through `HTTPS_PROXY` when present.
 

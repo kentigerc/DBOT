@@ -2,16 +2,12 @@ services:
     - type: web
       name: netoacademy
       runtime: node
-      plan: starter
+      plan: free
       buildCommand: npm ci && npm run build
       startCommand: npm run start:production
       healthCheckPath: /api/health
-      domains:
-          - netoacademy.com
       envVars:
           - key: NODE_VERSION
             value: 20.20.1
-          - key: NETO_ORIGIN
-            value: https://netoacademy.com
           - key: NETO_SESSION_SECRET
             generateValue: true

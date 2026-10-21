@@ -8,7 +8,7 @@ const { fetch: proxyFetch, ProxyAgent } = require('undici');
 const { attachSockets } = require('./socket.cjs');
 
 const development = process.argv.includes('--dev');
-const origin = process.env.NETO_ORIGIN || (development ? 'http://localhost:5000' : 'https://netoacademy.com');
+const origin = process.env.NETO_ORIGIN || (development ? 'http://localhost:5000' : process.env.RENDER_EXTERNAL_URL || 'https://netoacademy.com');
 const secret = process.env.NETO_SESSION_SECRET || (development ? randomBytes(48).toString('base64url') : undefined);
 const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
 const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
