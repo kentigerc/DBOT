@@ -97,4 +97,53 @@ describe('new Deriv API wire compatibility', () => {
         });
         expect(fromNewApiResponse({ proposal: { id: 'quote' } }).proposal.ask_price).toBeUndefined();
     });
+    it('populates transaction display fields from numeric contract ticks', () => {
+        const data = {
+            proposal_open_contract: { entry_tick: 123.45, entry_tick_time: 100, exit_tick: 124.5, exit_tick_time: 105 },
+        };
+        expect(fromNewApiResponse(data).proposal_open_contract).toMatchObject({
+            entry_tick_display_value: '123.45',
+            entry_spot: 123.45,
+            exit_tick_display_value: '124.5',
+            exit_spot: 124.5,
+            entry_tick_time: 100,
+            exit_tick_time: 105,
+        });
+        expect(data.proposal_open_contract).not.toHaveProperty('entry_tick_display_value');
+    });
+    it('maps spot aliases to engine ticks while preserving supplied display precision', () => {
+        expect(
+            fromNewApiResponse({
+                proposal_open_contract: {
+                    entry_spot: '123.450',
+                    entry_spot_time: 100,
+                    exit_spot: '124.500',
+                    exit_spot_time: 105,
+                },
+            }).proposal_open_contract
+        ).toMatchObject({
+            entry_tick: 123.45,
+            entry_tick_display_value: '123.450',
+            entry_tick_time: 100,
+            exit_tick: 124.5,
+            exit_tick_display_value: '124.500',
+            exit_tick_time: 105,
+        });
+        expect(
+            fromNewApiResponse({
+                proposal_open_contract: {
+                    entry_tick: 123.45,
+                    entry_tick_display_value: '123.4500',
+                },
+            }).proposal_open_contract.entry_tick_display_value
+        ).toBe('123.4500');
+    });
+    it('keeps pending entry and exit spots empty instead of using the current market price', () => {
+        const contract = fromNewApiResponse({
+            proposal_open_contract: { entry_tick: null, exit_spot: null, current_spot: '123.45' },
+        }).proposal_open_contract;
+        expect(contract.entry_tick_display_value).toBeUndefined();
+        expect(contract.exit_tick_display_value).toBeUndefined();
+        expect(contract.current_spot).toBe(123.45);
+    });
 });

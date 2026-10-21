@@ -75,6 +75,23 @@ export function fromNewApiResponse(data, original, accountId) {
                 response[key][field] = Number(value);
         }
         if (key === 'proposal_open_contract') {
+            const contract = response[key];
+            for (const phase of ['entry', 'exit']) {
+                const tick = `${phase}_tick`;
+                const spot = `${phase}_spot`;
+                const value = contract[tick] ?? contract[spot];
+                if (value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value))) {
+                    // New responses may omit the legacy display fields used by the transaction table.
+                    // Preserve server-provided precision; do not invent a spot before Deriv supplies it.
+                    const display =
+                        contract[`${tick}_display_value`] ?? contract[`${spot}_display_value`] ?? String(value);
+                    contract[tick] = Number(value);
+                    contract[spot] ??= Number(value);
+                    contract[`${tick}_display_value`] = display;
+                    contract[`${spot}_display_value`] ??= display;
+                }
+                contract[`${tick}_time`] ??= contract[`${spot}_time`];
+            }
             response[key].sell_spot = response[key].exit_spot ?? response[key].sell_spot;
             response[key].sell_spot_time = response[key].exit_spot_time ?? response[key].sell_spot_time;
         }
