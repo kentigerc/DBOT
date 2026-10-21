@@ -14,6 +14,26 @@ const AppHeader = observer(() => {
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
     const accountMenu = useRef<HTMLDetailsElement>(null);
+    const headerRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        const header = headerRef.current;
+        if (!header) return;
+        const measure = () => {
+            document.documentElement.style.setProperty(
+                '--neto-header-height',
+                `${header.getBoundingClientRect().height}px`
+            );
+        };
+        measure();
+        const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : undefined;
+        resizeObserver?.observe(header);
+        window.addEventListener('resize', measure);
+        return () => {
+            resizeObserver?.disconnect();
+            window.removeEventListener('resize', measure);
+            document.documentElement.style.removeProperty('--neto-header-height');
+        };
+    }, []);
     useEffect(() => {
         const close = (event: PointerEvent) => {
             if (accountMenu.current && !accountMenu.current.contains(event.target as Node))
@@ -47,7 +67,7 @@ const AppHeader = observer(() => {
         ? new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(balance)
         : '—';
     return (
-        <header className='neto-header'>
+        <header className='neto-header' ref={headerRef}>
             <AppLogo />
             <nav aria-label='Main navigation'>
                 <Link to='/#bot_builder'>Bot Builder</Link>

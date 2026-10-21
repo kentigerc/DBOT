@@ -454,3 +454,15 @@
         }
     }
 }
+
+// Keep the mobile panel's handle below the full NetoAcademy header, including wrapped navigation.
+.run-panel.dc-drawer {
+    @include mobile-or-tablet-screen {
+        top: var(--neto-header-height, 6.4rem) !important;
+        height: calc(100% - var(--neto-header-height, 6.4rem) - 6.2rem) !important;
+        transform: translateY(calc(100% - 3.6rem));
+        &.dc-drawer--open {
+            transform: none;
+        }
+    }
+}
