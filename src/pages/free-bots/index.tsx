@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useNavigate } from 'react-router-dom';
+import { DBOT_TABS } from '@/constants/bot-contents';
 import { useStore } from '@/hooks/useStore';
 import './free-bots.scss';
 
@@ -115,7 +116,7 @@ const BOTS: Bot[] = [
 ];
 
 const FreeBots = observer(() => {
-    const { dashboard } = useStore();
+    const { dashboard, run_panel } = useStore();
     const navigate = useNavigate();
     const [error, setError] = useState('');
     const [loadingBotId, setLoadingBotId] = useState<string | null>(null);
@@ -123,18 +124,20 @@ const FreeBots = observer(() => {
 
     const categories = ['All', ...Array.from(new Set(BOTS.map(bot => bot.category)))];
 
-    const filteredBots = selectedCategory === 'All' 
-        ? BOTS 
-        : BOTS.filter(bot => bot.category === selectedCategory);
+    const filteredBots = selectedCategory === 'All' ? BOTS : BOTS.filter(bot => bot.category === selectedCategory);
 
     const loadBot = async (bot: Bot) => {
+        if (run_panel.is_running) {
+            setError('Stop your running bot before loading another bot.');
+            return;
+        }
         try {
             setLoadingBotId(bot.id);
-            
+
             setError('');
             // Load after the builder mounts and initializes its workspace.
             sessionStorage.setItem('neto.pendingBot', JSON.stringify({ fileName: bot.fileName, name: bot.name }));
-            dashboard.setActiveTab(1);
+            dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
             navigate('/#bot_builder');
         } catch (error) {
             setError(error instanceof Error ? error.message : 'Unable to open this bot. Please try again.');
@@ -185,8 +188,15 @@ const FreeBots = observer(() => {
                             ) : (
                                 <>
                                     <span>{bot.unavailableReason ? 'Needs compatible XML' : 'Load Bot'}</span>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                                    <svg
+                                        width='16'
+                                        height='16'
+                                        viewBox='0 0 24 24'
+                                        fill='none'
+                                        stroke='currentColor'
+                                        strokeWidth='2'
+                                    >
+                                        <path d='M5 12h14M12 5l7 7-7 7' />
                                     </svg>
                                 </>
                             )}
