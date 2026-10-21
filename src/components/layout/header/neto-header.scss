@@ -84,21 +84,6 @@
         font-weight: 700;
         font-variant-numeric: tabular-nums;
     }
-    &__account-badge {
-        padding: 0.1rem 0.6rem;
-        border-radius: 0.4rem;
-        font-size: 1rem;
-        font-weight: 700;
-        line-height: 1.4rem;
-        &--demo {
-            background: #fff0d2;
-            color: #8a5700;
-        }
-        &--real {
-            background: #def5e9;
-            color: #166543;
-        }
-    }
     &__chevron {
         width: 0.8rem;
         height: 0.8rem;

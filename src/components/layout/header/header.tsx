@@ -70,15 +70,7 @@ const AppHeader = observer(() => {
                                 <strong className='neto-header__balance'>
                                     {formattedBalance} {currency}
                                 </strong>
-                                <span
-                                    className={`neto-header__account-badge neto-header__account-badge--${activeAccount?.account_type || 'none'}`}
-                                >
-                                    {activeAccount
-                                        ? activeAccount.account_type === 'demo'
-                                            ? 'Demo'
-                                            : 'Real'
-                                        : 'No account'}
-                                </span>
+                                {!activeAccount && <span>No account</span>}
                             </span>
                             <span className='neto-header__chevron' aria-hidden='true' />
                         </summary>
