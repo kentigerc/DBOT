@@ -1,0 +1,42 @@
+name: NetoAcademy CI
+
+on:
+    push:
+    pull_request:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: netoacademy-ci-${{ github.head_ref || github.ref_name }}
+    cancel-in-progress: true
+
+jobs:
+    build-and-test:
+        name: Build and test
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20.20.1'
+                  cache: npm
+
+            - name: Install locked dependencies
+              run: npm ci
+
+            - name: Test OAuth and WebSocket server
+              run: npm run test:server
+
+            - name: Test application
+              run: npm test -- --ci --maxWorkers=2
+
+            - name: Build production application
+              run: npm run build
