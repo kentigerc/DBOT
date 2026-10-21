@@ -12,3 +12,63 @@
         text-decoration: none;
     }
 }
+
+.app-header {
+    &__branding {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        flex-shrink: 0;
+    }
+    &__powered-by {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        color: var(--text-less-prominent);
+        font-size: 0.9rem;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    &__provider {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: var(--text-general);
+        font-size: 1.1rem;
+        font-weight: 600;
+        img {
+            display: block;
+            flex-shrink: 0;
+        }
+    }
+    @media (max-width: 600px) {
+        &__logo {
+            padding-inline-start: 0;
+            padding-inline-end: 0.8rem;
+            font-size: 1.6rem;
+        }
+    }
+    @media (max-width: 360px) {
+        &__branding {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.2rem;
+        }
+        &__powered-by {
+            flex-direction: row;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+        }
+        &__provider {
+            font-size: 0.9rem;
+            img {
+                width: 11px;
+                height: 11px;
+            }
+        }
+        &__logo {
+            height: 24px;
+        }
+    }
+}
