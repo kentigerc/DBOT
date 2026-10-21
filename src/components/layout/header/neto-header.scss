@@ -46,7 +46,7 @@
     &__account-trigger {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.8rem;
         padding: 0.6rem 0.8rem;
         border-radius: 0.8rem;
         list-style: none;
@@ -62,13 +62,13 @@
     &__currency-icon {
         display: grid;
         place-items: center;
-        width: 3.2rem;
-        height: 3.2rem;
-        flex: 0 0 3.2rem;
+        width: 2.4rem;
+        height: 2.4rem;
+        flex: 0 0 2.4rem;
         border-radius: 50%;
         svg {
-            width: 3.2rem;
-            height: 3.2rem;
+            width: 2.4rem;
+            height: 2.4rem;
         }
     }
     &__account-caption {
