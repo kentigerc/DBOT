@@ -38,6 +38,22 @@ export function fromNewApiResponse(data, original, accountId) {
             submarket_display_name: symbol.submarket?.replaceAll('_', ' '),
             subgroup_display_name: symbol.subgroup?.replaceAll('_', ' '),
         }));
+    if (Array.isArray(response.trading_times?.markets))
+        response.trading_times = {
+            ...response.trading_times,
+            markets: response.trading_times.markets.map(market => ({
+                ...market,
+                submarkets: (market.submarkets || []).map(submarket => ({
+                    ...submarket,
+                    symbols: (submarket.symbols || []).map(symbol => ({
+                        ...symbol,
+                        symbol: symbol.underlying_symbol ?? symbol.symbol,
+                        // The new API omits events when there are no market holidays.
+                        events: symbol.events ?? [],
+                    })),
+                })),
+            })),
+        };
     if (response.transaction?.underlying_symbol)
         response.transaction = { ...response.transaction, symbol: response.transaction.underlying_symbol };
     if (response.balance && accountId) response.balance = { ...response.balance, loginid: accountId };

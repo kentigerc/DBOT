@@ -1,6 +1,31 @@
 import { fromNewApiResponse, toNewApiRequest } from '../new-api-transport';
 
 describe('new Deriv API wire compatibility', () => {
+    it('restores chart trading-time identifiers and empty holidays without changing market schedules', () => {
+        const times = { open: ['00:00:00'], close: ['23:59:59'] };
+        const events = [{ dates: '2026-12-25', descrip: 'Christmas Day' }];
+        const original = {
+            trading_times: {
+                markets: [
+                    {
+                        name: 'Markets',
+                        submarkets: [
+                            {
+                                symbols: [
+                                    { underlying_symbol: 'R_100', times, trading_days: ['Mon', 'Tue'] },
+                                    { underlying_symbol: 'frxEURUSD', times, events },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+        const symbols = fromNewApiResponse(original).trading_times.markets[0].submarkets[0].symbols;
+        expect(symbols[0]).toMatchObject({ symbol: 'R_100', events: [], times, trading_days: ['Mon', 'Tue'] });
+        expect(symbols[1]).toMatchObject({ symbol: 'frxEURUSD', events, times });
+        expect(original.trading_times.markets[0].submarkets[0].symbols[0]).not.toHaveProperty('events');
+    });
     it('translates direct buys without mutating the bot trade options', () => {
         const original = {
             buy: 1,
