@@ -5,7 +5,7 @@ const useThemeSwitcher = () => {
     const { ui } = useStore() ?? {
         ui: {
             setDarkMode: () => {},
-            is_dark_mode_on: false,
+            is_dark_mode_on: true,
         },
     };
     const { setDarkMode, is_dark_mode_on } = ui;

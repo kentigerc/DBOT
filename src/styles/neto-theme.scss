@@ -1,0 +1,94 @@
+// NetoAcademy's cinema-inspired palette. Trading status colours retain their meaning.
+:root body.theme--dark,
+:root body.theme--light {
+    --brand-red-coral: #e50914;
+    --button-primary-default: #e50914;
+    --button-primary-hover: #c40812;
+    --button-primary-light-default: rgb(229 9 20 / 12%);
+    --button-primary-light-hover: rgb(229 9 20 / 20%);
+}
+
+:root body.theme--dark {
+    color-scheme: dark;
+    color: #eee;
+    --general-main-1: #141414;
+    --general-main-2: #1e1e1e;
+    --general-main-3: #252525;
+    --general-main-4: rgb(255 255 255 / 6%);
+    --general-section-1: #303030;
+    --general-section-2: #252525;
+    --general-section-3: #1a1a1a;
+    --general-section-4: #202020;
+    --general-section-5: #303030;
+    --general-section-6: #252525;
+    --general-hover: #303030;
+    --general-active: #383838;
+    --general-disabled: #282828;
+    --text-prominent: #fff;
+    --text-general: #eee;
+    --text-less-prominent: #b8b8b8;
+    --text-disabled: #929292;
+    --text-placeholder: #aaa;
+    --border-normal: #3b3b3b;
+    --border-divider: #303030;
+    --border-hover: #777;
+    --state-normal: #1e1e1e;
+    --state-hover: #303030;
+    --state-active: #383838;
+    --fill-normal: #141414;
+    --fill-normal-1: #1e1e1e;
+    --shadow-menu: rgb(0 0 0 / 60%);
+    --shadow-drop: rgb(0 0 0 / 50%);
+    --button-secondary-default: #b8b8b8;
+    --button-secondary-hover: rgb(255 255 255 / 10%);
+
+    .neto-header {
+        background: #0b0b0b;
+        border-bottom-color: #292929;
+    }
+
+    .app-header__logo {
+        color: #e50914;
+        letter-spacing: -0.5px;
+    }
+
+    .neto-header nav a {
+        color: #ddd;
+        transition: color 150ms ease;
+        &:hover {
+            color: #fff;
+        }
+    }
+
+    .neto-header__account-dropdown {
+        background: #1e1e1e;
+        border-color: #383838;
+        box-shadow: 0 16px 48px rgb(0 0 0 / 60%);
+    }
+
+    .app-footer {
+        background: #0b0b0b;
+    }
+
+    .free-bots {
+        background: radial-gradient(ellipse at 50% 0, rgb(229 9 20 / 9%), transparent 55%);
+    }
+
+    .free-bots__title {
+        background: none;
+        color: #fff;
+        -webkit-text-fill-color: currentColor;
+        letter-spacing: -0.8px;
+    }
+
+    .free-bots__card {
+        box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+        &:hover {
+            box-shadow: 0 12px 32px rgb(0 0 0 / 40%);
+        }
+    }
+}
+
+:root body.theme--light {
+    color-scheme: light;
+}

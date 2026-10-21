@@ -14,7 +14,7 @@
         font-weight: 700;
         margin-bottom: 12px;
         color: var(--text-general);
-        background: linear-gradient(135deg, var(--brand-red-coral) 0%, #ff6b6b 100%);
+        background: var(--brand-red-coral);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -70,8 +70,8 @@
     }
 
     &__card {
-        background: var(--general-main-1);
-        border-radius: 16px;
+        background: var(--general-main-2);
+        border-radius: 12px;
         padding: 24px;
         box-shadow: 0 4px 20px rgb(0 0 0 / 8%);
         border: 1px solid var(--border-normal);
@@ -130,7 +130,7 @@
         gap: 8px;
         width: 100%;
         padding: 12px 20px;
-        background: linear-gradient(135deg, var(--brand-red-coral) 0%, #ff6b6b 100%);
+        background: var(--brand-red-coral);
         color: white;
         border: none;
         border-radius: 8px;

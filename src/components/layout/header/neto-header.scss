@@ -4,6 +4,7 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
+    flex-shrink: 0;
     gap: 1.6rem;
     min-height: 6.4rem;
     padding: 0.8rem 2.4rem;
@@ -31,13 +32,16 @@
         border-radius: 0.6rem;
         cursor: pointer;
         font: inherit;
-        background: #ff444f;
+        background: var(--brand-red-coral);
         color: #fff;
+        &:hover {
+            background: var(--button-primary-hover);
+        }
     }
     button:focus-visible,
     summary:focus-visible,
     a:focus-visible {
-        outline: 2px solid #85acff;
+        outline: 2px solid var(--brand-red-coral);
         outline-offset: 3px;
     }
     &__account-menu {
@@ -140,7 +144,7 @@
             background: var(--general-section-1);
         }
         &--selected {
-            border-color: #ff444f;
+            border-color: var(--brand-red-coral);
         }
     }
     &__option-caption {
@@ -154,7 +158,7 @@
     }
     &__selected-check {
         margin-inline-start: auto;
-        color: #ff444f;
+        color: var(--brand-red-coral);
         font-weight: 700;
     }
     button.neto-header__logout {
@@ -167,7 +171,7 @@
         color: var(--text-prominent);
         text-align: start;
         &:hover {
-            color: #ff444f;
+            color: var(--brand-red-coral);
         }
     }
     &__empty-account {

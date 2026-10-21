@@ -10,7 +10,7 @@
         <link rel="manifest" href="/manifest.json" />
 
         <!-- PWA Meta Tags -->
-        <meta name="theme-color" content="#ff444f" />
+        <meta name="theme-color" content="#141414" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="NetoAcademy" />
@@ -42,7 +42,17 @@
         </style>
     </head>
 
-    <body class="body theme theme--light">
+    <body class="body theme theme--dark">
+        <script>
+            // Apply saved appearance before the first app frame; default to the dark NetoAcademy palette.
+            try {
+                if (localStorage.getItem('theme') === 'light') {
+                    document.body.classList.replace('theme--dark', 'theme--light');
+                }
+            } catch {
+                // Retain the default appearance when browser storage is unavailable.
+            }
+        </script>
         <div id="modal_root" class="modal-root"></div>
         <div id="popup_root" class="popup-root"></div>
         <div id="root">
