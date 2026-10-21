@@ -1,0 +1,135 @@
+.neto-welcome {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    isolation: isolate;
+    padding: 24px;
+    background: #030b09;
+    color: #effff7;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    text-align: center;
+}
+.neto-welcome::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(ellipse at center, rgb(3 11 9 / 15%) 0%, #030b09 85%);
+    pointer-events: none;
+}
+.neto-welcome__rain {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    opacity: 0.65;
+    user-select: none;
+    pointer-events: none;
+}
+.neto-welcome__stream {
+    position: absolute;
+    top: -110vh;
+    left: var(--x);
+    height: 220vh;
+    width: 20px;
+    overflow: hidden;
+    color: #28db80;
+    font: 15px/1.7 monospace;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 8px;
+    white-space: nowrap;
+    opacity: var(--opacity);
+    text-shadow: 0 0 10px rgb(40 219 128 / 45%);
+    animation: neto-binary-flow var(--duration) linear var(--delay) infinite;
+    mask-image: linear-gradient(transparent, #000 25%, #000 80%, transparent);
+}
+.neto-welcome__panel {
+    box-sizing: border-box;
+    width: min(100%, 580px);
+    padding: 48px 32px 32px;
+    border: 1px solid rgb(108 239 172 / 24%);
+    border-radius: 24px;
+    background: rgb(5 21 16 / 88%);
+    box-shadow:
+        0 24px 100px rgb(0 0 0 / 50%),
+        0 0 70px rgb(40 219 128 / 7%);
+    backdrop-filter: blur(12px);
+}
+.neto-welcome__eyebrow {
+    margin: 0 0 24px;
+    color: #70e7a8;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 4px;
+}
+.neto-welcome__title {
+    margin: 0;
+    color: #effff7;
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    line-height: 1.18;
+    letter-spacing: -1.4px;
+}
+.neto-welcome__title span {
+    display: block;
+    margin-top: 8px;
+    color: #70e7a8;
+}
+.neto-welcome__message {
+    margin: 24px 0 32px;
+    color: #d4e8dc;
+    font-size: clamp(16px, 3vw, 20px);
+    font-weight: 400;
+    letter-spacing: 1px;
+}
+.neto-welcome__status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 20px;
+    padding-top: 24px;
+    border-top: 1px solid rgb(108 239 172 / 12%);
+    color: #a1bbad;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.neto-welcome__dot {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
+    border-radius: 50%;
+    background: #70e7a8;
+    box-shadow: 0 0 10px rgb(112 231 168 / 40%);
+}
+@keyframes neto-binary-flow {
+    from {
+        transform: translateY(-35vh);
+    }
+    to {
+        transform: translateY(100vh);
+    }
+}
+@media (max-width: 480px) {
+    .neto-welcome {
+        padding: 20px;
+    }
+    .neto-welcome__panel {
+        padding: 36px 20px 24px;
+        border-radius: 18px;
+    }
+    .neto-welcome__stream {
+        font-size: 12px;
+        opacity: calc(var(--opacity) * 0.7);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .neto-welcome__stream {
+        animation: none;
+        transform: translateY(60vh);
+    }
+}
