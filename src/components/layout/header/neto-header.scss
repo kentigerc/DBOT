@@ -22,6 +22,52 @@
     &__account {
         margin-inline-start: auto;
     }
+    &__trading-account {
+        display: grid;
+        gap: 0.6rem;
+        padding: 0.8rem 1.2rem;
+        border: 1px solid var(--general-section-1);
+        border-radius: 0.8rem;
+        min-width: 0;
+    }
+    &__account-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1.2rem;
+    }
+    &__account-type {
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.4rem;
+        font-size: 1.2rem;
+        font-weight: 700;
+        &--demo {
+            background: #e7f2ff;
+            color: #1859a6;
+        }
+        &--real {
+            background: #e1f5eb;
+            color: #166543;
+        }
+    }
+    &__balance {
+        font-size: 1.6rem;
+        font-variant-numeric: tabular-nums;
+    }
+    &__account-switcher {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        font-size: 1.2rem;
+        select {
+            max-width: 100%;
+            min-width: 0;
+            background: var(--general-main-1);
+            color: var(--text-prominent);
+        }
+    }
     button,
     select,
     &__signup {

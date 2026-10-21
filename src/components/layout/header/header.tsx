@@ -19,6 +19,12 @@ const AppHeader = observer(() => {
         return () => window.removeEventListener('neto-session', update);
     }, []);
     const accounts = session.accounts.filter(account => account.status === 'active');
+    const activeAccount = accounts.find(account => account.account_id === localStorage.getItem('neto.account_id'));
+    const balance = Number(client?.is_logged_in ? client.balance : activeAccount?.balance);
+    const currency = activeAccount?.currency || '';
+    const formattedBalance = Number.isFinite(balance)
+        ? new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(balance)
+        : '—';
     return (
         <header className='neto-header'>
             <AppLogo />
@@ -30,35 +36,54 @@ const AppHeader = observer(() => {
                 {session.authenticated ? (
                     <>
                         {accounts.length ? (
-                            <label>
-                                Account{' '}
-                                <select
-                                    aria-label='Trading account'
-                                    value={localStorage.getItem('neto.account_id') || ''}
-                                    onChange={event => {
-                                        if (api_base.is_running) {
-                                            setError('Stop your bot before switching accounts.');
-                                            return;
-                                        }
-                                        localStorage.setItem('neto.account_id', event.target.value);
-                                        window.location.assign('/');
-                                    }}
-                                >
-                                    {accounts.map(account => (
-                                        <option key={account.account_id} value={account.account_id}>
-                                            {account.account_type === 'demo' ? 'Demo' : 'Real'} · {account.currency} ·{' '}
-                                            {account.account_id}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
+                            <div className='neto-header__trading-account'>
+                                {activeAccount && (
+                                    <div className='neto-header__account-summary' aria-live='polite'>
+                                        <span
+                                            className={`neto-header__account-type neto-header__account-type--${activeAccount.account_type}`}
+                                        >
+                                            {activeAccount.account_type === 'demo' ? 'Demo account' : 'Real account'}
+                                        </span>
+                                        <strong className='neto-header__balance'>
+                                            {formattedBalance} {currency}
+                                        </strong>
+                                    </div>
+                                )}
+                                <label className='neto-header__account-switcher'>
+                                    <span>Switch account</span>
+                                    <select
+                                        aria-label='Trading account'
+                                        value={localStorage.getItem('neto.account_id') || ''}
+                                        onChange={event => {
+                                            if (api_base.is_running) {
+                                                setError('Stop your bot before switching accounts.');
+                                                return;
+                                            }
+                                            localStorage.setItem('neto.account_id', event.target.value);
+                                            window.location.assign('/');
+                                        }}
+                                    >
+                                        {(['demo', 'real'] as const).map(type => {
+                                            const matching = accounts.filter(account => account.account_type === type);
+                                            return matching.length ? (
+                                                <optgroup
+                                                    key={type}
+                                                    label={type === 'demo' ? 'Demo accounts' : 'Real accounts'}
+                                                >
+                                                    {matching.map(account => (
+                                                        <option key={account.account_id} value={account.account_id}>
+                                                            {account.account_type === 'demo' ? 'Demo' : 'Real'} ·{' '}
+                                                            {account.currency} · {account.account_id}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            ) : null;
+                                        })}
+                                    </select>
+                                </label>
+                            </div>
                         ) : (
                             <span>No active Options account. Create one in Deriv to trade.</span>
-                        )}
-                        {client?.is_logged_in && (
-                            <span>
-                                {client.balance} {client.currency}
-                            </span>
                         )}
                         <button
                             onClick={() => {
