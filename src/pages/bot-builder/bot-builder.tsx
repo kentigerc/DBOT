@@ -4,6 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { botNotification } from '@/components/bot-notification/bot-notification';
 import { notification_message } from '@/components/bot-notification/bot-notification-utils';
 import { useStore } from '@/hooks/useStore';
+import { load, save_types } from '@/external/bot-skeleton';
 import { localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
 import { TBlocklyEvents } from 'Types';
@@ -24,6 +25,32 @@ const BotBuilder = observer(() => {
     const { isDesktop } = useDevice();
     const { onMount, onUnmount } = app;
     const el_ref = React.useRef<HTMLInputElement | null>(null);
+
+    const [importError, setImportError] = React.useState('');
+    const importing = React.useRef(false);
+    React.useEffect(() => {
+        const workspace = (window as any).Blockly?.derivWorkspace;
+        const pending = sessionStorage.getItem('neto.pendingBot');
+        if (!pending || is_loading || !workspace || importing.current) return;
+        importing.current = true;
+        (async () => {
+            try {
+                const bot = JSON.parse(pending);
+                if (typeof bot.fileName !== 'string' || typeof bot.name !== 'string' || bot.fileName.includes('/')) throw new Error('Invalid bot selection.');
+                const response = await fetch(`/bots/${encodeURIComponent(bot.fileName)}`);
+                if (!response.ok) throw new Error('This bot file could not be downloaded. Please choose another bot.');
+                const content = await response.text();
+                if (content.length > 2_000_000 || new DOMParser().parseFromString(content, 'text/xml').querySelector('parsererror')) throw new Error('This bot does not contain valid XML.');
+                const result = await load({ block_string: content, file_name: bot.name, workspace, from: save_types.LOCAL,
+                    drop_event: null, strategy_id: null, showIncompatibleStrategyDialog: null });
+                if (result?.error) throw new Error(result.error);
+                sessionStorage.removeItem('neto.pendingBot');
+            } catch (reason) {
+                setImportError(reason instanceof Error ? reason.message : 'Unable to import this bot.');
+                sessionStorage.removeItem('neto.pendingBot');
+            } finally { importing.current = false; }
+        })();
+    }, [is_loading]);
 
     // TODO: fix
     // const isMounted = useIsMounted();
@@ -111,6 +138,7 @@ const BotBuilder = observer(() => {
 
     return (
         <>
+            {importError && <p role='alert'>{importError}</p>}
             <div
                 className={classNames('bot-builder', {
                     'bot-builder--active': active_tab === 1 && !is_preview_on_popup,

@@ -3,14 +3,9 @@ export default class AccountLimits {
         this.ws = store.ws;
     }
     // eslint-disable-next-line default-param-last
-    getStakePayoutLimits(currency = 'AUD', landing_company_shortcode = 'svg', selected_market) {
-        return this.ws
-            .send({
-                landing_company_details: landing_company_shortcode,
-            })
-            .then(landing_company => {
-                const currency_config = landing_company?.landing_company_details?.currency_config[selected_market];
-                return currency_config ? currency_config[currency] : {};
-            });
+    getStakePayoutLimits() {
+        // The new API has no landing_company_details endpoint. There are no
+        // provider limits to display here; proposal/buy perform server validation.
+        return Promise.resolve({});
     }
 }

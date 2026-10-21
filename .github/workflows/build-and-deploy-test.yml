@@ -6,11 +6,10 @@ permissions:
     pull-requests: write # Necessary to comment on PRs
     contents: read
 
+# Legacy static preview deployment. NetoAcademy uses the Node service on Render.
+# Keep this available manually for historical use; normal PR checks run in ci.yml.
 on:
-    pull_request_target:
-        types: [opened, synchronize]
-        branches:
-            - '**'
+    workflow_dispatch:
 
 concurrency:
     group: cloudflare-pages-build-${{github.head_ref}}

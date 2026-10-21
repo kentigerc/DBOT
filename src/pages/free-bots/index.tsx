@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { observer } from 'mobx-react-lite';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/hooks/useStore';
-import { load, save_types } from '@/external/bot-skeleton';
 import './free-bots.scss';
 
 interface Bot {
@@ -11,6 +11,7 @@ interface Bot {
     fileName: string;
     category: string;
     icon: string;
+    unavailableReason?: string;
 }
 
 const BOTS: Bot[] = [
@@ -33,6 +34,7 @@ const BOTS: Bot[] = [
     {
         id: '3',
         name: 'Accumulators Pro Bot',
+        unavailableReason: 'This file needs compatible take-profit and stop-loss blocks before it can be used.',
         description: 'Professional accumulator strategy bot for consistent growth trading.',
         fileName: 'Accumulators_Pro_Bot_1765711647657.xml',
         category: 'Accumulators',
@@ -114,6 +116,8 @@ const BOTS: Bot[] = [
 
 const FreeBots = observer(() => {
     const { dashboard } = useStore();
+    const navigate = useNavigate();
+    const [error, setError] = useState('');
     const [loadingBotId, setLoadingBotId] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
@@ -127,28 +131,13 @@ const FreeBots = observer(() => {
         try {
             setLoadingBotId(bot.id);
             
-            const response = await fetch(`/bots/${bot.fileName}`);
-            if (!response.ok) {
-                throw new Error('Failed to fetch bot file');
-            }
-            
-            const xmlContent = await response.text();
-            
-            await load({
-                block_string: xmlContent,
-                file_name: bot.name,
-                workspace: (window as any).Blockly?.derivWorkspace,
-                from: save_types.LOCAL,
-                drop_event: null,
-                strategy_id: null,
-                showIncompatibleStrategyDialog: null,
-            });
-
+            setError('');
+            // Load after the builder mounts and initializes its workspace.
+            sessionStorage.setItem('neto.pendingBot', JSON.stringify({ fileName: bot.fileName, name: bot.name }));
             dashboard.setActiveTab(1);
-            window.location.hash = 'bot_builder';
-            
+            navigate('/#bot_builder');
         } catch (error) {
-            console.error('Error loading bot:', error);
+            setError(error instanceof Error ? error.message : 'Unable to open this bot. Please try again.');
         } finally {
             setLoadingBotId(null);
         }
@@ -157,12 +146,13 @@ const FreeBots = observer(() => {
     return (
         <div className='free-bots'>
             <div className='free-bots__header'>
-                <h1 className='free-bots__title'>Free Trading Bots</h1>
+                <h1 className='free-bots__title'>NetoAcademy Trading Bots</h1>
                 <p className='free-bots__subtitle'>
                     Explore our collection of pre-built trading bots. Click on any bot to load it into the Bot Builder.
                 </p>
             </div>
 
+            {error && <p role='alert'>{error}</p>}
             <div className='free-bots__categories'>
                 {categories.map(category => (
                     <button
@@ -184,16 +174,17 @@ const FreeBots = observer(() => {
                         </div>
                         <h3 className='free-bots__card-title'>{bot.name}</h3>
                         <p className='free-bots__card-description'>{bot.description}</p>
+                        {bot.unavailableReason && <p>{bot.unavailableReason}</p>}
                         <button
                             className='free-bots__card-btn'
                             onClick={() => loadBot(bot)}
-                            disabled={loadingBotId === bot.id}
+                            disabled={loadingBotId === bot.id || !!bot.unavailableReason}
                         >
                             {loadingBotId === bot.id ? (
                                 <span className='free-bots__card-btn-loading'>Loading...</span>
                             ) : (
                                 <>
-                                    <span>Load Bot</span>
+                                    <span>{bot.unavailableReason ? 'Needs compatible XML' : 'Load Bot'}</span>
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                         <path d="M5 12h14M12 5l7 7-7 7"/>
                                     </svg>

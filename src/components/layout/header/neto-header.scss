@@ -1,0 +1,48 @@
+.neto-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.6rem;
+    padding: 1.2rem;
+    border-bottom: 1px solid var(--general-section-1);
+    background: var(--general-main-1);
+    color: var(--text-prominent);
+    font-size: 1.4rem;
+    nav,
+    &__account {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1.2rem;
+    }
+    a {
+        color: var(--text-prominent);
+        text-decoration: none;
+    }
+    &__account {
+        margin-inline-start: auto;
+    }
+    button,
+    select,
+    &__signup {
+        padding: 0.8rem 1.2rem;
+        border: 1px solid var(--general-section-1);
+        border-radius: 0.6rem;
+        cursor: pointer;
+    }
+    button,
+    &__signup {
+        background: #ff444f;
+        color: #fff !important;
+    }
+    &__error {
+        width: 100%;
+        color: var(--text-loss-danger);
+    }
+    @media (max-width: 600px) {
+        &__account {
+            width: 100%;
+            margin-inline-start: 0;
+        }
+    }
+}

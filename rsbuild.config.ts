@@ -85,6 +85,9 @@ export default defineConfig({
         template: './index.html',
     },
     server: {
+        proxy: {
+            '/api': { target: 'http://127.0.0.1:3001', ws: true },
+        },
         port: 5000,
         host: '0.0.0.0',
         compress: true,
@@ -92,12 +95,27 @@ export default defineConfig({
             'Cross-Origin-Opener-Policy': 'unsafe-none',
             'Cross-Origin-Embedder-Policy': 'unsafe-none',
             'Cache-Control': 'no-cache',
+            'Referrer-Policy': 'no-referrer',
         },
     },
     dev: {
         hmr: true,
     },
     tools: {
+        postcss: {
+            postcssOptions: {
+                plugins: [{
+                    postcssPlugin: 'neto-local-assets',
+                    AtRule: {
+                        import(rule: { params: string; remove: () => void }) {
+                            // The same fonts and tokens are now bundled from npm.
+                            // Remove duplicate network imports emitted by UI dependencies.
+                            if (/fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/@deriv-com\/quill-tokens/.test(rule.params)) rule.remove();
+                        },
+                    },
+                }],
+            },
+        },
         rspack: {
             plugins: [],
             resolve: {},

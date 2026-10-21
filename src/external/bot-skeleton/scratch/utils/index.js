@@ -10,6 +10,7 @@ import { observer as globalObserver } from '../../utils/observer';
 import { removeLimitedBlocks } from '../../utils/workspace';
 import BlockConversion from '../backward-compatibility';
 import DBotStore from '../dbot-store';
+import { normalizeImportedBlocks } from '../normalize-import';
 import { saveAs } from '../shared';
 
 export const inject_workspace_options = {
@@ -155,11 +156,12 @@ export const load = async ({
     setLoading(true);
     // Delay execution to allow fully previewing previous strategy if users quickly switch between strategies.
     await delayExecution(100);
-    const showInvalidStrategyError = () => {
+    const showInvalidStrategyError = details => {
         setLoadedLocalFile(null);
         botNotification(notification_message().invalid_xml);
         setLoading(false);
-        const error_message = localize('XML file contains unsupported elements. Please check or modify file.');
+        setOpenButtonDisabled(false);
+        const error_message = details || localize('XML file contains unsupported elements. Please check or modify file.');
         globalObserver.emit('ui.log.error', error_message);
         return {
             error: error_message,
@@ -171,8 +173,6 @@ export const load = async ({
         const xmlDoc = new DOMParser().parseFromString(block_string, 'application/xml');
         if (xmlDoc.getElementsByTagName('parsererror').length) {
             return showInvalidStrategyError();
-        } else {
-            show_snackbar && botNotification(notification_message().BOT_IMPORT);
         }
     } catch (e) {
         return showInvalidStrategyError();
@@ -182,6 +182,7 @@ export const load = async ({
     // Check if XML can be parsed into a strategy.
     try {
         xml = window.Blockly.utils.xml.textToDom(block_string);
+        xml = normalizeImportedBlocks(xml);
     } catch (e) {
         return showInvalidStrategyError();
     }
@@ -195,12 +196,12 @@ export const load = async ({
     }
 
     // Check if all block types in XML are allowed.
-    const has_invalid_blocks = Array.from(blockly_xml).some(block => {
+    const invalid_blocks = Array.from(blockly_xml).map(block => {
         const block_type = block.getAttribute('type');
-        return !Object.keys(window.Blockly.Blocks).includes(block_type);
-    });
-    if (has_invalid_blocks) {
-        return showInvalidStrategyError();
+        return Object.keys(window.Blockly.Blocks).includes(block_type) ? null : block_type;
+    }).filter(Boolean);
+    if (invalid_blocks.length) {
+        return showInvalidStrategyError(`This bot uses unsupported blocks: ${[...new Set(invalid_blocks)].join(', ')}.`);
     }
 
     try {
@@ -238,9 +239,10 @@ export const load = async ({
         if (workspace === window.Blockly.derivWorkspace) {
             globalObserver.emit('ui.log.success', { log_type: LogTypes.LOAD_BLOCK });
         }
+        show_snackbar && botNotification(notification_message().BOT_IMPORT);
     } catch (e) {
         console.error(e); // eslint-disable-line
-        return showInvalidStrategyError();
+        return showInvalidStrategyError(e instanceof Error ? e.message : undefined);
     } finally {
         setLoading(false);
         setOpenButtonDisabled(false);

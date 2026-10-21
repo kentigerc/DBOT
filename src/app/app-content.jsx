@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { ToastContainer } from 'react-toastify';
 import AuthLoadingWrapper from '@/components/auth-loading-wrapper';
-import useLiveChat from '@/components/chat/useLiveChat';
 import { BOT_RESTRICTED_COUNTRIES_LIST } from '@/components/layout/header/utils';
 import ChunkLoader from '@/components/loader/chunk-loader';
 import PWAInstallModal from '@/components/pwa-install-modal';
@@ -13,13 +12,11 @@ import { api_base, ApiHelpers, ServerTime } from '@/external/bot-skeleton';
 import { V2GetActiveToken } from '@/external/bot-skeleton/services/api/appId';
 import { CONNECTION_STATUS } from '@/external/bot-skeleton/services/api/observables/connection-status-stream';
 import { useApiBase } from '@/hooks/useApiBase';
-import useIntercom from '@/hooks/useIntercom';
 import { useOfflineDetection } from '@/hooks/useOfflineDetection';
 import { useStore } from '@/hooks/useStore';
 import useThemeSwitcher from '@/hooks/useThemeSwitcher';
 import useTrackjs from '@/hooks/useTrackjs';
 import initDatadog from '@/utils/datadog';
-import initHotjar from '@/utils/hotjar';
 import { setSmartChartsPublicPath } from '@deriv/deriv-charts';
 import { ThemeProvider } from '@deriv-com/quill-ui';
 import { localize } from '@deriv-com/translations';
@@ -50,23 +47,6 @@ const AppContent = observer(() => {
     const { initTrackJS } = useTrackjs();
 
     initTrackJS(client.loginid);
-
-    const livechat_client_information = {
-        is_client_store_initialized: client?.is_logged_in ? !!client?.account_settings?.email : !!client,
-        is_logged_in: client?.is_logged_in,
-        loginid: client?.loginid,
-        landing_company_shortcode: client?.landing_company_shortcode,
-        currency: client?.currency,
-        residence: client?.residence,
-        email: client?.account_settings?.email,
-        first_name: client?.account_settings?.first_name,
-        last_name: client?.account_settings?.last_name,
-    };
-
-    useLiveChat(livechat_client_information);
-
-    const token = V2GetActiveToken() ?? null;
-    useIntercom(token);
 
     useEffect(() => {
         if (connectionStatus === CONNECTION_STATUS.OPENED) {
@@ -185,9 +165,6 @@ const AppContent = observer(() => {
         ServerTime.init(common);
         app.setDBotEngineStores();
         ApiHelpers.setInstance(app.api_helpers_store);
-        import('@/utils/gtm').then(({ default: GTM }) => {
-            GTM.init(store);
-        });
     };
 
     const changeActiveSymbolLoadingState = () => {
@@ -256,17 +233,14 @@ const AppContent = observer(() => {
 
     // use is_landing_company_loaded to know got details of accounts to identify should show an error or not
     React.useEffect(() => {
-        if (client.is_logged_in && client.is_landing_company_loaded && is_api_initialized) {
+        if (client.is_logged_in && is_api_initialized) {
             changeActiveSymbolLoadingState();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [client.is_landing_company_loaded, is_api_initialized, client.loginid]);
+    }, [client.is_logged_in, is_api_initialized, client.loginid]);
 
     useEffect(() => {
         initDatadog(true);
-        if (client) {
-            initHotjar(client);
-        }
     }, []);
 
     if (common?.error) return null;

@@ -1,0 +1,115 @@
+const { WebSocketServer } = require('ws');
+const { WebSocket } = require('undici');
+
+function attachSockets(
+    server,
+    auth,
+    dispatcher,
+    { createUpstream = url => new WebSocket(url, { ...(dispatcher ? { dispatcher } : {}) }) } = {}
+) {
+    const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+    server.on('upgrade', async (req, socket, head) => {
+        const reject = (status = 403) => {
+            if (!socket.destroyed) socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\n\r\n`);
+        };
+        if (req.headers.origin !== auth.publicOrigin) return reject();
+        let upstream;
+        try {
+            const url = new URL(req.url, auth.publicOrigin);
+            if (url.pathname !== '/api/socket') return reject(404);
+            const account = url.searchParams.get('account_id');
+            const expires = account ? auth.sessionExpires(req) : null;
+            const target = account
+                ? await auth.connectionUrl(req, account)
+                : 'wss://api.derivws.com/trading/v1/options/ws/public';
+            if (socket.destroyed) return;
+            upstream = createUpstream(target);
+            const timeout = setTimeout(() => {
+                reject(504);
+                upstream.close();
+            }, 15000);
+            socket.once('close', () => {
+                clearTimeout(timeout);
+                upstream.close();
+            });
+            upstream.addEventListener(
+                'error',
+                () => {
+                    clearTimeout(timeout);
+                    reject(502);
+                },
+                { once: true }
+            );
+            upstream.addEventListener(
+                'open',
+                () => {
+                    clearTimeout(timeout);
+                    if (socket.destroyed) {
+                        upstream.close();
+                        return;
+                    }
+                    if (expires && expires <= Date.now()) {
+                        reject(401);
+                        upstream.close();
+                        return;
+                    }
+                    sockets.handleUpgrade(req, socket, head, client => {
+                        const expiry = expires
+                            ? setTimeout(
+                                  () => client.close(1008, 'Session expired. Log in again.'),
+                                  Math.max(1, expires - Date.now())
+                              )
+                            : null;
+                        const heartbeat = setInterval(() => {
+                            if (!client.isAlive) return client.terminate();
+                            client.isAlive = false;
+                            client.ping();
+                        }, 30000);
+                        client.isAlive = true;
+                        client.on('pong', () => {
+                            client.isAlive = true;
+                        });
+                        client.on('message', (data, binary) => {
+                            if (binary || upstream.readyState !== 1) {
+                                client.close(1003, 'Text API messages required.');
+                                return;
+                            }
+                            if (upstream.bufferedAmount > 1024 * 1024) {
+                                client.close(1013, 'Connection is busy.');
+                                return;
+                            }
+                            upstream.send(data.toString());
+                        });
+                        upstream.addEventListener('message', event => {
+                            if (client.readyState === 1) {
+                                if (client.bufferedAmount > 1024 * 1024) {
+                                    client.close(1013, 'Connection is busy.');
+                                    return;
+                                }
+                                client.send(event.data);
+                            }
+                        });
+                        upstream.addEventListener('close', () => client.close(1000, 'Deriv connection closed.'));
+                        upstream.addEventListener('error', () => client.close(1011, 'Deriv connection failed.'));
+                        client.on('close', () => {
+                            clearInterval(heartbeat);
+                            if (expiry) clearTimeout(expiry);
+                            upstream.close();
+                        });
+                        client.on('error', () => {
+                            clearInterval(heartbeat);
+                            if (expiry) clearTimeout(expiry);
+                            upstream.close();
+                        });
+                    });
+                },
+                { once: true }
+            );
+        } catch (error) {
+            upstream?.close();
+            reject(error.status || 502);
+        }
+    });
+    return sockets;
+}
+module.exports = { attachSockets };

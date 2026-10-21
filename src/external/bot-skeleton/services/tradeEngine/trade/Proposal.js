@@ -47,6 +47,9 @@ export default Engine =>
             if (!to_buy) {
                 throw new Error(localize('Selected proposal does not exist'));
             }
+            if (!Number.isFinite(to_buy.ask_price) || to_buy.ask_price <= 0) {
+                throw new Error(localize('The proposal did not include a valid purchase price. Please request a new quote.'));
+            }
 
             return {
                 id: to_buy.id,

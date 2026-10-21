@@ -64,10 +64,14 @@ export default class GoogleDriveStore {
         this.setKey();
         this.client = null;
         this.access_token = localStorage.getItem('google_access_token') ?? '';
-        setTimeout(() => {
-            importExternal('https://accounts.google.com/gsi/client').then(() => this.initialiseClient());
-            importExternal('https://apis.google.com/js/api.js').then(() => this.initialise());
-        }, 3000);
+        if (this.client_id && this.app_id && this.api_key) {
+            setTimeout(() => {
+                Promise.all([
+                    importExternal('https://accounts.google.com/gsi/client').then(() => this.initialiseClient()),
+                    importExternal('https://apis.google.com/js/api.js').then(() => this.initialise()),
+                ]).catch(() => this.setIsAuthorized(false));
+            }, 3000);
+        }
     }
 
     is_google_drive_token_valid = true;
