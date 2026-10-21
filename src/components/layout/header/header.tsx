@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Link } from 'react-router-dom';
+import { CurrencyIcon } from '@/components/currency/currency-icon';
 import { api_base } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
 import { getDerivSession, logoutDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/deriv-session';
@@ -56,18 +57,15 @@ const AppHeader = observer(() => {
                 {session.authenticated ? (
                     <details className='neto-header__account-menu' ref={accountMenu}>
                         <summary className='neto-header__account-trigger'>
-                            {activeAccount?.account_type === 'real' &&
-                                (currency === 'USD' ? (
-                                    <img
-                                        className='neto-header__currency-icon'
-                                        src='/currency-usd.svg'
-                                        alt='US dollar'
-                                    />
-                                ) : (
-                                    <span className='neto-header__currency-icon neto-header__currency-code'>
-                                        {currency || '—'}
-                                    </span>
-                                ))}
+                            <span
+                                className='neto-header__currency-icon'
+                                role='img'
+                                aria-label={
+                                    activeAccount?.account_type === 'demo' ? 'Demo account' : `${currency} account`
+                                }
+                            >
+                                <CurrencyIcon currency={currency} isVirtual={activeAccount?.account_type === 'demo'} />
+                            </span>
                             <span className='neto-header__account-caption'>
                                 <strong className='neto-header__balance'>
                                     {formattedBalance} {currency}
@@ -116,18 +114,12 @@ const AppHeader = observer(() => {
                                                         window.location.assign('/');
                                                     }}
                                                 >
-                                                    {type === 'real' &&
-                                                        (account.currency === 'USD' ? (
-                                                            <img
-                                                                className='neto-header__currency-icon'
-                                                                src='/currency-usd.svg'
-                                                                alt=''
-                                                            />
-                                                        ) : (
-                                                            <span className='neto-header__currency-icon neto-header__currency-code'>
-                                                                {account.currency}
-                                                            </span>
-                                                        ))}
+                                                    <span className='neto-header__currency-icon' aria-hidden='true'>
+                                                        <CurrencyIcon
+                                                            currency={account.currency}
+                                                            isVirtual={type === 'demo'}
+                                                        />
+                                                    </span>
                                                     <span className='neto-header__option-caption'>
                                                         <strong>
                                                             {account.currency} {type === 'demo' ? 'Demo' : 'Real'}

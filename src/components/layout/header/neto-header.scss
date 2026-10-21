@@ -60,20 +60,16 @@
         }
     }
     &__currency-icon {
-        display: block;
+        display: grid;
+        place-items: center;
         width: 3.2rem;
         height: 3.2rem;
         flex: 0 0 3.2rem;
         border-radius: 50%;
-        box-shadow: 0 0 0 1px rgb(128 128 128 / 16%);
-    }
-    &__currency-code {
-        display: grid;
-        place-items: center;
-        background: #e8efff;
-        color: #294c91;
-        font-size: 1rem;
-        font-weight: 700;
+        svg {
+            width: 3.2rem;
+            height: 3.2rem;
+        }
     }
     &__account-caption {
         display: flex;
