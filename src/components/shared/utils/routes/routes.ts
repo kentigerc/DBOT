@@ -1,3 +1,5 @@
+import { affiliate_signup_url } from '@/utils/site-config';
+
 type Service = 'derivCom' | 'derivApp' | 'smartTrader' | 'derivHub';
 type DomainType = 'me' | 'be' | 'com';
 
@@ -86,7 +88,7 @@ export const standalone_routes = {
     traders_hub_lowcode: getDerivDomain('derivHub'),
     recent_transactions: `${getDerivDomain('derivHub')}/tradershub/redirect?action=redirect_to&redirect_to=wallet`,
     wallets_transfer: `${getDerivDomain('derivApp')}/wallet/account-transfer`,
-    signup: `${getDerivDomain('derivHub')}/tradershub/signup`,
+    signup: affiliate_signup_url,
     deriv_com: getDerivDomain('derivCom'),
     deriv_app: getDerivDomain('derivApp'),
     endpoint: `${window.location.origin}/endpoint`,

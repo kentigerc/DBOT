@@ -1,45 +1,12 @@
-# Create Deriv V2
+# NetoAcademy
 
-This template was generated using `create-deriv-v2`
+A Deriv bot trading site with a Node backend for OAuth and account WebSocket connections.
 
-## Getting started
-
-To run the development server:
-
-```bash
+```sh
+npm ci
 npm run dev
 ```
 
-To generate a build:
+Use Node 20 and `http://localhost:5000`. To build, run `npm run build`. For production, configure `NETO_ORIGIN` and a private `NETO_SESSION_SECRET`, then run `npm start`.
 
-```bash
-npm run build
-```
-
-## Deploying to Cloudflare Pages
-
-In order to generate a deployment to Cloudflare Pages, ensure that the following secrets are set in the Github Actions:
-
-```bash
-CLOUDFLARE_ACCOUNT_ID=****
-CLOUDFLARE_API_TOKEN=****
-CLOUDFLARE_PROJECT_NAME=****
-```
-
-## Generating a test link preview to Cloudflare Pages
-
-In order to generate a test link deployment to Cloudflare Pages, ensure that the following secrets are set in the Github Actions:
-
-```bash
-CLOUDFLARE_ACCOUNT_ID=****
-CLOUDFLARE_TEST_LINK_TOKEN=****
-CLOUDFLARE_PROJECT_NAME=****
-```
-
-## Notifications to Slack
-
-To allow notifications to be sent to Slack whenever a new staging build is triggered, ensure that the following secrets are set in the Github Actions:
-
-```bash
-SLACK_WEBHOOK=***
-```
+Deployment, application registration, bot compatibility and validation limits: [NETOACADEMY.md](NETOACADEMY.md). A Render Blueprint is provided in [render.yaml](render.yaml).

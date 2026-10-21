@@ -67,7 +67,7 @@ export default class ContractsFor {
 
                     const has_matching_category = c.contract_category === real_trade_type;
                     const has_matching_duration = durations.findIndex(d => d.unit === duration) !== -1;
-                    const has_matching_barrier_category = c.barrier_category === barrier_category;
+                    const has_matching_barrier_category = this.matchesBarrierCategory(c, barrier_category);
                     const has_matching_barrier_type =
                         // Match offset type barriers.
                         (has_selected_offset_type && isOffset(c.barrier || c[barrier_props[index]])) ||
@@ -179,10 +179,25 @@ export default class ContractsFor {
 
         return contracts.filter(contract => {
             const has_matching_category = contract.contract_category === contract_category;
-            const has_matching_barrier = contract.barrier_category === barrier_category;
+            const has_matching_barrier = this.matchesBarrierCategory(contract, barrier_category);
 
             return has_matching_category && has_matching_barrier;
         });
+    }
+
+    matchesBarrierCategory(contract, category) {
+        if (contract.barrier_category) return contract.barrier_category === category;
+        // New API removed barrier_category. Classify using returned contract metadata.
+        if (contract.contract_category === 'callput') {
+            return category === (Number(contract.barriers) === 0 ? 'euro_atm' : 'euro_non_atm');
+        }
+        const categories = { digits: 'non_financial', asian: 'asian', accumulator: 'accumulator',
+            reset: 'reset', lookback: 'lookback', callputspread: 'euro_non_atm' };
+        const mapped = categories[contract.contract_category];
+        if (mapped) return category === mapped;
+        if (contract.contract_category === 'inout') return category === (['EXPIRYRANGE', 'EXPIRYMISS'].includes(contract.contract_type) ? 'euro_non_atm' : 'american');
+        if (['touchnotouch', 'highlowticks', 'runs', 'multiplier'].includes(contract.contract_category)) return category === 'american';
+        return false;
     }
 
     async getContractsFor(symbol) {

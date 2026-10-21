@@ -12,6 +12,7 @@ import {
 import type { TAuthData, TLandingCompany } from '@/types/api-types';
 import type { Balance, GetAccountStatus, GetSettings, WebsiteStatus } from '@deriv/api-types';
 import { Analytics } from '@deriv-com/analytics';
+import { getDerivAccount } from '@/utils/deriv-session';
 
 const eu_shortcode_regex = /^maltainvest$/;
 const eu_excluded_regex = /^mt$/;
@@ -268,13 +269,11 @@ export default class ClientStore {
     };
 
     getCurrency = () => {
-        const clientAccounts = JSON.parse(localStorage.getItem('clientAccounts') ?? '{}');
-        return clientAccounts[this.loginid]?.currency ?? '';
+        return getDerivAccount()?.currency || this.currency;
     };
 
     getToken = () => {
-        const accountList = JSON.parse(localStorage.getItem('accountsList') ?? '{}');
-        return accountList[this.loginid] ?? '';
+        return getDerivAccount() ? 'neto-server-session' : '';
     };
 
     setAccountStatus(status: GetAccountStatus | undefined) {

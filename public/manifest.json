@@ -1,6 +1,6 @@
 {
-  "name": "Deriv Bot - Automated Trading Platform",
-  "short_name": "Deriv Bot",
+  "name": "NetoAcademy - Automated Trading Platform",
+  "short_name": "NetoAcademy",
   "description": "Automated trading at your fingertips. No coding needed.",
   "start_url": "/?source=mobile",
   "display": "standalone",
@@ -67,14 +67,14 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Deriv Bot Dashboard"
+      "label": "NetoAcademy Dashboard"
     },
     {
       "src": "/assets/screenshots/mobile-screenshot.png",
       "sizes": "640x1136",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Deriv Bot Mobile View"
+      "label": "NetoAcademy Mobile View"
     }
   ],
   "shortcuts": [

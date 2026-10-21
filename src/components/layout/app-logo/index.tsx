@@ -1,12 +1,11 @@
-import { standalone_routes } from '@/components/shared';
-import { DerivLogo, useDevice } from '@deriv-com/ui';
+import { Link } from 'react-router-dom';
+import { site_name } from '@/utils/site-config';
 import './app-logo.scss';
 
 export const AppLogo = () => {
-    const { isDesktop } = useDevice();
-
-    if (!isDesktop) return null;
     return (
-        <DerivLogo className='app-header__logo' href={standalone_routes.deriv_com} target='_blank' variant='wallets' />
+        <Link className='app-header__logo' to='/' aria-label={`${site_name} home`}>
+            {site_name}
+        </Link>
     );
 };

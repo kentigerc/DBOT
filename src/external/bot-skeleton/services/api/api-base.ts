@@ -1,7 +1,6 @@
-import Cookies from 'js-cookie';
+import { getDerivAccount, getDerivSession, refreshDerivSession } from '@/utils/deriv-session';
 import CommonStore from '@/stores/common-store';
 import { TAuthData } from '@/types/api-types';
-import { clearAuthData } from '@/utils/auth-utils';
 import { observer as globalObserver } from '../../utils/observer';
 import { doUntilDone, socket_state } from '../tradeEngine/utils/helpers';
 import {
@@ -40,7 +39,7 @@ type TApiBaseApi = {
             unsubscribe: () => void;
         };
     };
-} & ReturnType<typeof generateDerivApiInstance>;
+} & Awaited<ReturnType<typeof generateDerivApiInstance>>;
 
 class APIBase {
     api: TApiBaseApi | null = null;
@@ -59,6 +58,9 @@ class APIBase {
     active_symbols_promise: Promise<void> | null = null;
     common_store: CommonStore | undefined;
     landing_company: string | null = null;
+    reconnect_timer: ReturnType<typeof setTimeout> | null = null;
+    reconnect_delay = 1000;
+    stopping = false;
 
     unsubscribeAllSubscriptions = () => {
         this.current_auth_subscriptions?.forEach(subscription_promise => {
@@ -73,17 +75,23 @@ class APIBase {
         this.current_auth_subscriptions = [];
     };
 
-    onsocketopen() {
+    onsocketopen = () => {
+        this.reconnect_delay = 1000;
         setConnectionStatus(CONNECTION_STATUS.OPENED);
-    }
+    };
 
-    onsocketclose() {
+    onsocketclose = () => {
         setConnectionStatus(CONNECTION_STATUS.CLOSED);
-        this.reconnectIfNotConnected();
-    }
+        setIsAuthorized(false);
+        this.is_authorized = false;
+        if (this.is_running) globalObserver.emit('Error', new Error('Deriv disconnected. Check your account before restarting the bot.'));
+        if (!this.stopping) this.reconnectIfNotConnected();
+    };
 
     async init(force_create_connection = false) {
+        this.stopping = false;
         this.toggleRunButton(true);
+        await refreshDerivSession();
 
         if (this.api) {
             this.unsubscribeAllSubscriptions();
@@ -93,14 +101,14 @@ class APIBase {
             if (this.api?.connection) {
                 ApiHelpers.disposeInstance();
                 setConnectionStatus(CONNECTION_STATUS.CLOSED);
+                this.api.connection.removeEventListener('open', this.onsocketopen);
+                this.api.connection.removeEventListener('close', this.onsocketclose);
                 this.api.disconnect();
-                this.api.connection.removeEventListener('open', this.onsocketopen.bind(this));
-                this.api.connection.removeEventListener('close', this.onsocketclose.bind(this));
             }
 
-            this.api = generateDerivApiInstance();
-            this.api?.connection.addEventListener('open', this.onsocketopen.bind(this));
-            this.api?.connection.addEventListener('close', this.onsocketclose.bind(this));
+            this.api = await generateDerivApiInstance();
+            this.api?.connection.addEventListener('open', this.onsocketopen);
+            this.api?.connection.addEventListener('close', this.onsocketclose);
         }
 
         if (!this.has_active_symbols && !V2GetActiveToken()) {
@@ -129,6 +137,9 @@ class APIBase {
     }
 
     terminate() {
+        this.stopping = true;
+        if (this.reconnect_timer) clearTimeout(this.reconnect_timer);
+        this.reconnect_timer = null;
         // eslint-disable-next-line no-console
         if (this.api) this.api.disconnect();
     }
@@ -147,12 +158,13 @@ class APIBase {
     }
 
     reconnectIfNotConnected = () => {
-        // eslint-disable-next-line no-console
-        console.log('connection state: ', this.api?.connection?.readyState);
-        if (this.api?.connection?.readyState && this.api?.connection?.readyState > 1) {
-            // eslint-disable-next-line no-console
-            console.log('Info: Connection to the server was closed, trying to reconnect.');
-            this.init(true);
+        if (this.stopping || this.reconnect_timer) return;
+        if (this.api?.connection?.readyState && this.api.connection.readyState > 1) {
+            this.reconnect_timer = setTimeout(() => {
+                this.reconnect_timer = null;
+                this.init(true).catch(error => globalObserver.emit('Error', error));
+            }, this.reconnect_delay);
+            this.reconnect_delay = Math.min(this.reconnect_delay * 2, 30000);
         }
     };
 
@@ -165,41 +177,51 @@ class APIBase {
         setIsAuthorized(false);
 
         try {
-            const { authorize, error } = await this.api.authorize(this.token);
-            if (error) {
-                if (error.code === 'InvalidToken') {
-                    const is_tmb_enabled = window.is_tmb_enabled === true;
-                    if (Cookies.get('logged_state') === 'true' && !is_tmb_enabled) {
-                        globalObserver.emit('InvalidToken', { error });
-                    } else {
-                        clearAuthData();
-                    }
-                } else {
-                    console.error('Authorization error:', error);
-                }
-                setIsAuthorizing(false);
-                return error;
-            }
-
+            const connection = this.api.connection;
+            if (connection.readyState !== 1) await new Promise<void>((resolve, reject) => {
+                const timer = setTimeout(() => finish(new Error('Deriv connection timed out.')), 15000);
+                const finish = (error?: Error) => {
+                    clearTimeout(timer);
+                    connection.removeEventListener('open', opened);
+                    connection.removeEventListener('error', failed);
+                    connection.removeEventListener('close', failed);
+                    if (error) reject(error); else resolve();
+                };
+                const opened = () => finish();
+                const failed = () => finish(new Error('Unable to open the Deriv account connection.'));
+                connection.addEventListener('open', opened);
+                connection.addEventListener('error', failed);
+                connection.addEventListener('close', failed);
+            });
+            const account = getDerivAccount();
+            if (!account) throw new Error('No active Deriv account.');
+            const authorize = {
+                loginid: account.account_id, currency: account.currency, balance: Number(account.balance),
+                account_list: getDerivSession().accounts.map(item => ({
+                    loginid: item.account_id, currency: item.currency,
+                    is_virtual: item.account_type === 'demo' ? 1 : 0,
+                    is_disabled: item.status === 'active' ? 0 : 1,
+                })),
+            } as TAuthData;
             this.account_info = authorize;
             setAccountList(authorize?.account_list || []);
             setAuthData(authorize);
             setIsAuthorized(true);
             this.is_authorized = true;
             localStorage.setItem('client_account_details', JSON.stringify(authorize?.account_list));
-            localStorage.setItem('client.country', authorize?.country);
+
 
             if (this.has_active_symbols) {
                 this.toggleRunButton(false);
             } else {
                 this.active_symbols_promise = this.getActiveSymbols();
             }
-            this.subscribe();
+            await this.subscribe();
             // this.getSelfExclusion(); commented this so we dont call it from two places
         } catch (e) {
             console.error('Authorization failed:', e);
             this.is_authorized = false;
-            clearAuthData();
+
             setIsAuthorized(false);
             globalObserver.emit('Error', e);
         } finally {
@@ -220,7 +242,7 @@ class APIBase {
                     const subscription = this.api?.send({
                         [streamName]: 1,
                         subscribe: 1,
-                        ...(streamName === 'balance' ? { account: 'all' } : {}),
+
                     });
                     if (subscription) {
                         this.current_auth_subscriptions.push(subscription);

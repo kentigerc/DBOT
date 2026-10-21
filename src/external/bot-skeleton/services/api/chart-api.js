@@ -13,7 +13,7 @@ class ChartAPI {
                 this.api.disconnect();
                 this.api.connection.removeEventListener('close', this.onsocketclose.bind(this));
             }
-            this.api = await generateDerivApiInstance();
+            this.api = await generateDerivApiInstance({ publicOnly: true });
             this.api?.connection.addEventListener('close', this.onsocketclose.bind(this));
         }
         this.getTime();
