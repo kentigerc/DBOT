@@ -1,8 +1,15 @@
+.deriv-charts-wrapper {
+    flex: 1 1 0;
+    width: 100%;
+    min-width: 0;
+}
+
 .deriv-charts-page {
     display: flex;
     flex-direction: column;
     width: 100%;
     min-width: 0;
+    max-width: 100%;
     height: var(--market-panel-height, 100%);
     overflow: hidden;
     background: var(--general-main-1);
@@ -35,7 +42,8 @@
         font-size: 1.2rem;
     }
     iframe {
-        flex: 1;
+        display: block;
+        flex: 1 1 0;
         width: 100%;
         min-width: 0;
         min-height: 0;

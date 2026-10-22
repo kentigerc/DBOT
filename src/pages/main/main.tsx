@@ -158,21 +158,20 @@ const AppWrapper = observer(() => {
             setActiveTour('');
         }
 
-        // Keep the embedded chart within its viewport (only on mobile)
-        const mainElement = document.querySelector('.main__container');
-        if (active_tab === DBOT_TABS.DERIV_CHARTS && !isDesktop) {
-            document.body.style.overflow = 'hidden';
-            if (mainElement instanceof HTMLElement) {
-                mainElement.classList.add('no-scroll');
-            }
-        } else {
-            document.body.style.overflow = '';
-            if (mainElement instanceof HTMLElement) {
-                mainElement.classList.remove('no-scroll');
-            }
-        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active_tab]);
+
+    React.useEffect(() => {
+        if (active_tab !== DBOT_TABS.DERIV_CHARTS || isDesktop) return;
+        const mainElement = document.querySelector('.main__container');
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        mainElement?.classList.add('no-scroll');
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            mainElement?.classList.remove('no-scroll');
+        };
+    }, [active_tab, isDesktop]);
 
     React.useEffect(() => {
         const trashcan_init_id = setTimeout(() => {
