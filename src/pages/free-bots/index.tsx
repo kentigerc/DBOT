@@ -52,9 +52,16 @@ const FreeBots = observer(() => {
     const [loadingBotId, setLoadingBotId] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
+    const [search, setSearch] = useState('');
+
     const categories = ['All', ...Array.from(new Set(BOTS.map(bot => bot.category)))];
 
-    const filteredBots = selectedCategory === 'All' ? BOTS : BOTS.filter(bot => bot.category === selectedCategory);
+    const query = search.trim().toLowerCase();
+    const filteredBots = BOTS.map((bot, index) => ({ ...bot, number: index + 1 })).filter(
+        bot =>
+            (selectedCategory === 'All' || bot.category === selectedCategory) &&
+            (!query || bot.name.toLowerCase().includes(query) || String(bot.number) === query.replace(/^#/, ''))
+    );
 
     const loadBot = async (bot: Bot) => {
         if (!getDerivSession().authenticated) {
@@ -93,6 +100,17 @@ const FreeBots = observer(() => {
             <p className='free-bots__protection-note'>
                 NetoAcademy bots are available to run here. Strategy downloads and exports are disabled.
             </p>
+            <div className='free-bots__search'>
+                <label htmlFor='free-bots-search'>Find a bot</label>
+                <input
+                    id='free-bots-search'
+                    type='search'
+                    placeholder='Search by name or number'
+                    value={search}
+                    onChange={event => setSearch(event.target.value)}
+                    aria-controls='free-bots-results'
+                />
+            </div>
             <div className='free-bots__categories'>
                 {categories.map(category => (
                     <button
@@ -105,11 +123,19 @@ const FreeBots = observer(() => {
                 ))}
             </div>
 
-            <div className='free-bots__grid'>
+            <p className='free-bots__results' role='status'>
+                {filteredBots.length === 0
+                    ? 'No bots found. Try another name or number.'
+                    : `${filteredBots.length} ${filteredBots.length === 1 ? 'bot' : 'bots'} found`}
+            </p>
+            <div id='free-bots-results' className='free-bots__grid'>
                 {filteredBots.map(bot => (
                     <div key={bot.id} className='free-bots__card'>
                         <div className='free-bots__card-header'>
-                            <span className='free-bots__card-icon'>{bot.icon}</span>
+                            <span className='free-bots__card-number'>#{bot.number}</span>
+                            <span className='free-bots__card-icon' aria-hidden='true'>
+                                {bot.icon}
+                            </span>
                             <span className='free-bots__card-category'>{bot.category}</span>
                         </div>
                         <h3 className='free-bots__card-title'>{bot.name}</h3>
