@@ -115,6 +115,14 @@ const BOTS: Bot[] = [
         category: 'Even/Odd',
         icon: '🎲',
     },
+    {
+        id: '13',
+        name: 'Over Punisher',
+        description: 'Automated Digit Over strategy for Volatility indices.',
+        fileName: 'over-punisher.xml',
+        category: 'Over/Under',
+        icon: '📈',
+    },
 ];
 
 const FreeBots = observer(() => {
