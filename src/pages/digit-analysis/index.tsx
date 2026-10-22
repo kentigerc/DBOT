@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { digitFrequencies, lastDigit } from './digits';
+import MarketScanner from './market-scanner';
 import './digit-analysis.scss';
 
 type Market = {
@@ -212,6 +213,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                     Latest digit
                 </span>
             </div>
+            <MarketScanner sampleSize={sampleSize} onSelect={setSymbol} active={active} />
             <p className='digit-analysis__note'>
                 Percentages describe the selected rolling sample of past ticks. They do not predict the next digit or
                 guarantee a trading outcome.
