@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isProtectedBotXml } from '@/utils/bot-protection';
-describe.each(['over-punisher.xml', 'over-1-over-0.xml'])('%s startup', filename => {
+describe.each(['over-punisher.xml', 'over-1-over-0.xml', 'under-punisher.xml'])('%s startup', filename => {
     const source = readFileSync(path.join(__dirname, '../../../../server/bots', filename), 'utf8');
     const parse = () => new DOMParser().parseFromString(source, 'application/xml');
     it('resolves every function call using a Blockly mutation instead of a block ID', () => {
