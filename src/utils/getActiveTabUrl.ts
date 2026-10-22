@@ -5,7 +5,7 @@ export const getActiveTabUrl = () => {
         'bot_builder',
         'chart',
         'digit_analysis',
-        'tutorial',
+        'deriv_charts',
         'free_bots',
         'analysis_tool',
     ] as const;

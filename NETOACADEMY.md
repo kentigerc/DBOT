@@ -81,3 +81,9 @@ This implementation supports **one Node server instance**. Render Free has ephem
 Validation includes 77 Jest tests across 18 suites and a browser simulation of a normal loss, recovery win, terminal interaction, manual stop and mobile layouts. Simulated trades do not verify authenticated Deriv execution; perform an owner-controlled demo trade before real trading.
 
 Two isolated browser contexts additionally verified shared running state, duplicate RUN prevention, continued simulated execution after the initiating browser closed, terminal access and STOP from the second device. These checks used the actual server strategy engine with a local simulated Deriv upstream.
+
+## Embedded Deriv Charts
+
+The former Tutorials tab now hosts `https://charts.deriv.com/deriv` inside an iframe under `#deriv_charts`; older `#tutorial` links resolve to this tab. The frame is sized to the available viewport, the mobile Builder controls are hidden on this tab, and Reload chart refreshes only the frame. Its sandbox permits scripts, forms and downloads while preventing top-level navigation.
+
+Local browser checks verified the URL, tab label, reload behavior and layouts at 320, 390 and 768 pixels with a local frame fixture. Live embedding was not verified: this workspace's outbound policy denies `charts.deriv.com`, so its current CSP and X-Frame-Options headers could not be inspected. Deriv must permit framing for the external chart to display on the deployed site; no proxy or header-stripping workaround is used.

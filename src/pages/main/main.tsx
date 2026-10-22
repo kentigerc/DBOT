@@ -20,7 +20,6 @@ import {
     LabelPairedObjectsColumnCaptionRegularIcon,
     LabelPairedPuzzlePieceTwoCaptionBoldIcon,
 } from '@deriv/quill-icons/LabelPaired';
-import { LegacyGuide1pxIcon } from '@deriv/quill-icons/Legacy';
 import { Localize, localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
 import RunPanel from '../../components/run-panel';
@@ -31,7 +30,7 @@ import './main.scss';
 
 const ChartPage = lazy(() => import('../chart/chart-page'));
 const DigitAnalysis = lazy(() => import('../digit-analysis'));
-const Tutorial = lazy(() => import('../tutorials'));
+const DerivCharts = lazy(() => import('../deriv-charts'));
 const FreeBots = lazy(() => import('../free-bots'));
 const AnalysisTool = lazy(() => import('../analysis-tool'));
 
@@ -65,7 +64,7 @@ const AppWrapper = observer(() => {
     const { clear } = summary_card;
     const { DASHBOARD, BOT_BUILDER } = DBOT_TABS;
     const init_render = React.useRef(true);
-    const hash = ['dashboard', 'bot_builder', 'chart', 'digit_analysis', 'tutorial', 'free_bots', 'analysis_tool'];
+    const hash = ['dashboard', 'bot_builder', 'chart', 'digit_analysis', 'deriv_charts', 'free_bots', 'analysis_tool'];
     const { isDesktop } = useDevice();
     const location = useLocation();
     const navigate = useNavigate();
@@ -76,7 +75,7 @@ const AppWrapper = observer(() => {
     const GetHashedValue = (tab: number) => {
         tab_value = location.hash?.split('#')[1];
         if (!tab_value) return tab;
-        return Number(hash.indexOf(String(tab_value)));
+        return Number(hash.indexOf(tab_value === 'tutorial' ? 'deriv_charts' : String(tab_value)));
     };
     const active_hash_tab = GetHashedValue(active_tab);
 
@@ -159,9 +158,9 @@ const AppWrapper = observer(() => {
             setActiveTour('');
         }
 
-        // Prevent scrolling when tutorial tab is active (only on mobile)
+        // Keep the embedded chart within its viewport (only on mobile)
         const mainElement = document.querySelector('.main__container');
-        if (active_tab === DBOT_TABS.TUTORIAL && !isDesktop) {
+        if (active_tab === DBOT_TABS.DERIV_CHARTS && !isDesktop) {
             document.body.style.overflow = 'hidden';
             if (mainElement instanceof HTMLElement) {
                 mainElement.classList.add('no-scroll');
@@ -229,9 +228,12 @@ const AppWrapper = observer(() => {
         <React.Fragment>
             <div
                 className={classNames('main', {
-                    'main--market-panel': [DBOT_TABS.DIGIT_ANALYSIS, DBOT_TABS.CHART, DBOT_TABS.ANALYSIS_TOOL].includes(
-                        active_tab
-                    ),
+                    'main--market-panel': [
+                        DBOT_TABS.DIGIT_ANALYSIS,
+                        DBOT_TABS.CHART,
+                        DBOT_TABS.DERIV_CHARTS,
+                        DBOT_TABS.ANALYSIS_TOOL,
+                    ].includes(active_tab),
                 })}
             >
                 <div
@@ -309,24 +311,20 @@ const AppWrapper = observer(() => {
                             <div
                                 label={
                                     <>
-                                        <LegacyGuide1pxIcon
+                                        <LabelPairedChartLineCaptionRegularIcon
                                             height='16px'
                                             width='16px'
                                             fill='var(--text-general)'
                                             className='icon-general-fill-g-path'
                                         />
-                                        <Localize i18n_default_text='Tutorials' />
+                                        <Localize i18n_default_text='Deriv Charts' />
                                     </>
                                 }
                                 id='id-tutorials'
                             >
-                                <div className='tutorials-wrapper'>
-                                    <Suspense
-                                        fallback={
-                                            <ChunkLoader message={localize('Please wait, loading tutorials...')} />
-                                        }
-                                    >
-                                        <Tutorial handleTabChange={handleTabChange} />
+                                <div className='deriv-charts-wrapper'>
+                                    <Suspense fallback={<ChunkLoader message={localize('Loading Deriv Charts...')} />}>
+                                        <DerivCharts />
                                     </Suspense>
                                 </div>
                             </div>

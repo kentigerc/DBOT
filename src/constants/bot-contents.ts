@@ -16,7 +16,8 @@ export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
     BOT_BUILDER: 1,
     CHART: 2,
     DIGIT_ANALYSIS: 3,
-    TUTORIAL: 4,
+    DERIV_CHARTS: 4,
+    TUTORIAL: 4, // Retain compatibility with older navigation links.
     FREE_BOTS: 5,
     ANALYSIS_TOOL: 6,
 });

@@ -314,7 +314,11 @@ const RunPanel = observer(() => {
     );
 
     const show_run_panel = [BOT_BUILDER, CHART].includes(active_tab) || active_tour;
-    if (active_tab === DBOT_TABS.ANALYSIS_TOOL || (!show_run_panel && isDesktop) || active_tour === 'bot_builder')
+    if (
+        [DBOT_TABS.ANALYSIS_TOOL, DBOT_TABS.DERIV_CHARTS].includes(active_tab) ||
+        (!show_run_panel && isDesktop) ||
+        active_tour === 'bot_builder'
+    )
         return null;
 
     return (
