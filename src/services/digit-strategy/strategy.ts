@@ -16,6 +16,7 @@ export type RecoveryMode = keyof typeof RECOVERY_MODES;
 export type Settings = {
     stake: number;
     maxLosses: number;
+    multiplier: number;
     maxStake: number;
     stopLoss: number;
     takeProfit: number;
@@ -26,6 +27,7 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Settings = {
     stake: 0.35,
     maxLosses: 5,
+    multiplier: 2.1,
     maxStake: 100,
     stopLoss: 100,
     takeProfit: 5,
@@ -56,6 +58,13 @@ export function validateSettings(s: Settings) {
                 'Use positive USD amounts with at most two decimal places (take-profit may be 0 to disable).'
             );
     }
+    if (
+        !Number.isFinite(s.multiplier) ||
+        s.multiplier < 1 ||
+        !Number.isSafeInteger(Math.round(s.multiplier * 100)) ||
+        Math.abs(s.multiplier * 100 - Math.round(s.multiplier * 100)) > 1e-7
+    )
+        throw new Error('Use a martingale multiplier of at least 1 with at most two decimal places.');
     if (s.stake < 0.35) throw new Error('The minimum starting stake is $0.35.');
     if (s.maxStake < s.stake || s.stopLoss < s.stake)
         throw new Error('Maximum stake and stop-loss must cover the starting stake.');
@@ -66,7 +75,8 @@ export function validateSettings(s: Settings) {
     if (![1, 2].includes(s.duration) || !(s.recoveryMode in RECOVERY_MODES))
         throw new Error('Invalid digit strategy settings.');
 }
-export const nextRecoveryStake = (previousCents: number) => Math.floor((previousCents * 21 + 5) / 10);
+export const nextRecoveryStake = (previousCents: number, multiplier = DEFAULT_SETTINGS.multiplier) =>
+    Math.floor((previousCents * Math.round(multiplier * 100) + 50) / 100);
 export type Frequency = { digit: number; count: number; percentage: number; most: boolean; least: boolean };
 export class DigitMarket {
     prices: string[] = [];

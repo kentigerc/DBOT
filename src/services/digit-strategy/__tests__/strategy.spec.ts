@@ -105,6 +105,8 @@ describe('uploaded digit strategy rules', () => {
     it('rounds every recovery stake half-up to cents and enforces both risk caps before a buy', () => {
         expect(nextRecoveryStake(35)).toBe(74);
         expect(nextRecoveryStake(74)).toBe(155);
+        expect(nextRecoveryStake(35, 3)).toBe(105);
+        expect(nextRecoveryStake(35, 1.5)).toBe(53);
         expect(riskReason(DEFAULT_SETTINGS, -200, 5, 100)).toMatch(/Consecutive/);
         expect(riskReason(DEFAULT_SETTINGS, 0, 1, 10001)).toMatch(/Maximum stake/);
         expect(riskReason(DEFAULT_SETTINGS, -9990, 1, 35)).toMatch(/Stop-loss/);
@@ -120,6 +122,9 @@ describe('uploaded digit strategy rules', () => {
             { stake: 0.351 },
             { triggerCount: 0 },
             { duration: 3 },
+            { multiplier: 0.9 },
+            { multiplier: NaN },
+            { multiplier: 2.111 },
         ])
             expect(() => validateSettings({ ...DEFAULT_SETTINGS, ...s } as Settings)).toThrow();
     });

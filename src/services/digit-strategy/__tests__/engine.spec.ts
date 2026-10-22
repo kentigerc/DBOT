@@ -177,6 +177,15 @@ describe('strategy execution and exposure controls', () => {
         expect(engine.getSnapshot()).toMatchObject({ active: false, streak: 5, losses: 5 });
         expect(broker.buys).toHaveLength(5);
     });
+    it('uses a custom multiplier for the next recovery purchase', async () => {
+        const { engine, broker } = await setup({ multiplier: 3 });
+        broker.settle(-0.35);
+        await jest.advanceTimersByTimeAsync(1000);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100.08, epoch: 1004, pip_size: 2 } });
+        await jest.advanceTimersByTimeAsync(150);
+        expect(broker.buys[1].parameters.amount).toBe(1.05);
+        engine.stop();
+    });
     it('resets recovery and stake after one recovery win', async () => {
         const { engine, broker } = await setup();
         broker.settle(-0.35);
@@ -215,6 +224,9 @@ describe('strategy execution and exposure controls', () => {
         const { engine, broker, settings } = await setup({ maxLosses: 1 });
         broker.connection.dispatchEvent(new Event('close'));
         expect(engine.getSnapshot().pending?.contractId).toBe(101);
+        const saved = JSON.parse(localStorage.getItem('neto.digit-strategy.v1.DEMO-TEST')!);
+        delete saved.settings.multiplier;
+        localStorage.setItem('neto.digit-strategy.v1.DEMO-TEST', JSON.stringify(saved));
         const next = new FakeBroker();
         next.latest = { ...broker.latest, is_sold: 1, profit: -0.35 };
         const restored = new DigitStrategyEngine({
@@ -225,6 +237,7 @@ describe('strategy execution and exposure controls', () => {
         });
         await restored.start(settings);
         expect(next.buys).toHaveLength(0);
+        expect(restored.getSnapshot().settings.multiplier).toBe(2.1);
         expect(restored.getSnapshot()).toMatchObject({ pnl: -35, losses: 1, active: false, pending: undefined });
         next.emit({ proposal_open_contract: next.latest });
         expect(restored.getSnapshot().pnl).toBe(-35);

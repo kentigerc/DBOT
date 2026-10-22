@@ -62,7 +62,10 @@ export default function AnalysisTool() {
     const locked = state.active || !!state.pending || state.trades.length > 0;
     const field = (
         label: string,
-        key: keyof Pick<Settings, 'stake' | 'maxLosses' | 'maxStake' | 'stopLoss' | 'takeProfit' | 'triggerCount'>,
+        key: keyof Pick<
+            Settings,
+            'stake' | 'maxLosses' | 'maxStake' | 'stopLoss' | 'takeProfit' | 'triggerCount' | 'multiplier'
+        >,
         min: number,
         step: number
     ) => (
@@ -124,6 +127,7 @@ export default function AnalysisTool() {
                     {field('Maximum consecutive losses', 'maxLosses', 1, 1)}
                     {field('Maximum stake per trade (USD)', 'maxStake', 0.35, 0.01)}
                     {field('Session stop-loss (USD)', 'stopLoss', 0.35, 0.01)}
+                    {field('Martingale multiplier', 'multiplier', 1, 0.01)}
                 </div>
                 <details className='analysis-tool__advanced'>
                     <summary>Strategy settings</summary>
@@ -164,8 +168,8 @@ export default function AnalysisTool() {
                         {field('Take-profit (USD, 0 = off)', 'takeProfit', 0, 0.01)}
                     </div>
                     <p>
-                        Recovery ×2.1 after a loss, rounded to cents. A win resets the starting stake. Three normal
-                        settled trades trigger a five-second pause when recovery is clear.
+                        Recovery uses your martingale multiplier after a loss, rounded to cents. A win resets the
+                        starting stake. Three normal settled trades trigger a five-second pause when recovery is clear.
                     </p>
                 </details>
                 <div className='analysis-tool__actions'>

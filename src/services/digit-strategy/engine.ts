@@ -191,6 +191,7 @@ export class DigitStrategyEngine {
                 try {
                     const data = JSON.parse(text);
                     if (data.version === 1 && data.accountId === account.account_id) {
+                        data.settings = { ...DEFAULT_SETTINGS, ...data.settings };
                         validateSettings(data.settings);
                         saved = data;
                     }
@@ -691,7 +692,11 @@ export class DigitStrategyEngine {
             throw new Error('Settlement profit is outside the purchased contract bounds.');
         const streak = profit < 0 ? this.state.streak + 1 : profit > 0 ? 0 : this.state.streak;
         const next =
-            profit < 0 ? nextRecoveryStake(p.stake) : profit > 0 ? cents(this.state.settings.stake) : this.state.stake;
+            profit < 0
+                ? nextRecoveryStake(p.stake, this.state.settings.multiplier)
+                : profit > 0
+                  ? cents(this.state.settings.stake)
+                  : this.state.stake;
         let recovery = { ...this.state.recovery, streak },
             recoveryLosses = this.state.recoveryLosses;
         if (profit > 0 || (profit < 0 && !p.signal.recovery)) {
