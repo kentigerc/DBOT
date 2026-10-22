@@ -1,3 +1,4 @@
+import { rememberProtectedBot } from '@/utils/bot-protection';
 import Cookies from 'js-cookie';
 import { action, makeObservable, reaction, when } from 'mobx';
 import { BOT_RESTRICTED_COUNTRIES_LIST } from '@/components/layout/header/utils';
@@ -205,6 +206,7 @@ export default class AppStore {
         DBot.terminateBot();
         DBot.terminateConnection();
         if (window.Blockly?.derivWorkspace) {
+            rememberProtectedBot((window.Blockly as any).derivWorkspace, String(this.root_store.save_modal.bot_name));
             clearInterval(window.Blockly?.derivWorkspace.save_workspace_interval);
             window.Blockly.derivWorkspace?.dispose();
         }

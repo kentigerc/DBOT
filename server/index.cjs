@@ -21,6 +21,8 @@ const handleAuth = createAuthHandler({
 });
 const { createAnalysisService } = require('./analysis.cjs');
 const analysis = createAnalysisService(handleAuth, { dispatcher });
+const { createBotLoader } = require('./bots.cjs');
+const loadBot = createBotLoader(handleAuth);
 const root = path.resolve(__dirname, '../dist');
 const types = {
     '.html': 'text/html',
@@ -35,6 +37,7 @@ const types = {
 };
 
 const server = http.createServer(async (req, res) => {
+    if (req.url.split('?')[0] === '/api/bots/load') return loadBot(req, res);
     if (req.url.split('?')[0] === '/api/analysis') return analysis.handle(req, res);
     if (req.url.split('?')[0].startsWith('/api/')) return handleAuth(req, res);
     if (development) {
@@ -49,6 +52,10 @@ const server = http.createServer(async (req, res) => {
     }
     try {
         const pathname = decodeURIComponent(new URL(req.url, origin).pathname);
+        if (pathname === '/bots' || pathname.startsWith('/bots/')) {
+            res.writeHead(403);
+            return res.end('Bot downloads are disabled.');
+        }
         let file = path.resolve(root, '.' + pathname);
         if (!file.startsWith(root + path.sep) && file !== root) {
             res.writeHead(403);

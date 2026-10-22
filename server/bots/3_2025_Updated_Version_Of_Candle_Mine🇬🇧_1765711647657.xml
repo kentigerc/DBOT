@@ -1,4 +1,4 @@
-<xml xmlns="https://developers.google.com/blockly/xml" is_dbot="true" collection="false">
+<xml xmlns="https://developers.google.com/blockly/xml" xmlns:ns1="http://www.w3.org/1999/xhtml" is_dbot="true" collection="false" neto_protected="true">
   
   <variables>
     
@@ -64,27 +64,27 @@
                             
                             <field name="RESTARTONERROR">TRUE</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
     
     </statement>
     
@@ -98,7 +98,7 @@
             
             <field name="TEXT">Updated Candle Mine version </field>
           
-          </shadow>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
         
         </value>
         
@@ -114,7 +114,7 @@
                 
                 <field name="NUM">1000</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </value>
             
@@ -130,7 +130,7 @@
                     
                     <field name="NUM">0.02</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </value>
                 
@@ -146,7 +146,7 @@
                         
                         <field name="NUM">0.35</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </value>
                     
@@ -162,27 +162,27 @@
                             
                             <field name="NUM">0.35</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
     
     </statement>
     
@@ -190,7 +190,7 @@
       
       <block type="trade_definition_tradeoptions" id="-`}{I1|1{lSUA_R?1uPY">
         
-        <mutation xmlns="http://www.w3.org/1999/xhtml" has_first_barrier="false" has_second_barrier="false" has_prediction="false"></mutation>
+        <ns1:mutation has_first_barrier="false" has_second_barrier="false" has_prediction="false" />
         
         <field name="DURATIONTYPE_LIST">t</field>
         
@@ -200,7 +200,7 @@
             
             <field name="NUM">1</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
         
         </value>
         
@@ -210,17 +210,17 @@
             
             <field name="VAR" id="j}8O`Vs+RJljIwPu-_:_">Initial Amount</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
         
         </value>
       
-      </block>
+      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
   
-  <block type="during_purchase" id="2Kwr5ZC)u;T$V3J/ZqvQ" x="750" y="110"></block>
+  <block type="during_purchase" id="2Kwr5ZC)u;T$V3J/ZqvQ" x="750" y="110"><data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
   
   <block type="after_purchase" id="imZFx4buqw)v?Y8wDcYZ" x="750" y="312">
     
@@ -228,7 +228,7 @@
       
       <block type="controls_if" id="Iw1^`:;;YTc6(z@FUW?a">
         
-        <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+        <ns1:mutation else="1" />
         
         <value name="IF0">
           
@@ -236,7 +236,7 @@
             
             <field name="CHECK_RESULT">win</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
         
         </value>
         
@@ -254,15 +254,15 @@
                   
                   <shadow type="text" id="17ott];9#NHvDOq7sUqg">
                     
-                    <field name="TEXT"></field>
+                    <field name="TEXT" />
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                   
                   <block type="text" id="E/yg{8y6]uAOz|$D{2h$">
                     
                     <field name="TEXT">Analyzing</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </value>
                 
@@ -274,23 +274,23 @@
                       
                       <shadow type="text" id="M0A74ZqmQu2$C2oPKPIy">
                         
-                        <field name="TEXT"></field>
+                        <field name="TEXT" />
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                       
                       <block type="read_details" id="u`:%39L$jRWHqs`sVt!F">
                         
                         <field name="DETAIL_INDEX">4</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </statement>
             
@@ -308,7 +308,7 @@
                     
                     <field name="VAR" id="]hOJfhIb0jq@|fR3bS;Z">text</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </value>
                 
@@ -324,19 +324,19 @@
                         
                         <field name="VAR" id="%L?;380E6Lr^3b.%}t5Q">Win Amount</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
         
         </statement>
         
@@ -354,15 +354,15 @@
                   
                   <shadow type="text" id="V``nI1H@ql)fT:^A_ja1">
                     
-                    <field name="TEXT"></field>
+                    <field name="TEXT" />
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                   
                   <block type="text" id="zG+fb=3s_b?L*gSna-M}">
                     
                     <field name="TEXT">Analyzing </field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </value>
                 
@@ -374,9 +374,9 @@
                       
                       <shadow type="text" id="FqdOKn8n%^PHu9gaBF#U">
                         
-                        <field name="TEXT"></field>
+                        <field name="TEXT" />
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                       
                       <block type="math_single" id="nZaPIn=-giGQ^FmSuc(k">
                         
@@ -388,25 +388,25 @@
                             
                             <field name="NUM">9</field>
                           
-                          </shadow>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                           
                           <block type="read_details" id="5g{fH$Z#Y7(7K8eIpXR?">
                             
                             <field name="DETAIL_INDEX">4</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </statement>
             
@@ -424,7 +424,7 @@
                     
                     <field name="VAR" id="elmzBn^_X[.n1z-Mpj*n">text1</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </value>
                 
@@ -440,7 +440,7 @@
                         
                         <field name="NUM">1</field>
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                       
                       <block type="math_arithmetic" id="P22f@t${JM4)2^6wp#!1">
                         
@@ -452,7 +452,7 @@
                             
                             <field name="NUM">1</field>
                           
-                          </shadow>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                           
                           <block type="math_single" id="+M+4U01@.4n@X_Jg.+JI">
                             
@@ -464,17 +464,17 @@
                                 
                                 <field name="NUM">9</field>
                               
-                              </shadow>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                               
                               <block type="read_details" id="G3kwHGv`.,Cpr]|=I}FM">
                                 
                                 <field name="DETAIL_INDEX">4</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </value>
                         
@@ -484,17 +484,17 @@
                             
                             <field name="NUM">1</field>
                           
-                          </shadow>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                           
                           <block type="math_number" id="rx2HbvHv~Zt[5bVbP}jM">
                             
                             <field name="NUM">1</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </value>
                     
@@ -520,17 +520,17 @@
                                     
                                     <field name="NUM">9</field>
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                                   
                                   <block type="read_details" id="?w(N%Lan)A2F0%QvfAyP">
                                     
                                     <field name="DETAIL_INDEX">4</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                             
                             </value>
                             
@@ -540,11 +540,11 @@
                                 
                                 <field name="VAR" id="W4$:ZQCmEz#8+=4ysv5Y">Loss Amount</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </value>
                         
@@ -560,27 +560,27 @@
                                 
                                 <field name="VAR" id="%L?;380E6Lr^3b.%}t5Q">Win Amount</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </statement>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
         
         </statement>
         
@@ -598,15 +598,15 @@
                   
                   <shadow type="text" id="cDtUgYphR5dH5LeJM!ex">
                     
-                    <field name="TEXT"></field>
+                    <field name="TEXT" />
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                   
                   <block type="text" id="G1$ZxSO]OAjV0}:.Q5oB">
                     
                     <field name="TEXT">TotalProfit : </field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </value>
                 
@@ -618,19 +618,19 @@
                       
                       <shadow type="text" id="Y7u){v]Jxxl[6iYAV}S:">
                         
-                        <field name="TEXT"></field>
+                        <field name="TEXT" />
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                       
-                      <block type="total_profit" id=",_7;W@N?x6sDMH62l38A"></block>
+                      <block type="total_profit" id=",_7;W@N?x6sDMH62l38A"><data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </statement>
             
@@ -648,7 +648,7 @@
                     
                     <field name="VAR" id="!#VfU!}MCN5Q0y7#04[;">text2</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </value>
                 
@@ -656,7 +656,7 @@
                   
                   <block type="controls_if" id="#6;i=#Z1ISroTG/)N]U?">
                     
-                    <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+                    <ns1:mutation else="1" />
                     
                     <value name="IF0">
                       
@@ -666,7 +666,7 @@
                         
                         <value name="A">
                           
-                          <block type="total_profit" id="f@wBbo,$%U.PEsh.@*;3"></block>
+                          <block type="total_profit" id="f@wBbo,$%U.PEsh.@*;3"><data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </value>
                         
@@ -676,17 +676,17 @@
                             
                             <field name="VAR" id="mXtFswo{p,|%W1:V-$+r">Expected Profit</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </value>
                     
                     <statement name="DO0">
                       
-                      <block type="trade_again" id="Y=tR1RN*tTL9Z}j/[9^="></block>
+                      <block type="trade_again" id="Y=tR1RN*tTL9Z}j/[9^="><data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </statement>
                     
@@ -704,15 +704,15 @@
                               
                               <shadow type="text" id="iteS:^Puc4r6bQJ`H#p-">
                                 
-                                <field name="TEXT"></field>
+                                <field name="TEXT" />
                               
-                              </shadow>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                               
                               <block type="text" id="0_19u26*^h!pyCW[)N{d">
                                 
                                 <field name="TEXT">Total  Profit: </field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                             
                             </value>
                             
@@ -724,19 +724,19 @@
                                   
                                   <shadow type="text" id="o%qbL%{:.5b,--i|]=R{">
                                     
-                                    <field name="TEXT"></field>
+                                    <field name="TEXT" />
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                                   
-                                  <block type="total_profit" id="/pd_3NTAz(9YS[PO]kPK"></block>
+                                  <block type="total_profit" id="/pd_3NTAz(9YS[PO]kPK"><data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </statement>
                         
@@ -750,41 +750,41 @@
                                 
                                 <field name="TEXT">abc</field>
                               
-                              </shadow>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></shadow>
                               
                               <block type="variables_get" id="mylZZtXI-BT%dbBAh}:Q">
                                 
                                 <field name="VAR" id="6YqjCZD99tVuD!1ahB|d">text3</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                     
                     </statement>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
   
   <block type="before_purchase" id="3CFFC(7=t:jZrGCA8*nB" deletable="false" x="0" y="980">
     
@@ -794,22 +794,22 @@
         
         <field name="PURCHASE_LIST">DIGITEVEN</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
   
   <block type="math_number" id=")@012b#;mS*?V!WWloL8" disabled="true" x="0" y="1930">
     
     <field name="NUM">5</field>
   
-  </block>
+  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
   
   <block type="text" id="4OTy+HDzrQ7!~iGS$~x#" disabled="true" x="0" y="2018">
     
     <field name="TEXT">Candle Mine </field>
   
-  </block>
+  <data>netoacademy:hosted-bot:3_2025_Updated_Version_Of_Candle_Mine🇬🇧_1765711647657.xml</data></block>
 
 </xml>

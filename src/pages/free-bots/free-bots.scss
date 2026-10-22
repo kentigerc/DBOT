@@ -10,6 +10,14 @@
     overflow-x: hidden;
     overscroll-behavior: contain;
 
+    &__protection-note {
+        margin: 0 0 20px;
+        text-align: center;
+        color: var(--text-less-prominent);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
     &__header {
         text-align: center;
         margin-bottom: 32px;

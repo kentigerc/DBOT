@@ -3,6 +3,7 @@ import { botNotification } from '@/components/bot-notification/bot-notification'
 import { notification_message } from '@/components/bot-notification/bot-notification-utils';
 import { button_status } from '@/constants/button-status';
 import { config, importExternal } from '@/external/bot-skeleton';
+import { HOSTED_BOT_NOTICE, isProtectedBotXml } from '@/utils/bot-protection';
 import { getInitialLanguage, localize } from '@deriv-com/translations';
 import {
     rudderStackSendUploadStrategyCompletedEvent,
@@ -189,6 +190,10 @@ export default class GoogleDriveStore {
     }
 
     async saveFile(options: TFileOptions) {
+        if (isProtectedBotXml(options.content)) {
+            botNotification(HOSTED_BOT_NOTICE);
+            throw new Error(HOSTED_BOT_NOTICE);
+        }
         try {
             await this.signIn();
             if (this.access_token) gapi.client.setToken({ access_token: this.access_token });

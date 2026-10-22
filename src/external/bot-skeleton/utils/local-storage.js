@@ -1,3 +1,4 @@
+import { isProtectedBotXml } from '@/utils/bot-protection';
 import localForage from 'localforage';
 import LZString from 'lz-string';
 import { config } from '../constants';
@@ -10,6 +11,7 @@ import DBotStore from '../scratch/dbot-store';
  * @param {window.Blockly.Events} event // Blockly event object
  */
 export const saveWorkspaceToRecent = async (xml, save_type = save_types.UNSAVED) => {
+    if (isProtectedBotXml(xml)) return;
     const xml_dom = convertStrategyToIsDbot(xml);
     // Ensure strategies don't go through expensive conversion.
     xml.setAttribute('is_dbot', true);

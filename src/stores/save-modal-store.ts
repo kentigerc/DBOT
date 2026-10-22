@@ -1,6 +1,7 @@
 import localForage from 'localforage';
 import LZString from 'lz-string';
 import { action, makeObservable, observable } from 'mobx';
+import { botNotification } from '@/components/bot-notification/bot-notification';
 import { MAX_STRATEGIES } from '@/constants/bot-contents';
 import { button_status } from '@/constants/button-status';
 import {
@@ -10,6 +11,7 @@ import {
     save_types,
     saveWorkspaceToRecent,
 } from '@/external/bot-skeleton';
+import { HOSTED_BOT_NOTICE, isProtectedBotWorkspace,isProtectedBotXml } from '@/utils/bot-protection';
 import { localize } from '@deriv-com/translations';
 import { TStrategy } from 'Types';
 import RootStore from './root-store';
@@ -56,6 +58,10 @@ export default class SaveModalStore implements ISaveModalStore {
     bot_name = '';
 
     toggleSaveModal = (): void => {
+        if (!this.is_save_modal_open && this.root_store.dashboard.active_tab === 1 && isProtectedBotWorkspace()) {
+            botNotification(HOSTED_BOT_NOTICE);
+            return;
+        }
         if (!this.is_save_modal_open) {
             this.setButtonStatus(button_status.NORMAL);
         }
@@ -134,7 +140,6 @@ export default class SaveModalStore implements ISaveModalStore {
         const { load_modal, dashboard, google_drive } = this.root_store;
         const { loadStrategyToBuilder, selected_strategy } = load_modal;
         const { active_tab } = dashboard;
-        this.setButtonStatus(button_status.LOADING);
         const { saveFile } = google_drive;
         let xml;
         let main_strategy = null;
@@ -147,6 +152,12 @@ export default class SaveModalStore implements ISaveModalStore {
             main_strategy.save_type = is_local ? save_types.LOCAL : save_types.GOOGLE_DRIVE;
             xml = window.Blockly.utils.xml.textToDom(main_strategy.xml);
         }
+        if (isProtectedBotXml(xml) || (active_tab === 1 && isProtectedBotWorkspace())) {
+            botNotification(HOSTED_BOT_NOTICE);
+            this.setButtonStatus(button_status.NORMAL);
+            return;
+        }
+        this.setButtonStatus(button_status.LOADING);
         xml.setAttribute('is_dbot', 'true');
         xml.setAttribute('collection', save_as_collection ? 'true' : 'false');
 

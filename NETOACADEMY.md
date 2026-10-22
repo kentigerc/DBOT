@@ -64,7 +64,7 @@ No owner credentials were requested. Full user login, live account discovery, de
 
 Official references: https://developers.deriv.com/docs/intro/oauth/ , https://developers.deriv.com/docs/options/websocket/ , https://developers.deriv.com/comparison/
 
-Automated checks: 77 Jest tests across 18 suites and 25 Node server tests passed. The production build passed. The original checkout also fails the full TypeScript check (684 diagnostics in the baseline run), so that check is not represented as passing.
+Automated checks: 82 Jest tests across 20 suites and 26 Node server tests passed. The production build passed. The original checkout also fails the full TypeScript check (684 diagnostics in the baseline run), so that check is not represented as passing.
 
 ## Analysis Tool strategy
 
@@ -99,3 +99,13 @@ Digit Analysis also remains mounted after its first visit. Switching tabs preser
 Free Bots uses a viewport-bounded, keyboard-focusable scrolling region instead of extending beyond the clipped desktop container. Browser checks confirmed mouse-wheel scrolling at 1280, 1440 and 1920 pixel desktop widths and 390 pixel mobile width, access to the last bot's load button and keyboard End scrolling. The production build passed.
 
 The application header is fixed to the top of the viewport across all sections. The layout reserves its measured responsive height, including wrapped mobile navigation, so content is not covered. Desktop/mobile browser checks verified inner-list scrolling, document scrolling, section switching, content offsets and header stacking; the production build passed.
+
+## Hosted bot export restrictions
+
+Hosted XML is stored under `server/bots`, outside the public build. `/api/bots/load` requires a valid Deriv session, serves only allowlisted files and returns private/no-store responses. Old `/bots/` download URLs are refused. Users must log in to load hosted bots; personal file uploads remain available.
+
+Hosted files carry export provenance in the XML and non-procedure block metadata. Blockly serialization retains that provenance after edits and ordinary block copies. The normal Save dialog, local XML export, Download Block and Google Drive saving refuse protected strategies with a clear message; no invalid or misleading file is generated. Protected strategies are excluded from Recent/autosave storage and retained in memory when moving between sections. An explicit personal-strategy replacement or Reset restores normal export behavior. Transaction and journal downloads are unaffected.
+
+**This is a browser-level export restriction, not DRM or strategy secrecy.** Authorized browsers receive the XML and blocks, so a technical user can inspect, copy or alter them and remove these checks. Files already downloaded, older browser caches and XML in repository history cannot be revoked. If the repository is public, its current files and historical bot files remain accessible independently of the site; making the repository private is a separate owner action. True strategy confidentiality requires server execution with no strategy source or complete blocks sent to clients.
+
+Validation: all 11 supported hosted bots loaded with provenance and refused Save, including standalone/mobile imports; metadata comparison preserved generated output or the same fixture-dependent metadata error. These code-generation checks did not execute trades. A protected strategy survived a tab round trip in memory, while replacing it with a personal default allowed an actual local XML export in a browser test. Endpoint tests cover authentication, path traversal, cross-site loading and no-store headers. All 82 application tests, 26 server tests and the production build passed.

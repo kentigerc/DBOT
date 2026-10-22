@@ -1,3 +1,9 @@
+import {
+    HOSTED_BOT_NOTICE,
+    installBotProtection,
+    isProtectedBotXml,
+    isProtectedBotWorkspace,
+} from '@/utils/bot-protection';
 import { botNotification } from '@/components/bot-notification/bot-notification';
 import { notification_message } from '@/components/bot-notification/bot-notification-utils';
 import { getCurrencyDisplayCode } from '@/components/shared';
@@ -130,6 +136,10 @@ export const cleanUpOnLoad = (blocks_to_clean, drop_event, workspace) => {
 };
 
 export const save = (filename = '@deriv/bot', collection = false, xmlDom) => {
+    if (isProtectedBotXml(xmlDom)) {
+        botNotification(HOSTED_BOT_NOTICE);
+        return false;
+    }
     xmlDom.setAttribute('is_dbot', 'true');
     xmlDom.setAttribute('collection', collection ? 'true' : 'false');
 
@@ -150,6 +160,7 @@ export const load = async ({
     show_snackbar = true,
 }) => {
     if (!DBotStore?.instance || !workspace) return;
+    installBotProtection();
     const { setLoading, load_modal } = DBotStore.instance;
     const { setOpenButtonDisabled, setLoadedLocalFile } = load_modal;
 
@@ -161,7 +172,8 @@ export const load = async ({
         botNotification(notification_message().invalid_xml);
         setLoading(false);
         setOpenButtonDisabled(false);
-        const error_message = details || localize('XML file contains unsupported elements. Please check or modify file.');
+        const error_message =
+            details || localize('XML file contains unsupported elements. Please check or modify file.');
         globalObserver.emit('ui.log.error', error_message);
         return {
             error: error_message,
@@ -196,12 +208,16 @@ export const load = async ({
     }
 
     // Check if all block types in XML are allowed.
-    const invalid_blocks = Array.from(blockly_xml).map(block => {
-        const block_type = block.getAttribute('type');
-        return Object.keys(window.Blockly.Blocks).includes(block_type) ? null : block_type;
-    }).filter(Boolean);
+    const invalid_blocks = Array.from(blockly_xml)
+        .map(block => {
+            const block_type = block.getAttribute('type');
+            return Object.keys(window.Blockly.Blocks).includes(block_type) ? null : block_type;
+        })
+        .filter(Boolean);
     if (invalid_blocks.length) {
-        return showInvalidStrategyError(`This bot uses unsupported blocks: ${[...new Set(invalid_blocks)].join(', ')}.`);
+        return showInvalidStrategyError(
+            `This bot uses unsupported blocks: ${[...new Set(invalid_blocks)].join(', ')}.`
+        );
     }
 
     try {
@@ -637,6 +653,10 @@ export const removeExtraInput = instance => {
 };
 
 const downloadBlock = () => {
+    if (isProtectedBotWorkspace()) {
+        botNotification(HOSTED_BOT_NOTICE);
+        return;
+    }
     const xml_block = window.Blockly?.getSelected()?.svgGroup_;
     const xml_text = window.Blockly.Xml.domToPrettyText(xml_block);
     saveAs({ data: xml_text, type: 'text/xml;charset=utf-8', filename: 'block.xml' });

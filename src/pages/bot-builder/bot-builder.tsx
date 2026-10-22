@@ -40,8 +40,12 @@ const BotBuilder = observer(() => {
                 const bot = JSON.parse(pending);
                 if (typeof bot.fileName !== 'string' || typeof bot.name !== 'string' || bot.fileName.includes('/'))
                     throw new Error('Invalid bot selection.');
-                const response = await fetch(`/bots/${encodeURIComponent(bot.fileName)}`);
-                if (!response.ok) throw new Error('This bot file could not be downloaded. Please choose another bot.');
+                const response = await fetch(`/api/bots/load?file=${encodeURIComponent(bot.fileName)}`, {
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                });
+                if (response.status === 401) throw new Error('Log in with Deriv before loading a NetoAcademy bot.');
+                if (!response.ok) throw new Error('This bot could not be loaded. Please choose another bot.');
                 const content = await response.text();
                 if (
                     content.length > 2_000_000 ||

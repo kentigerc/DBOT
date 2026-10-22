@@ -1,7 +1,13 @@
+import { HOSTED_BOT_NOTICE, isProtectedBotXml } from '@/utils/bot-protection';
+import { botNotification } from '@/components/bot-notification/bot-notification';
 import filesaver from 'file-saver';
 import { config } from '../constants/config';
 
 export const saveAs = ({ data, filename, type }) => {
+    if (/\.xml$/i.test(filename) && isProtectedBotXml(data)) {
+        botNotification(HOSTED_BOT_NOTICE);
+        return false;
+    }
     const blob = new Blob([data], { type });
     filesaver.saveAs(blob, filename);
 };

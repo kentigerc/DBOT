@@ -1,4 +1,4 @@
-<xml xmlns="https://developers.google.com/blockly/xml" is_dbot="true" collection="false">
+<xml xmlns="https://developers.google.com/blockly/xml" xmlns:html="http://www.w3.org/1999/xhtml" is_dbot="true" collection="false" neto_protected="true">
   
   <variables>
     
@@ -64,27 +64,27 @@
                             
                             <field name="RESTARTONERROR">TRUE</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
     
     </statement>
     
@@ -106,11 +106,11 @@
                 
                 <field name="TEXT">Enter Your Stake</field>
               
-              </shadow>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
             
             </value>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </value>
         
@@ -126,7 +126,7 @@
                 
                 <field name="VAR" id="W.5hO-o=1PTBG}I0)5fo">InitialStake</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </value>
             
@@ -148,11 +148,11 @@
                         
                         <field name="TEXT">Enter your Entry</field>
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </value>
                 
@@ -174,17 +174,17 @@
                             
                             <field name="TEXT">Enter Your Stake</field>
                           
-                          </shadow>
+                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                           
                           <block type="text" id="mFupYz,92C)/j;f(F^=5">
                             
                             <field name="TEXT">enter your Martingale</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                     
                     </value>
                     
@@ -192,7 +192,7 @@
                       
                       <block type="procedures_callnoreturn" id="#2.T|93|7HVyMXV$;JP7">
                         
-                        <mutation xmlns="http://www.w3.org/1999/xhtml" name="Money8GG Assistant"></mutation>
+                        <html:mutation name="Money8GG Assistant" />
                         
                         <data>pL~^49rSFOL-rKmGMIXJ</data>
                         
@@ -212,7 +212,7 @@
                                     
                                     <field name="NUM">0</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                 
                                 </value>
                                 
@@ -226,7 +226,7 @@
                                         
                                         <field name="NUM">5</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                     
                                     </value>
                                     
@@ -240,7 +240,7 @@
                                             
                                             <field name="NUM">6</field>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                         
                                         </value>
                                         
@@ -254,7 +254,7 @@
                                                 
                                                 <field name="NUM">7</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                             
                                             </value>
                                             
@@ -268,7 +268,7 @@
                                                     
                                                     <field name="NUM">8</field>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                                 
                                                 </value>
                                                 
@@ -282,7 +282,7 @@
                                                         
                                                         <field name="NUM">4</field>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                                     
                                                     </value>
                                                     
@@ -296,7 +296,7 @@
                                                             
                                                             <field name="NUM">3</field>
                                                           
-                                                          </block>
+                                                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                                         
                                                         </value>
                                                         
@@ -310,43 +310,43 @@
                                                                 
                                                                 <field name="NUM">2</field>
                                                               
-                                                              </block>
+                                                              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                                             
                                                             </value>
                                                           
-                                                          </block>
+                                                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                                         
                                                         </next>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                                     
                                                     </next>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                                 
                                                 </next>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                             
                                             </next>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                         
                                         </next>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                     
                                     </next>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                                 
                                 </next>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                             
                             </statement>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                         
                         </next>
                       
@@ -354,19 +354,19 @@
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
     
     </statement>
     
@@ -382,7 +382,7 @@
             
             <field name="NUM">1</field>
           
-          </shadow>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
         
         </value>
         
@@ -390,7 +390,7 @@
           
           <block type="trade_definition_tradeoptions" id="P=}*GUpVeL4gE*eN`SHg">
             
-            <mutation xmlns="http://www.w3.org/1999/xhtml" has_first_barrier="false" has_second_barrier="false" has_prediction="true"></mutation>
+            <html:mutation has_first_barrier="false" has_second_barrier="false" has_prediction="true" />
             
             <field name="DURATIONTYPE_LIST">t</field>
             
@@ -400,7 +400,7 @@
                 
                 <field name="NUM">1</field>
               
-              </shadow>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
             
             </value>
             
@@ -410,13 +410,13 @@
                 
                 <field name="NUM">0.35</field>
               
-              </shadow>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
               
               <block type="variables_get" id="?04v8kh01mJr~~~;]F0N">
                 
                 <field name="VAR" id="{M,tIQ*^XB^pj!li?XWe">Stake</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </value>
             
@@ -426,11 +426,11 @@
                 
                 <field name="NUM">0</field>
               
-              </shadow>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
               
               <block type="lists_getIndex" id="ez./o1py7Utl@$!tZs;a">
                 
-                <mutation xmlns="http://www.w3.org/1999/xhtml" statement="false" at="true"></mutation>
+                <html:mutation statement="false" at="true" />
                 
                 <field name="MODE">GET</field>
                 
@@ -442,7 +442,7 @@
                     
                     <field name="VAR" id="RIdC%LY3N|CzO5qmo?o%">predictionList</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </value>
                 
@@ -452,23 +452,23 @@
                     
                     <field name="VAR" id="`h_yz8%kK*-t:%oBk)VQ">Prediction</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </value>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </value>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
   
   <block type="during_purchase" id="SqVRMWF3::wI[Z@A:.G*" x="1243" y="60">
     
@@ -478,15 +478,15 @@
         
         <value name="IF0">
           
-          <block type="check_sell" id="6pn;63iD!hgqq{z4(gJ+"></block>
+          <block type="check_sell" id="6pn;63iD!hgqq{z4(gJ+"><data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </value>
       
-      </block>
+      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
   
   <block type="after_purchase" id="#Yuc7i1j.U+PDba*3h]V" x="1243" y="292">
     
@@ -494,7 +494,7 @@
       
       <block type="controls_if" id="SjeUK/PCiDOy5@{uAXqs">
         
-        <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+        <html:mutation else="1" />
         
         <value name="IF0">
           
@@ -502,7 +502,7 @@
             
             <field name="CHECK_RESULT">loss</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </value>
         
@@ -524,13 +524,13 @@
                     
                     <field name="NUM">1</field>
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                   
                   <block type="variables_get" id="{D3yB*DlI6D7whU|kzo?">
                     
                     <field name="VAR" id="{M,tIQ*^XB^pj!li?XWe">Stake</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </value>
                 
@@ -540,21 +540,21 @@
                     
                     <field name="NUM">1</field>
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                   
                   <block type="variables_get" id="c@{SB0`KQ?}?}d#SJ:~S">
                     
                     <field name="VAR" id="`6p#quXYX8-:M$+G{!o5">Martingale</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </value>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </value>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </statement>
         
@@ -570,7 +570,7 @@
                 
                 <field name="VAR" id="W.5hO-o=1PTBG}I0)5fo">InitialStake</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </value>
             
@@ -586,29 +586,29 @@
                     
                     <field name="NUM">0</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </value>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </statement>
         
         <next>
           
-          <block type="trade_again" id="I7F;6mpS}m0A$#=5:PSv"></block>
+          <block type="trade_again" id="I7F;6mpS}m0A$#=5:PSv"><data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
   
   <block type="before_purchase" id="Os#H9!3M81C`s8@.;6:h" deletable="false" x="0" y="1396">
     
@@ -616,7 +616,7 @@
       
       <block type="controls_if" id="V@IxF.QoRbRhN$-yz#MG">
         
-        <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+        <html:mutation else="1" />
         
         <value name="IF0">
           
@@ -626,7 +626,7 @@
             
             <value name="A">
               
-              <block type="last_digit" id="4_yW@#]|Qr(XS=[0AjcG"></block>
+              <block type="last_digit" id="4_yW@#]|Qr(XS=[0AjcG"><data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </value>
             
@@ -636,11 +636,11 @@
                 
                 <field name="VAR" id="oR4q)qZ).1E[T_u(iYm=">EntryPoint</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </value>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </value>
         
@@ -660,7 +660,7 @@
                     
                     <field name="TEXT">Last Digit:</field>
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                 
                 </value>
                 
@@ -672,19 +672,19 @@
                       
                       <shadow type="text" id="uSe;9P!M+B4j,Gc7rb=c">
                         
-                        <field name="TEXT"></field>
+                        <field name="TEXT" />
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                       
-                      <block type="last_digit" id="7FUA59?Y;9e?@)U!bpr]"></block>
+                      <block type="last_digit" id="7FUA59?Y;9e?@)U!bpr]"><data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </statement>
             
@@ -702,13 +702,13 @@
                     
                     <field name="TEXT">abc</field>
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                   
                   <block type="variables_get" id="g+Hw@]k`D86Gq,PCa6s~">
                     
                     <field name="VAR" id="cd.t#(t#Bd2u3h5[Gz@k">text</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </value>
                 
@@ -716,7 +716,7 @@
                   
                   <block type="controls_if" id=")!v,L]!,Bf:Ajw3m%WwI">
                     
-                    <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+                    <html:mutation else="1" />
                     
                     <value name="IF0">
                       
@@ -730,7 +730,7 @@
                             
                             <field name="VAR" id="`h_yz8%kK*-t:%oBk)VQ">Prediction</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                         
                         </value>
                         
@@ -740,11 +740,11 @@
                             
                             <field name="NUM">4</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                     
                     </value>
                     
@@ -754,7 +754,7 @@
                         
                         <field name="PURCHASE_LIST">DIGITUNDER</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                     
                     </statement>
                     
@@ -764,19 +764,19 @@
                         
                         <field name="PURCHASE_LIST">DIGITOVER</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                     
                     </statement>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </statement>
         
@@ -796,7 +796,7 @@
                     
                     <field name="TEXT">Last Digit Not Zero:</field>
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                 
                 </value>
                 
@@ -808,19 +808,19 @@
                       
                       <shadow type="text" id="uSe;9P!M+B4j,Gc7rb=c">
                         
-                        <field name="TEXT"></field>
+                        <field name="TEXT" />
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                       
-                      <block type="last_digit" id="T{9uxVm}}?S],6gguHFE"></block>
+                      <block type="last_digit" id="T{9uxVm}}?S],6gguHFE"><data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </statement>
             
@@ -838,29 +838,29 @@
                     
                     <field name="TEXT">abc</field>
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
                   
                   <block type="variables_get" id="D3}%iYI;)!}d5hl=8hfN">
                     
                     <field name="VAR" id="zP9N#7UY5f3Y{gkfS)Ew">text2</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
                 
                 </value>
               
-              </block>
+              <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
         
         </statement>
       
-      </block>
+      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
   
   <block type="procedures_defnoreturn" id="pL~^49rSFOL-rKmGMIXJ" x="46" y="2365">
     
@@ -878,11 +878,11 @@
             
             <field name="TEXT">Money8gg Free Bots</field>
           
-          </shadow>
+          <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></shadow>
         
         </value>
       
-      </block>
+      <data>netoacademy:hosted-bot:AI_with_Entry_Point_1765711647658.xml</data></block>
     
     </statement>
   

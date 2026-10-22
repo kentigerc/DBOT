@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
+import { getDerivSession } from '@/utils/deriv-session';
 import './free-bots.scss';
 
 interface Bot {
@@ -129,6 +130,10 @@ const FreeBots = observer(() => {
     const filteredBots = selectedCategory === 'All' ? BOTS : BOTS.filter(bot => bot.category === selectedCategory);
 
     const loadBot = async (bot: Bot) => {
+        if (!getDerivSession().authenticated) {
+            setError('Log in with Deriv to load a NetoAcademy bot.');
+            return;
+        }
         if (run_panel.is_running) {
             setError('Stop your running bot before loading another bot.');
             return;
@@ -158,6 +163,9 @@ const FreeBots = observer(() => {
             </div>
 
             {error && <p role='alert'>{error}</p>}
+            <p className='free-bots__protection-note'>
+                NetoAcademy bots are available to run here. Strategy downloads and exports are disabled.
+            </p>
             <div className='free-bots__categories'>
                 {categories.map(category => (
                     <button

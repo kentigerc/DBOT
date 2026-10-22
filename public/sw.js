@@ -1,5 +1,5 @@
 // Comprehensive Service Worker for Deriv Bot Offline Functionality
-const CACHE_NAME = 'deriv-bot-v1';
+const CACHE_NAME = 'netoacademy-v2-protected-bots';
 const OFFLINE_URL = '/offline.html';
 
 // Files to cache immediately on install

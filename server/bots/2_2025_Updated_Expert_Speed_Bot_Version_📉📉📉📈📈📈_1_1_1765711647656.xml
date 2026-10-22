@@ -1,4 +1,4 @@
-<xml xmlns="https://developers.google.com/blockly/xml" is_dbot="true" collection="false">
+<xml xmlns="https://developers.google.com/blockly/xml" xmlns:ns1="http://www.w3.org/1999/xhtml" is_dbot="true" collection="false" neto_protected="true">
   
   <variables>
     
@@ -96,27 +96,27 @@
                             
                             <field name="RESTARTONERROR">TRUE</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </statement>
     
@@ -124,21 +124,21 @@
       
       <block type="procedures_callnoreturn" id="eP/^XD=g@h_l8kgpnWV`">
         
-        <mutation xmlns="http://www.w3.org/1999/xhtml" name="Daily Profit's System">
+        <ns1:mutation name="Daily Profit's System">
           
-          <arg name="Target Profit"></arg>
+          <ns1:arg name="Target Profit" />
           
-          <arg name="Stop Loss"></arg>
+          <ns1:arg name="Stop Loss" />
           
-          <arg name="First Stake"></arg>
+          <ns1:arg name="First Stake" />
           
-          <arg name="Martingale Factor"></arg>
+          <ns1:arg name="Martingale Factor" />
           
-          <arg name="Martingale Level"></arg>
+          <ns1:arg name="Martingale Level" />
           
-          <arg name="Do Martingale After"></arg>
+          <ns1:arg name="Do Martingale After" />
         
-        </mutation>
+        </ns1:mutation>
         
         <value name="ARG0">
           
@@ -146,7 +146,7 @@
             
             <field name="NUM">300</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
         
@@ -156,7 +156,7 @@
             
             <field name="NUM">150</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
         
@@ -166,7 +166,7 @@
             
             <field name="NUM">100</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
         
@@ -176,7 +176,7 @@
             
             <field name="NUM">2</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
         
@@ -186,7 +186,7 @@
             
             <field name="NUM">1</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
         
@@ -196,7 +196,7 @@
             
             <field name="NUM">1</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
       
@@ -208,7 +208,7 @@
       
       <block type="trade_definition_tradeoptions" id=";[Ns/i15.H[/Q/[h*?%^">
         
-        <mutation xmlns="http://www.w3.org/1999/xhtml" has_first_barrier="false" has_second_barrier="false" has_prediction="false"></mutation>
+        <ns1:mutation has_first_barrier="false" has_second_barrier="false" has_prediction="false" />
         
         <field name="DURATIONTYPE_LIST">t</field>
         
@@ -218,7 +218,7 @@
             
             <field name="NUM">1</field>
           
-          </shadow>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
         
         </value>
         
@@ -228,21 +228,21 @@
             
             <field name="NUM">0.35</field>
           
-          </shadow>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
           
           <block type="variables_get" id="MpL156$Kf4FnXUmr2:Lj">
             
             <field name="VAR" id="RMbK)by1LEnp^9@HKC(*">Stake</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
   
   <block type="after_purchase" id="Zc4VeKaW1/F_j$%QK^.H" x="1354" y="110">
     
@@ -254,13 +254,13 @@
           
           <block type="procedures_callreturn" id="$f6^)PtfgsT51EC]w6ar">
             
-            <mutation xmlns="http://www.w3.org/1999/xhtml" name="Daily Profit's Trade Again">
+            <ns1:mutation name="Daily Profit's Trade Again">
               
-              <arg name="[Win Result]"></arg>
+              <ns1:arg name="[Win Result]" />
               
-              <arg name="Detail Profit"></arg>
+              <ns1:arg name="Detail Profit" />
             
-            </mutation>
+            </ns1:mutation>
             
             <value name="ARG0">
               
@@ -268,7 +268,7 @@
                 
                 <field name="CHECK_RESULT">win</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
             
             </value>
             
@@ -278,7 +278,7 @@
                 
                 <field name="DETAIL_INDEX">4</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
             
             </value>
           
@@ -288,15 +288,15 @@
         
         <statement name="DO0">
           
-          <block type="trade_again" id="=It{G{[c{NMlDVo{(iWL"></block>
+          <block type="trade_again" id="=It{G{[c{NMlDVo{(iWL"><data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </statement>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
   
   <block type="before_purchase" id="WKBhcIx=}gmy*a5P*vga" deletable="false" x="0" y="788">
     
@@ -306,29 +306,29 @@
         
         <field name="PURCHASE_LIST">PUT</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
   
   <block type="procedures_callnoreturn" id="vzo!]3ykF}2Hp36DN=x/" disabled="true" x="0" y="966">
     
-    <mutation xmlns="http://www.w3.org/1999/xhtml" name="Daily Profit's System">
+    <ns1:mutation name="Daily Profit's System">
       
-      <arg name="Target Profit"></arg>
+      <ns1:arg name="Target Profit" />
       
-      <arg name="Stop Loss"></arg>
+      <ns1:arg name="Stop Loss" />
       
-      <arg name="First Stake"></arg>
+      <ns1:arg name="First Stake" />
       
-      <arg name="Martingale Factor"></arg>
+      <ns1:arg name="Martingale Factor" />
       
-      <arg name="Martingale Level"></arg>
+      <ns1:arg name="Martingale Level" />
       
-      <arg name="Do Martingale After"></arg>
+      <ns1:arg name="Do Martingale After" />
     
-    </mutation>
+    </ns1:mutation>
     
     <data>0K~#d=SgPPum#y256eqo</data>
     
@@ -338,7 +338,7 @@
         
         <field name="NUM">10</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -348,7 +348,7 @@
         
         <field name="NUM">100</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -358,7 +358,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -368,7 +368,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -378,7 +378,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -388,7 +388,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
   
@@ -396,21 +396,21 @@
   
   <block type="procedures_callnoreturn" id="oLme2Pw2dydCe-N)XId-" disabled="true" x="0" y="1070">
     
-    <mutation xmlns="http://www.w3.org/1999/xhtml" name="Daily Profit's System">
+    <ns1:mutation name="Daily Profit's System">
       
-      <arg name="Target Profit"></arg>
+      <ns1:arg name="Target Profit" />
       
-      <arg name="Stop Loss"></arg>
+      <ns1:arg name="Stop Loss" />
       
-      <arg name="First Stake"></arg>
+      <ns1:arg name="First Stake" />
       
-      <arg name="Martingale Factor"></arg>
+      <ns1:arg name="Martingale Factor" />
       
-      <arg name="Martingale Level"></arg>
+      <ns1:arg name="Martingale Level" />
       
-      <arg name="Do Martingale After"></arg>
+      <ns1:arg name="Do Martingale After" />
     
-    </mutation>
+    </ns1:mutation>
     
     <data>0K~#d=SgPPum#y256eqo</data>
     
@@ -420,7 +420,7 @@
         
         <field name="NUM">10</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -430,7 +430,7 @@
         
         <field name="NUM">100</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -440,7 +440,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -450,7 +450,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -460,7 +460,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -470,7 +470,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
   
@@ -478,21 +478,21 @@
   
   <block type="procedures_callnoreturn" id="}12X9)N=@4n3U@.Z9X6s" disabled="true" x="0" y="1174">
     
-    <mutation xmlns="http://www.w3.org/1999/xhtml" name="Daily Profit's System">
+    <ns1:mutation name="Daily Profit's System">
       
-      <arg name="Target Profit"></arg>
+      <ns1:arg name="Target Profit" />
       
-      <arg name="Stop Loss"></arg>
+      <ns1:arg name="Stop Loss" />
       
-      <arg name="First Stake"></arg>
+      <ns1:arg name="First Stake" />
       
-      <arg name="Martingale Factor"></arg>
+      <ns1:arg name="Martingale Factor" />
       
-      <arg name="Martingale Level"></arg>
+      <ns1:arg name="Martingale Level" />
       
-      <arg name="Do Martingale After"></arg>
+      <ns1:arg name="Do Martingale After" />
     
-    </mutation>
+    </ns1:mutation>
     
     <data>0K~#d=SgPPum#y256eqo</data>
     
@@ -502,7 +502,7 @@
         
         <field name="NUM">10</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -512,7 +512,7 @@
         
         <field name="NUM">100</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -522,7 +522,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -532,7 +532,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -542,7 +542,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -552,7 +552,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
   
@@ -560,21 +560,21 @@
   
   <block type="procedures_callnoreturn" id="O0=kE3}}T*#5%;KgTzCO" disabled="true" x="0" y="1278">
     
-    <mutation xmlns="http://www.w3.org/1999/xhtml" name="Daily Profit's System">
+    <ns1:mutation name="Daily Profit's System">
       
-      <arg name="Target Profit"></arg>
+      <ns1:arg name="Target Profit" />
       
-      <arg name="Stop Loss"></arg>
+      <ns1:arg name="Stop Loss" />
       
-      <arg name="First Stake"></arg>
+      <ns1:arg name="First Stake" />
       
-      <arg name="Martingale Factor"></arg>
+      <ns1:arg name="Martingale Factor" />
       
-      <arg name="Martingale Level"></arg>
+      <ns1:arg name="Martingale Level" />
       
-      <arg name="Do Martingale After"></arg>
+      <ns1:arg name="Do Martingale After" />
     
-    </mutation>
+    </ns1:mutation>
     
     <data>0K~#d=SgPPum#y256eqo</data>
     
@@ -584,7 +584,7 @@
         
         <field name="NUM">10</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -594,7 +594,7 @@
         
         <field name="NUM">100</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -604,7 +604,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -614,7 +614,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -624,7 +624,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -634,7 +634,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
   
@@ -642,13 +642,13 @@
   
   <block type="procedures_defreturn" id="uCU|lbwtbn|QJ4.@K`_=" collapsed="true" x="0" y="1382">
     
-    <mutation xmlns="http://www.w3.org/1999/xhtml">
+    <ns1:mutation>
       
-      <arg name="[Win Result]" varid="BPsrb}:o?nCP7t]1@Rfq"></arg>
+      <ns1:arg name="[Win Result]" varid="BPsrb}:o?nCP7t]1@Rfq" />
       
-      <arg name="Detail Profit" varid="dK=o~;7~9dr8wCZ%hyh,"></arg>
+      <ns1:arg name="Detail Profit" varid="dK=o~;7~9dr8wCZ%hyh," />
     
-    </mutation>
+    </ns1:mutation>
     
     <field name="NAME">Daily Profit's Trade Again</field>
     
@@ -666,13 +666,13 @@
             
             <field name="NUM">1</field>
           
-          </shadow>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
           
           <block type="variables_get" id="K.[XVE{Z*fI!DS$,;sRH">
             
             <field name="VAR" id="dK=o~;7~9dr8wCZ%hyh,">Detail Profit</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
         
@@ -694,7 +694,7 @@
                     
                     <field name="NUM">1</field>
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                   
                   <block type="math_round" id="T8e-NTr#M%Sv}NSJ[At1">
                     
@@ -706,7 +706,7 @@
                         
                         <field name="NUM">3.1</field>
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                       
                       <block type="math_arithmetic" id="Xd$Q_N(NYoH~7ad1H9_%">
                         
@@ -718,13 +718,13 @@
                             
                             <field name="NUM">1</field>
                           
-                          </shadow>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                           
                           <block type="variables_get" id=";hvUde_XV?zCo)txgDL;">
                             
                             <field name="VAR" id="ddH0?/^#_8u1VjM/!`t|">Profit</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </value>
                         
@@ -734,15 +734,15 @@
                             
                             <field name="NUM">100</field>
                           
-                          </shadow>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                 
                 </value>
                 
@@ -752,11 +752,11 @@
                     
                     <field name="NUM">100</field>
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                 
                 </value>
               
-              </block>
+              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
             
             </value>
             
@@ -764,7 +764,7 @@
               
               <block type="controls_if" id="O=DQQnVP8gBv|dLFvGXj">
                 
-                <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+                <ns1:mutation else="1" />
                 
                 <value name="IF0">
                   
@@ -772,7 +772,7 @@
                     
                     <field name="VAR" id="BPsrb}:o?nCP7t]1@Rfq">[Win Result]</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                 
                 </value>
                 
@@ -788,7 +788,7 @@
                         
                         <field name="NUM">1</field>
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                     
                     </value>
                     
@@ -804,7 +804,7 @@
                             
                             <field name="NUM">0</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </value>
                         
@@ -820,19 +820,19 @@
                                 
                                 <field name="VAR" id="k:EcRUy)u-26FkWUoszO">FirstStake</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                 
                 </statement>
                 
@@ -848,7 +848,7 @@
                         
                         <field name="NUM">1</field>
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                     
                     </value>
                     
@@ -864,7 +864,7 @@
                             
                             <field name="NUM">0</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </value>
                         
@@ -884,7 +884,7 @@
                                     
                                     <field name="VAR" id="^(Gy/YRFAMn6r6Ekap/J">Loss Count</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                                 
@@ -894,11 +894,11 @@
                                     
                                     <field name="VAR" id="/VJ7O.)sAJmm47`,|W=v">Loss Level</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                             
@@ -914,11 +914,11 @@
                                     
                                     <field name="VAR" id="^(Gy/YRFAMn6r6Ekap/J">Loss Count</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </statement>
                             
@@ -938,7 +938,7 @@
                                         
                                         <field name="VAR" id="[~%IWPApAWAU4`63rDfr">MartiLossLevel</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                     
@@ -948,11 +948,11 @@
                                         
                                         <field name="NUM">0</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                                 
@@ -978,7 +978,7 @@
                                                 
                                                 <field name="VAR" id="Nxx}Lsm5Mjf|D~2!Dj%V">MartiStart</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                             
@@ -988,11 +988,11 @@
                                                 
                                                 <field name="NUM">0</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </value>
                                         
@@ -1008,7 +1008,7 @@
                                                 
                                                 <field name="VAR" id="^(Gy/YRFAMn6r6Ekap/J">Loss Count</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                             
@@ -1018,15 +1018,15 @@
                                                 
                                                 <field name="VAR" id="Nxx}Lsm5Mjf|D~2!Dj%V">MartiStart</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </value>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                     
@@ -1034,7 +1034,7 @@
                                       
                                       <block type="controls_if" id="bVLEad]-_{LmYqdSej/j">
                                         
-                                        <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+                                        <ns1:mutation else="1" />
                                         
                                         <value name="IF0">
                                           
@@ -1048,7 +1048,7 @@
                                                 
                                                 <field name="VAR" id="^(Gy/YRFAMn6r6Ekap/J">Loss Count</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                             
@@ -1058,11 +1058,11 @@
                                                 
                                                 <field name="VAR" id="[~%IWPApAWAU4`63rDfr">MartiLossLevel</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </value>
                                         
@@ -1078,7 +1078,7 @@
                                                 
                                                 <field name="NUM">1</field>
                                               
-                                              </shadow>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                               
                                               <block type="math_arithmetic" id="+{gxoI6sR7a%-9HmwpO1">
                                                 
@@ -1090,13 +1090,13 @@
                                                     
                                                     <field name="NUM">1</field>
                                                   
-                                                  </shadow>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                                   
                                                   <block type="variables_get" id="l#*%ZS3MtX$x]UCLB@ts">
                                                     
                                                     <field name="VAR" id="RMbK)by1LEnp^9@HKC(*">Stake</field>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </value>
                                                 
@@ -1106,21 +1106,21 @@
                                                     
                                                     <field name="NUM">1</field>
                                                   
-                                                  </shadow>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                                   
                                                   <block type="variables_get" id="g8x[7)so3Y+Fd}w@d@+M">
                                                     
                                                     <field name="VAR" id="ezm;s,8YY7`S_pxNx+{s">MartiFactor</field>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </value>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </statement>
                                         
@@ -1138,7 +1138,7 @@
                                                 
                                                 <field name="TEXT">Martingale Reset</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                             
@@ -1154,39 +1154,39 @@
                                                     
                                                     <field name="VAR" id="k:EcRUy)u-26FkWUoszO">FirstStake</field>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </value>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </next>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </statement>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </statement>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </statement>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                 
                 </statement>
                 
@@ -1202,7 +1202,7 @@
                         
                         <field name="BOOL">FALSE</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                     
                     </value>
                     
@@ -1210,7 +1210,7 @@
                       
                       <block type="controls_if" id="Db{x9!UEyeKc!klE;GN1">
                         
-                        <mutation xmlns="http://www.w3.org/1999/xhtml" elseif="1" else="1"></mutation>
+                        <ns1:mutation elseif="1" else="1" />
                         
                         <value name="IF0">
                           
@@ -1224,7 +1224,7 @@
                                 
                                 <field name="VAR" id="ddH0?/^#_8u1VjM/!`t|">Profit</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                             
@@ -1234,11 +1234,11 @@
                                 
                                 <field name="VAR" id="!c%d*XBHYNv0h]4+]*nj">TargetProfit</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </value>
                         
@@ -1256,15 +1256,15 @@
                                   
                                   <shadow type="text" id="UL%-Snmz{0tRf^|dQel|">
                                     
-                                    <field name="TEXT"></field>
+                                    <field name="TEXT" />
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                   
                                   <block type="text" id="406(z$5zPp1nu:`,cdXs">
                                     
                                     <field name="TEXT">CONGRATULATION! Target Profit has been reached! Take Profit $</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                                 
@@ -1276,23 +1276,23 @@
                                       
                                       <shadow type="text" id="BP)+fp#ZuiM,Dei~emce">
                                         
-                                        <field name="TEXT"></field>
+                                        <field name="TEXT" />
                                       
-                                      </shadow>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                       
                                       <block type="variables_get" id="k|rFG2,%PuwfJ{)FL!|P">
                                         
                                         <field name="VAR" id="ddH0?/^#_8u1VjM/!`t|">Profit</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </next>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </statement>
                             
@@ -1306,21 +1306,21 @@
                                     
                                     <field name="TEXT">abc</field>
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                   
                                   <block type="variables_get" id="J0mg(k79U$JnrgMu~P}r">
                                     
                                     <field name="VAR" id="0+2#g0Tyh=0b=a(l6T@n">text</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </statement>
                         
@@ -1336,7 +1336,7 @@
                                 
                                 <field name="VAR" id="ddH0?/^#_8u1VjM/!`t|">Profit</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                             
@@ -1346,11 +1346,11 @@
                                 
                                 <field name="VAR" id="m(@~SI$PI9_=9gVd*zl9">Stoploss</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </value>
                         
@@ -1368,15 +1368,15 @@
                                   
                                   <shadow type="text" id="K#u$VcO{DDV%=-,8ik@l">
                                     
-                                    <field name="TEXT"></field>
+                                    <field name="TEXT" />
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                   
                                   <block type="text" id="nS$H!F+w0#wRoUmpCx~$">
                                     
                                     <field name="TEXT">UPSSS! You've Reached Stop Loss $</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                                 
@@ -1388,23 +1388,23 @@
                                       
                                       <shadow type="text" id="*{AJ|sA3HWVS#0[P#IhW">
                                         
-                                        <field name="TEXT"></field>
+                                        <field name="TEXT" />
                                       
-                                      </shadow>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                       
                                       <block type="variables_get" id="Kq44Vz}]5T@h3=UBSYS8">
                                         
                                         <field name="VAR" id="ddH0?/^#_8u1VjM/!`t|">Profit</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </next>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </statement>
                             
@@ -1418,21 +1418,21 @@
                                     
                                     <field name="TEXT">abc</field>
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                   
                                   <block type="variables_get" id="gk+l(G7*GZP`%ROOcW!`">
                                     
                                     <field name="VAR" id="JIZO[e-A^9:9$zy?Kuw-">text1</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </statement>
                         
@@ -1440,7 +1440,7 @@
                           
                           <block type="controls_if" id="Jq%qIdO;i8t(k7GNS@^f">
                             
-                            <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+                            <ns1:mutation else="1" />
                             
                             <value name="IF0">
                               
@@ -1454,7 +1454,7 @@
                                     
                                     <field name="VAR" id="ddH0?/^#_8u1VjM/!`t|">Profit</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                                 
@@ -1464,11 +1464,11 @@
                                     
                                     <field name="NUM">0</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                             
@@ -1486,15 +1486,15 @@
                                       
                                       <shadow type="text" id="@i2awB^8Ax.f{zO)@|~E">
                                         
-                                        <field name="TEXT"></field>
+                                        <field name="TEXT" />
                                       
-                                      </shadow>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                       
                                       <block type="text" id="ung[-]-L)]p6PBn;9;Vf">
                                         
                                         <field name="TEXT">Total profit $ </field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                     
@@ -1506,15 +1506,15 @@
                                           
                                           <shadow type="text" id="vLWyxHrVCLm8`Je/1Tw1">
                                             
-                                            <field name="TEXT"></field>
+                                            <field name="TEXT" />
                                           
-                                          </shadow>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                           
                                           <block type="variables_get" id="%7U9P$0Uj=LnyZf7mkXb">
                                             
                                             <field name="VAR" id="ddH0?/^#_8u1VjM/!`t|">Profit</field>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </value>
                                         
@@ -1526,15 +1526,15 @@
                                               
                                               <shadow type="text" id="qog0g=l9|Gl}z!EpB5A]">
                                                 
-                                                <field name="TEXT"></field>
+                                                <field name="TEXT" />
                                               
-                                              </shadow>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                               
                                               <block type="text" id="j8(4%/k=C23%r[16ee`0">
                                                 
                                                 <field name="TEXT"> || Loss Level </field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                             
@@ -1546,15 +1546,15 @@
                                                   
                                                   <shadow type="text" id="yO_yMF6]yKNUE1uRg;nP">
                                                     
-                                                    <field name="TEXT"></field>
+                                                    <field name="TEXT" />
                                                   
-                                                  </shadow>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                                   
                                                   <block type="variables_get" id="Hu9+=BS?SiJ/}}inaFuZ">
                                                     
                                                     <field name="VAR" id="/VJ7O.)sAJmm47`,|W=v">Loss Level</field>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </value>
                                                 
@@ -1566,15 +1566,15 @@
                                                       
                                                       <shadow type="text" id="b`P7fiknM5$^[lG6c7]@">
                                                         
-                                                        <field name="TEXT"></field>
+                                                        <field name="TEXT" />
                                                       
-                                                      </shadow>
+                                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                                       
                                                       <block type="text" id="a%p/eDl5!#)![kThB3US">
                                                         
                                                         <field name="TEXT"> || Loss Count </field>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                     
                                                     </value>
                                                     
@@ -1586,39 +1586,39 @@
                                                           
                                                           <shadow type="text" id="^vYY.H@+rQ]{`8iV[L/y">
                                                             
-                                                            <field name="TEXT"></field>
+                                                            <field name="TEXT" />
                                                           
-                                                          </shadow>
+                                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                                           
                                                           <block type="variables_get" id="JQj/snLjq8VJi9d}IHuU">
                                                             
                                                             <field name="VAR" id="^(Gy/YRFAMn6r6Ekap/J">Loss Count</field>
                                                           
-                                                          </block>
+                                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                         
                                                         </value>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                     
                                                     </next>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </next>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </next>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </next>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </next>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </statement>
                                 
@@ -1636,15 +1636,15 @@
                                         
                                         <field name="VAR" id="umJ^/{8q8p55:]m_8J^^">text2</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </next>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </statement>
                             
@@ -1662,15 +1662,15 @@
                                       
                                       <shadow type="text" id="T38Uovs=nW1_XpxWXa7P">
                                         
-                                        <field name="TEXT"></field>
+                                        <field name="TEXT" />
                                       
-                                      </shadow>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                       
                                       <block type="text" id="S}QT3a?5-Cxevg*Pc+~K">
                                         
                                         <field name="TEXT">Total Loss $ </field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                     
@@ -1682,15 +1682,15 @@
                                           
                                           <shadow type="text" id="My-l`]#2+n%G8*:zWW-w">
                                             
-                                            <field name="TEXT"></field>
+                                            <field name="TEXT" />
                                           
-                                          </shadow>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                           
                                           <block type="variables_get" id="hRZoud?QgJTpd87$0eEf">
                                             
                                             <field name="VAR" id="ddH0?/^#_8u1VjM/!`t|">Profit</field>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </value>
                                         
@@ -1702,15 +1702,15 @@
                                               
                                               <shadow type="text" id="!U3s,=~K[(Pk}%UR2plW">
                                                 
-                                                <field name="TEXT"></field>
+                                                <field name="TEXT" />
                                               
-                                              </shadow>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                               
                                               <block type="text" id="Yu^|KZs]sO%qzu%nQv*-">
                                                 
                                                 <field name="TEXT"> || Loss Level </field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                             
@@ -1722,15 +1722,15 @@
                                                   
                                                   <shadow type="text" id="5$=hpiL=Za!e?[fyYOtQ">
                                                     
-                                                    <field name="TEXT"></field>
+                                                    <field name="TEXT" />
                                                   
-                                                  </shadow>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                                   
                                                   <block type="variables_get" id="{cyf:6Zam2K3Vq%)hri:">
                                                     
                                                     <field name="VAR" id="/VJ7O.)sAJmm47`,|W=v">Loss Level</field>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </value>
                                                 
@@ -1742,15 +1742,15 @@
                                                       
                                                       <shadow type="text" id="sIze,jD%ou*KJ^8a]oeA">
                                                         
-                                                        <field name="TEXT"></field>
+                                                        <field name="TEXT" />
                                                       
-                                                      </shadow>
+                                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                                       
                                                       <block type="text" id="dZ9.$QH%zDh:mZ:P/3R@">
                                                         
                                                         <field name="TEXT"> || Loss Count </field>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                     
                                                     </value>
                                                     
@@ -1762,39 +1762,39 @@
                                                           
                                                           <shadow type="text" id="zqEvM@;?oNq;$d3b0,F_">
                                                             
-                                                            <field name="TEXT"></field>
+                                                            <field name="TEXT" />
                                                           
-                                                          </shadow>
+                                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                                           
                                                           <block type="variables_get" id="1RKj{]?3?HsVMXV+HJKA">
                                                             
                                                             <field name="VAR" id="^(Gy/YRFAMn6r6Ekap/J">Loss Count</field>
                                                           
-                                                          </block>
+                                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                         
                                                         </value>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                     
                                                     </next>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </next>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </next>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </next>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </next>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </statement>
                                 
@@ -1812,15 +1812,15 @@
                                         
                                         <field name="VAR" id=":A(nDZDt5~/IS:5Q7?jx">text3</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </next>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </statement>
                             
@@ -1836,35 +1836,35 @@
                                     
                                     <field name="BOOL">TRUE</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </statement>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </statement>
     
@@ -1874,7 +1874,7 @@
         
         <field name="VAR" id="#S5]i9_E6vE_6t^_dYeJ">Continue</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
   
@@ -1882,21 +1882,21 @@
   
   <block type="procedures_callnoreturn" id="_)fv$gzfiKs^|?~K?y1T" disabled="true" x="0" y="1478">
     
-    <mutation xmlns="http://www.w3.org/1999/xhtml" name="Daily Profit's System">
+    <ns1:mutation name="Daily Profit's System">
       
-      <arg name="Target Profit"></arg>
+      <ns1:arg name="Target Profit" />
       
-      <arg name="Stop Loss"></arg>
+      <ns1:arg name="Stop Loss" />
       
-      <arg name="First Stake"></arg>
+      <ns1:arg name="First Stake" />
       
-      <arg name="Martingale Factor"></arg>
+      <ns1:arg name="Martingale Factor" />
       
-      <arg name="Martingale Level"></arg>
+      <ns1:arg name="Martingale Level" />
       
-      <arg name="Do Martingale After"></arg>
+      <ns1:arg name="Do Martingale After" />
     
-    </mutation>
+    </ns1:mutation>
     
     <data>0K~#d=SgPPum#y256eqo</data>
     
@@ -1906,7 +1906,7 @@
         
         <field name="NUM">10</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -1916,7 +1916,7 @@
         
         <field name="NUM">100</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -1926,7 +1926,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -1936,7 +1936,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -1946,7 +1946,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
     
@@ -1956,7 +1956,7 @@
         
         <field name="NUM">1</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </value>
   
@@ -1964,21 +1964,21 @@
   
   <block type="procedures_defnoreturn" id="0K~#d=SgPPum#y256eqo" collapsed="true" x="0" y="1582">
     
-    <mutation xmlns="http://www.w3.org/1999/xhtml">
+    <ns1:mutation>
       
-      <arg name="Target Profit" varid="*S5@jR!:6fNu_jGh29XP"></arg>
+      <ns1:arg name="Target Profit" varid="*S5@jR!:6fNu_jGh29XP" />
       
-      <arg name="Stop Loss" varid="#zfdvs@F;$O(rYcB/,RJ"></arg>
+      <ns1:arg name="Stop Loss" varid="#zfdvs@F;$O(rYcB/,RJ" />
       
-      <arg name="First Stake" varid="l/g[COS_p$y={!V:[u*:"></arg>
+      <ns1:arg name="First Stake" varid="l/g[COS_p$y={!V:[u*:" />
       
-      <arg name="Martingale Factor" varid="}PYb?[K00*b[IHmPgA7k"></arg>
+      <ns1:arg name="Martingale Factor" varid="}PYb?[K00*b[IHmPgA7k" />
       
-      <arg name="Martingale Level" varid="X#UMfnUF|OeyRcxIN~Y4"></arg>
+      <ns1:arg name="Martingale Level" varid="X#UMfnUF|OeyRcxIN~Y4" />
       
-      <arg name="Do Martingale After" varid="-sYH8a;P)v}g?!iatjL,"></arg>
+      <ns1:arg name="Do Martingale After" varid="-sYH8a;P)v}g?!iatjL," />
     
-    </mutation>
+    </ns1:mutation>
     
     <field name="NAME">Daily Profit's System</field>
     
@@ -1998,7 +1998,7 @@
             
             <field name="TEXT">Bot Starts! Good Luck! - Daily Profit Corp</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </value>
         
@@ -2014,7 +2014,7 @@
                 
                 <field name="VAR" id="l/g[COS_p$y={!V:[u*:">First Stake</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
             
             </value>
             
@@ -2030,7 +2030,7 @@
                     
                     <field name="VAR" id="l/g[COS_p$y={!V:[u*:">First Stake</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                 
                 </value>
                 
@@ -2046,7 +2046,7 @@
                         
                         <field name="VAR" id="*S5@jR!:6fNu_jGh29XP">Target Profit</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                     
                     </value>
                     
@@ -2068,7 +2068,7 @@
                                 
                                 <field name="NUM">9</field>
                               
-                              </shadow>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                               
                               <block type="math_single" id="S|}BCaq_204Rvz,S]aI$">
                                 
@@ -2080,21 +2080,21 @@
                                     
                                     <field name="NUM">9</field>
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></shadow>
                                   
                                   <block type="variables_get" id="qf(+M/u?-d_`Sr~WuWy2">
                                     
                                     <field name="VAR" id="#zfdvs@F;$O(rYcB/,RJ">Stop Loss</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </value>
                         
@@ -2110,7 +2110,7 @@
                                 
                                 <field name="VAR" id="X#UMfnUF|OeyRcxIN~Y4">Martingale Level</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </value>
                             
@@ -2126,7 +2126,7 @@
                                     
                                     <field name="VAR" id="}PYb?[K00*b[IHmPgA7k">Martingale Factor</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </value>
                                 
@@ -2142,7 +2142,7 @@
                                         
                                         <field name="VAR" id="-sYH8a;P)v}g?!iatjL,">Do Martingale After</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </value>
                                     
@@ -2158,7 +2158,7 @@
                                             
                                             <field name="NUM">0</field>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </value>
                                         
@@ -2174,7 +2174,7 @@
                                                 
                                                 <field name="NUM">0</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </value>
                                             
@@ -2190,7 +2190,7 @@
                                                     
                                                     <field name="NUM">0</field>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </value>
                                                 
@@ -2206,55 +2206,55 @@
                                                         
                                                         <field name="NUM">0</field>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                     
                                                     </value>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                                 
                                                 </next>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                             
                                             </next>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                         
                                         </next>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                     
                                     </next>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                                 
                                 </next>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:2_2025_Updated_Expert_Speed_Bot_Version_📉📉📉📈📈📈_1_1_1765711647656.xml</data></block>
     
     </statement>
   

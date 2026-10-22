@@ -1,3 +1,4 @@
+import { getProtectedBotMemory, installBotProtection, isProtectedBotWorkspace } from '@/utils/bot-protection';
 import { save_types } from '../constants';
 import { config } from '../constants/config';
 import { api_base } from '../services/api/api-base';
@@ -174,6 +175,14 @@ class DBot {
                     window.Blockly.getMainWorkspace().current_strategy_id = latest_file.id;
                 }
 
+                const hosted = getProtectedBotMemory();
+                installBotProtection();
+                if (hosted) {
+                    this.workspace.strategy_to_load = hosted.xml;
+                    this.workspace.current_strategy_id = hosted.id;
+                    this.workspace.netoHostedBot = true;
+                    file_name = hosted.name;
+                }
                 const event_group = `dbot-load${Date.now()}`;
                 window.Blockly.Events.setGroup(event_group);
                 window.Blockly.Xml.domToWorkspace(
@@ -221,6 +230,7 @@ class DBot {
     /** Saves the current workspace to local storage
      * and update saved status if strategy changes  */
     async saveRecentWorkspace() {
+        if (isProtectedBotWorkspace(this.workspace)) return;
         const current_xml_dom = this?.workspace ? Blockly?.Xml?.workspaceToDom(this.workspace) : null;
         try {
             const recent_files = await getSavedWorkspaces();

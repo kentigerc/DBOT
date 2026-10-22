@@ -1,4 +1,4 @@
-<xml xmlns="https://developers.google.com/blockly/xml" is_dbot="true" collection="false">
+<xml xmlns="https://developers.google.com/blockly/xml" xmlns:ns1="http://www.w3.org/1999/xhtml" is_dbot="true" collection="false" neto_protected="true">
   
   <variables>
     
@@ -74,27 +74,27 @@
                             
                             <field name="RESTARTONERROR">TRUE</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
     
     </statement>
     
@@ -110,7 +110,7 @@
             
             <field name="NUM">9</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </value>
         
@@ -126,7 +126,7 @@
                 
                 <field name="NUM">10</field>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </value>
             
@@ -142,7 +142,7 @@
                     
                     <field name="NUM">10</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </value>
                 
@@ -158,7 +158,7 @@
                         
                         <field name="NUM">2</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </value>
                     
@@ -174,7 +174,7 @@
                             
                             <field name="NUM">2</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </value>
                         
@@ -190,7 +190,7 @@
                                 
                                 <field name="NUM">10000</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </value>
                             
@@ -206,7 +206,7 @@
                                     
                                     <field name="NUM">0.8</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </value>
                                 
@@ -222,7 +222,7 @@
                                         
                                         <field name="NUM">1</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                     
                                     </value>
                                     
@@ -238,7 +238,7 @@
                                             
                                             <field name="NUM">10000</field>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                         
                                         </value>
                                         
@@ -254,7 +254,7 @@
                                                 
                                                 <field name="NUM">10000</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                             
                                             </value>
                                             
@@ -270,7 +270,7 @@
                                                     
                                                     <field name="NUM">0.8</field>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                 
                                                 </value>
                                                 
@@ -286,7 +286,7 @@
                                                         
                                                         <field name="NUM">10000</field>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                     
                                                     </value>
                                                     
@@ -302,7 +302,7 @@
                                                             
                                                             <field name="NUM">10000</field>
                                                           
-                                                          </block>
+                                                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                         
                                                         </value>
                                                         
@@ -318,7 +318,7 @@
                                                                 
                                                                 <field name="NUM">0.8</field>
                                                               
-                                                              </block>
+                                                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                             
                                                             </value>
                                                             
@@ -334,67 +334,67 @@
                                                                     
                                                                     <field name="NUM">2</field>
                                                                   
-                                                                  </block>
+                                                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                                 
                                                                 </value>
                                                               
-                                                              </block>
+                                                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                             
                                                             </next>
                                                           
-                                                          </block>
+                                                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                         
                                                         </next>
                                                       
-                                                      </block>
+                                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                     
                                                     </next>
                                                   
-                                                  </block>
+                                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                                 
                                                 </next>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                             
                                             </next>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                         
                                         </next>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                     
                                     </next>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </next>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
     
     </statement>
     
@@ -402,7 +402,7 @@
       
       <block type="trade_definition_tradeoptions" id="Kszy$t;dmMnU=/jxC1]D" collapsed="true">
         
-        <mutation xmlns="http://www.w3.org/1999/xhtml" has_first_barrier="false" has_second_barrier="false" has_prediction="true"></mutation>
+        <ns1:mutation has_first_barrier="false" has_second_barrier="false" has_prediction="true" />
         
         <field name="DURATIONTYPE_LIST">t</field>
         
@@ -412,7 +412,7 @@
             
             <field name="VAR" id="rUPB[)tUi3we;byHr`7]">value</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </value>
         
@@ -422,7 +422,7 @@
             
             <field name="VAR" id="RHgF*C%#h{|Ha5u;#5j?">Stake one</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </value>
         
@@ -432,21 +432,21 @@
             
             <field name="NUM">1</field>
           
-          </shadow>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
           
           <block type="variables_get" id="+:eFWwjF^q~1G=PBd)#q">
             
             <field name="VAR" id="6o_9Nu#$3m#.?zV=ahjK">Prediction</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </value>
       
-      </block>
+      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
   
   <block type="after_purchase" id="tv^t?%1u*:W4IT%pX|zi" x="714" y="50">
     
@@ -454,7 +454,7 @@
       
       <block type="controls_if" id="sJy=W27to^xWtEfx^!In">
         
-        <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+        <ns1:mutation else="1" />
         
         <value name="IF0">
           
@@ -462,7 +462,7 @@
             
             <field name="CHECK_RESULT">win</field>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </value>
         
@@ -480,15 +480,15 @@
                   
                   <shadow type="text" id="wR[F5j:j}_}AIHKj`/@]">
                     
-                    <field name="TEXT"></field>
+                    <field name="TEXT" />
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                   
                   <block type="text" id="ofXQ2#?`|+.v^e{h7qwK">
                     
                     <field name="TEXT">AI</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </value>
                 
@@ -500,23 +500,23 @@
                       
                       <shadow type="text" id="4M~2JZK-6NWn8_tB%Lfz">
                         
-                        <field name="TEXT"></field>
+                        <field name="TEXT" />
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                       
                       <block type="read_details" id="ntYjAA|;7owvxr2YL!M;" collapsed="true">
                         
                         <field name="DETAIL_INDEX">4</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </statement>
             
@@ -534,7 +534,7 @@
                     
                     <field name="VAR" id="N5h(uF)6G2cql)h{ZR;h">text</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </value>
                 
@@ -550,7 +550,7 @@
                         
                         <field name="VAR" id="(obU$~2J]hr/k0`hgX8/">Stake two</field>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </value>
                     
@@ -566,7 +566,7 @@
                             
                             <field name="NUM">0</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </value>
                         
@@ -582,7 +582,7 @@
                                 
                                 <field name="NUM">9</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </value>
                             
@@ -598,37 +598,37 @@
                                     
                                     <field name="VAR" id="rUPB[)tUi3we;byHr`7]">value</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </value>
                                 
                                 <next>
                                   
-                                  <block type="trade_again" id="cw].p*FJWZBupT$eqR!M"></block>
+                                  <block type="trade_again" id="cw].p*FJWZBupT$eqR!M"><data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </next>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </statement>
         
@@ -646,15 +646,15 @@
                   
                   <shadow type="text" id="y/YHKw_5m-@Kf^i`(yRS">
                     
-                    <field name="TEXT"></field>
+                    <field name="TEXT" />
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                   
                   <block type="text" id="MiNQ+-d*C683iU0`o4md">
                     
                     <field name="TEXT">AI</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </value>
                 
@@ -666,9 +666,9 @@
                       
                       <shadow type="text" id="vmMsInvTJ-hw~JKi6lWx">
                         
-                        <field name="TEXT"></field>
+                        <field name="TEXT" />
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                       
                       <block type="math_single" id="?fQk@]behN#[bIF{rF[7">
                         
@@ -680,25 +680,25 @@
                             
                             <field name="NUM">9</field>
                           
-                          </shadow>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                           
                           <block type="read_details" id="0SbR!Yt]O*F2Cb4A+|lS">
                             
                             <field name="DETAIL_INDEX">4</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </statement>
             
@@ -716,7 +716,7 @@
                     
                     <field name="VAR" id=")-9T~6%gxe29l#C#)qts">text1</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </value>
                 
@@ -732,7 +732,7 @@
                         
                         <field name="NUM">1</field>
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                     
                     </value>
                     
@@ -748,7 +748,7 @@
                             
                             <field name="VAR" id="rUPB[)tUi3we;byHr`7]">value</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </value>
                         
@@ -764,7 +764,7 @@
                                 
                                 <field name="NUM">3</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </value>
                             
@@ -784,7 +784,7 @@
                                         
                                         <field name="VAR" id="kQ+Ke(]*eQpM[qgfd~+g">Contador</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                     
                                     </value>
                                     
@@ -794,11 +794,11 @@
                                         
                                         <field name="VAR" id="4+UcGJ_mE@7^Z8-d@JaJ">VTY</field>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                     
                                     </value>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </value>
                                 
@@ -814,7 +814,7 @@
                                         
                                         <field name="NUM">1</field>
                                       
-                                      </shadow>
+                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                                       
                                       <block type="math_arithmetic" id="Gl2+IAN)5b!-?RayfW3W">
                                         
@@ -826,7 +826,7 @@
                                             
                                             <field name="NUM">1</field>
                                           
-                                          </shadow>
+                                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                                           
                                           <block type="math_single" id="Dnw,PYK`H_I-M2voTUTl">
                                             
@@ -838,17 +838,17 @@
                                                 
                                                 <field name="NUM">9</field>
                                               
-                                              </shadow>
+                                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                                               
                                               <block type="read_details" id="cj527u@:f[5O%EPU/jOk">
                                                 
                                                 <field name="DETAIL_INDEX">4</field>
                                               
-                                              </block>
+                                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                             
                                             </value>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                         
                                         </value>
                                         
@@ -858,45 +858,45 @@
                                             
                                             <field name="NUM">1</field>
                                           
-                                          </shadow>
+                                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                                           
                                           <block type="variables_get" id="Z~)63Nf5@3llDqm$7(xT">
                                             
                                             <field name="VAR" id="MgsL8H;~`;r/^Tuh1)y=">BBFTY</field>
                                           
-                                          </block>
+                                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                         
                                         </value>
                                       
-                                      </block>
+                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                     
                                     </value>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </statement>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </next>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </statement>
         
@@ -914,15 +914,15 @@
                   
                   <shadow type="text" id="INApBo@yKFM/;3@?@643">
                     
-                    <field name="TEXT"></field>
+                    <field name="TEXT" />
                   
-                  </shadow>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                   
                   <block type="text" id=";pRO7vFM;D,$uWpJQ7lz">
                     
                     <field name="TEXT">AI</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </value>
                 
@@ -934,19 +934,19 @@
                       
                       <shadow type="text" id="-id||!ljv_ck6p],Hr3Y">
                         
-                        <field name="TEXT"></field>
+                        <field name="TEXT" />
                       
-                      </shadow>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                       
-                      <block type="total_profit" id="g?#o-:15|FA^3)X?~EV["></block>
+                      <block type="total_profit" id="g?#o-:15|FA^3)X?~EV["><data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </value>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </statement>
             
@@ -964,7 +964,7 @@
                     
                     <field name="VAR" id="LN}r@t3f(x%mM[7-P|ft">text2</field>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </value>
                 
@@ -972,7 +972,7 @@
                   
                   <block type="controls_if" id="FLa][VYobXnlFN$6x]O#" collapsed="true">
                     
-                    <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+                    <ns1:mutation else="1" />
                     
                     <value name="IF0">
                       
@@ -982,7 +982,7 @@
                         
                         <value name="A">
                           
-                          <block type="total_profit" id="rFO7]5)Jjs9$+b2SUSPi" collapsed="true"></block>
+                          <block type="total_profit" id="rFO7]5)Jjs9$+b2SUSPi" collapsed="true"><data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </value>
                         
@@ -992,11 +992,11 @@
                             
                             <field name="VAR" id="a?$LW}C4v+XX:Lc%6-OS">A</field>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </value>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </value>
                     
@@ -1004,7 +1004,7 @@
                       
                       <block type="controls_if" id="([L*WBMg~O565fbH|+*?">
                         
-                        <mutation xmlns="http://www.w3.org/1999/xhtml" else="1"></mutation>
+                        <ns1:mutation else="1" />
                         
                         <value name="IF0">
                           
@@ -1016,7 +1016,7 @@
                               
                               <block type="math_number_property" id="C38hi(S8$HDRG{A8,X$$">
                                 
-                                <mutation xmlns="http://www.w3.org/1999/xhtml" divisor_input="false"></mutation>
+                                <ns1:mutation divisor_input="false" />
                                 
                                 <field name="PROPERTY">NEGATIVE</field>
                                 
@@ -1026,13 +1026,13 @@
                                     
                                     <field name="NUM">0</field>
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                                   
-                                  <block type="total_profit" id="Oe]K,lj}NJFWB2MWDd6^" collapsed="true"></block>
+                                  <block type="total_profit" id="Oe]K,lj}NJFWB2MWDd6^" collapsed="true"><data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </value>
                             
@@ -1054,13 +1054,13 @@
                                         
                                         <field name="NUM">9</field>
                                       
-                                      </shadow>
+                                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                                       
-                                      <block type="total_profit" id="iKiJ.QGJrpE8@DN1TZ:8"></block>
+                                      <block type="total_profit" id="iKiJ.QGJrpE8@DN1TZ:8"><data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                     
                                     </value>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </value>
                                 
@@ -1070,15 +1070,15 @@
                                     
                                     <field name="VAR" id="FlX%77!9AMWGEu#,)Nme">Y</field>
                                   
-                                  </block>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </value>
                         
@@ -1092,11 +1092,11 @@
                                 
                                 <field name="TEXT">Stop Loss</field>
                               
-                              </shadow>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </statement>
                         
@@ -1106,7 +1106,7 @@
                             
                             <statement name="TIMEOUTSTACK">
                               
-                              <block type="trade_again" id="ZP/%[]2Z][ypf^N]KtdN"></block>
+                              <block type="trade_again" id="ZP/%[]2Z][ypf^N]KtdN"><data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </statement>
                             
@@ -1116,15 +1116,15 @@
                                 
                                 <field name="NUM">0</field>
                               
-                              </shadow>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </statement>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </statement>
                     
@@ -1142,15 +1142,15 @@
                               
                               <shadow type="text" id="^HSAwEMu*cN@f)x?[znV">
                                 
-                                <field name="TEXT"></field>
+                                <field name="TEXT" />
                               
-                              </shadow>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                               
                               <block type="text" id="dkaG*J8K^vbB[W9:3{Dy">
                                 
                                 <field name="TEXT">AI</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </value>
                             
@@ -1162,19 +1162,19 @@
                                   
                                   <shadow type="text" id="q+:H%Y=!J~C/YZV^_iBH">
                                     
-                                    <field name="TEXT"></field>
+                                    <field name="TEXT" />
                                   
-                                  </shadow>
+                                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                                   
-                                  <block type="total_profit" id="7E3THS+!(5Cb3Wu-j5#K"></block>
+                                  <block type="total_profit" id="7E3THS+!(5Cb3Wu-j5#K"><data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                                 
                                 </value>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </next>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </statement>
                         
@@ -1188,41 +1188,41 @@
                                 
                                 <field name="TEXT">abc</field>
                               
-                              </shadow>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></shadow>
                               
                               <block type="variables_get" id="=M9cG}jNv`EDYOmL)x$0">
                                 
                                 <field name="VAR" id="^3d~6DUQ!o8XQTn.XB!c">text3</field>
                               
-                              </block>
+                              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                             
                             </value>
                           
-                          </block>
+                          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                         
                         </next>
                       
-                      </block>
+                      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                     
                     </statement>
                   
-                  </block>
+                  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
                 
                 </next>
               
-              </block>
+              <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
             
             </next>
           
-          </block>
+          <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
         
         </next>
       
-      </block>
+      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
   
   <block type="before_purchase" id="_P/][8`46qGCyQ$AvmG!" collapsed="true" deletable="false" x="0" y="1392">
     
@@ -1232,16 +1232,16 @@
         
         <field name="PURCHASE_LIST">DIGITUNDER</field>
       
-      </block>
+      <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
     
     </statement>
   
-  </block>
+  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
   
   <block type="text" id="#}~^b3MFl?GCJ_Y!eo{~" disabled="true" x="0" y="1488">
     
     <field name="TEXT">Killer market Ai</field>
   
-  </block>
+  <data>netoacademy:hosted-bot:Alpha_Ai_Two_Predictions__1765711647659.xml</data></block>
 
 </xml>
