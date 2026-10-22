@@ -3,12 +3,11 @@ import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import './deriv-charts.scss';
 
 export default function DerivCharts() {
-    const panel = useMarketPanelHeight<HTMLDivElement>();
+    const [expanded, setExpanded] = useState(false);
+    const panel = useMarketPanelHeight<HTMLDivElement>({ fitToContainer: true, fullViewport: expanded });
     const [version, setVersion] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [expanded, setExpanded] = useState(false);
     useEffect(() => {
-        window.dispatchEvent(new Event('resize'));
         if (!expanded) return;
         const close = (event: KeyboardEvent) => {
             if (event.key === 'Escape') setExpanded(false);

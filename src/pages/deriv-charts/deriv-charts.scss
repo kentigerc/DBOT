@@ -11,7 +11,9 @@
     min-width: 0;
     max-width: 100%;
     height: var(--market-panel-height, 100%);
-    overflow: auto;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
     overscroll-behavior: contain;
     background: var(--general-main-1);
     color: var(--text-general);
@@ -49,7 +51,7 @@
         flex: 1 1 0;
         width: 100%;
         min-width: 0;
-        min-height: 640px;
+        min-height: 0;
         border: 0;
         background: #fff;
     }
@@ -59,7 +61,7 @@
         z-index: 10000;
         width: 100%;
         height: 100vh;
-        height: 100dvh;
+        height: var(--market-panel-height, 100dvh);
         iframe {
             min-height: 0;
         }

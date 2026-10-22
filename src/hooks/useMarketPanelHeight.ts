@@ -4,7 +4,10 @@ import '../styles/market-panel.scss';
 let activePanels = 0;
 
 // Keep market views between the actual header, tab bar and fixed trading controls.
-export default function useMarketPanelHeight<T extends HTMLElement>() {
+export default function useMarketPanelHeight<T extends HTMLElement>({
+    fitToContainer = false,
+    fullViewport = false,
+}: { fitToContainer?: boolean; fullViewport?: boolean } = {}) {
     const panelRef = useRef<T>(null);
     useEffect(() => {
         activePanels++;
@@ -18,13 +21,27 @@ export default function useMarketPanelHeight<T extends HTMLElement>() {
                 window.innerHeight,
                 viewport ? viewport.height + viewport.offsetTop : window.innerHeight
             );
-            const selectors = ['.app-footer', '.controls__section'];
-            if (window.matchMedia('(max-width: 1279px)').matches)
+            const selectors = fullViewport ? [] : ['.app-footer', '.controls__section'];
+            if (!fullViewport && window.matchMedia('(max-width: 1279px)').matches)
                 selectors.push('.dc-drawer:not(.dc-drawer--open) .dc-drawer__toggle');
             for (const selector of selectors) {
                 const element = document.querySelector(selector);
                 const bounds = element?.getBoundingClientRect();
                 if (bounds && bounds.height > 0 && bounds.top >= top) bottom = Math.min(bottom, bounds.top);
+            }
+            if (fitToContainer && !fullViewport) {
+                // A chart must also fit inside ancestors that clip their contents.
+                for (
+                    let ancestor = panel.parentElement;
+                    ancestor && ancestor !== document.body;
+                    ancestor = ancestor.parentElement
+                ) {
+                    const style = getComputedStyle(ancestor);
+                    if (!/^(hidden|clip)$/.test(style.overflowY)) continue;
+                    const bounds = ancestor.getBoundingClientRect();
+                    if (bounds.height > 0 && bounds.bottom >= top)
+                        bottom = Math.min(bottom, bounds.bottom - (parseFloat(style.borderBottomWidth) || 0));
+                }
             }
             panel.style.setProperty('--market-panel-height', `${Math.max(0, bottom - top)}px`);
         };
@@ -37,6 +54,7 @@ export default function useMarketPanelHeight<T extends HTMLElement>() {
         }
         window.addEventListener('resize', measure);
         window.visualViewport?.addEventListener('resize', measure);
+        window.visualViewport?.addEventListener('scroll', measure);
         document.addEventListener('transitionend', measure);
         return () => {
             activePanels--;
@@ -45,8 +63,9 @@ export default function useMarketPanelHeight<T extends HTMLElement>() {
             observer?.disconnect();
             window.removeEventListener('resize', measure);
             window.visualViewport?.removeEventListener('resize', measure);
+            window.visualViewport?.removeEventListener('scroll', measure);
             document.removeEventListener('transitionend', measure);
         };
-    }, []);
+    }, [fitToContainer, fullViewport]);
     return panelRef;
 }
