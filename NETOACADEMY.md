@@ -64,4 +64,14 @@ No owner credentials were requested. Full user login, live account discovery, de
 
 Official references: https://developers.deriv.com/docs/intro/oauth/ , https://developers.deriv.com/docs/options/websocket/ , https://developers.deriv.com/comparison/
 
-Automated checks: 51 Jest tests across 15 suites and 16 Node server tests passed. The production build passed. The original checkout also fails the full TypeScript check (684 diagnostics in the baseline run), so that check is not represented as passing.
+Automated checks: 76 Jest tests across 18 suites and 16 Node server tests passed. The production build passed. The original checkout also fails the full TypeScript check (684 diagnostics in the baseline run), so that check is not represented as passing.
+
+## Analysis Tool strategy
+
+The native Analysis Tool replaces the external iframe. Its digit entry filters and ten recovery modes are adapted from the supplied `DerivDigitStrategy-20261013-201516-294b962c.zip` Python source. No uploaded credentials or session files are used. Default controls are a $0.35 starting stake, five consecutive losses, a $100 maximum stake per trade and a separate $100 session stop-loss. Advanced controls retain the source's default $5 take-profit (zero disables it), one-tick duration and filtered Under 5 recovery with a three-digit formation and 2.1× stake progression rounded to cents.
+
+RUN uses the selected USD account and a dedicated authenticated socket. The dashboard shows digit frequencies, recovery state, results and entry/exit spots; the terminal can be opened or closed independently. STOP prevents new orders and monitors an existing contract through settlement. The session stop-loss also reserves the proposed next stake, preventing a purchase whose full loss would exceed the limit.
+
+Keep the browser tab open while running. Account switching, logout and the Blockly runner are blocked while this tool is trading or has an unresolved purchase. Session counters and pending purchase intent persist locally. Reloading does not automatically resume trading. An uncertain purchase is never retried: reconcile its contract ID from Deriv history before continuing. New session resets counters only after all purchases are resolved.
+
+Validation includes 76 Jest tests across 18 suites and a browser simulation of a normal loss, recovery win, terminal interaction, manual stop and mobile layouts. Simulated trades do not verify authenticated Deriv execution; perform an owner-controlled demo trade before real trading.

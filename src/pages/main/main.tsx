@@ -229,7 +229,9 @@ const AppWrapper = observer(() => {
         <React.Fragment>
             <div
                 className={classNames('main', {
-                    'main--market-panel': [DBOT_TABS.DIGIT_ANALYSIS, DBOT_TABS.CHART].includes(active_tab),
+                    'main--market-panel': [DBOT_TABS.DIGIT_ANALYSIS, DBOT_TABS.CHART, DBOT_TABS.ANALYSIS_TOOL].includes(
+                        active_tab
+                    ),
                 })}
             >
                 <div

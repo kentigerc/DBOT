@@ -7,9 +7,10 @@ import { contract_stages, TContractStage } from '@/constants/contract-stage';
 import { run_panel } from '@/constants/run-panel';
 import { ErrorTypes, MessageTypes, observer, unrecoverable_errors } from '@/external/bot-skeleton';
 import { getSelectedTradeType } from '@/external/bot-skeleton/scratch/utils';
-// import { journalError, switch_account_notification } from '@/utils/bot-notifications';
 import GTM from '@/utils/gtm';
 import { helpers } from '@/utils/store-helpers';
+// import { journalError, switch_account_notification } from '@/utils/bot-notifications';
+import { isAnalysisTrading } from '@/utils/trading-lock';
 import { Buy, ProposalOpenContract } from '@deriv/api-types';
 import { TStores } from '@deriv/stores/types';
 import { localize } from '@deriv-com/translations';
@@ -170,6 +171,10 @@ export default class RunPanelStore {
     };
 
     onRunButtonClick = async () => {
+        if (isAnalysisTrading()) {
+            botNotification(localize('Stop and settle the Analysis Tool strategy before running a Builder bot.'));
+            return;
+        }
         let timer_counter = 1;
         if (window.sendRequestsStatistic) {
             performance.clearMeasures();

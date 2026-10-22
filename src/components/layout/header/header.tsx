@@ -7,6 +7,7 @@ import { useStore } from '@/hooks/useStore';
 import useThemeSwitcher from '@/hooks/useThemeSwitcher';
 import { getDerivSession, logoutDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/deriv-session';
 import { affiliate_signup_url } from '@/utils/site-config';
+import { isAnalysisTrading } from '@/utils/trading-lock';
 import { LegacyThemeDarkIcon, LegacyThemeLightIcon } from '@deriv/quill-icons/Legacy';
 import { AppLogo } from '../app-logo';
 import './neto-header.scss';
@@ -137,7 +138,7 @@ const AppHeader = observer(() => {
                                                             if (accountMenu.current) accountMenu.current.open = false;
                                                             return;
                                                         }
-                                                        if (api_base.is_running) {
+                                                        if (api_base.is_running || isAnalysisTrading()) {
                                                             setError('Stop your bot before switching accounts.');
                                                             return;
                                                         }
@@ -180,7 +181,7 @@ const AppHeader = observer(() => {
                                 type='button'
                                 className='neto-header__logout'
                                 onClick={() => {
-                                    if (api_base.is_running) {
+                                    if (api_base.is_running || isAnalysisTrading()) {
                                         setError('Stop your bot before logging out.');
                                         return;
                                     }
