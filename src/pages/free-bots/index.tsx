@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useNavigate } from 'react-router-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
+import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
 import './free-bots.scss';
 
@@ -116,6 +117,7 @@ const BOTS: Bot[] = [
 ];
 
 const FreeBots = observer(() => {
+    const panelRef = useMarketPanelHeight<HTMLDivElement>({ fitToContainer: true });
     const { dashboard, run_panel } = useStore();
     const navigate = useNavigate();
     const [error, setError] = useState('');
@@ -147,7 +149,7 @@ const FreeBots = observer(() => {
     };
 
     return (
-        <div className='free-bots'>
+        <div className='free-bots' ref={panelRef} tabIndex={0} aria-label='Available trading bots'>
             <div className='free-bots__header'>
                 <h1 className='free-bots__title'>NetoAcademy Trading Bots</h1>
                 <p className='free-bots__subtitle'>

@@ -231,6 +231,7 @@ const AppWrapper = observer(() => {
                         DBOT_TABS.DIGIT_ANALYSIS,
                         DBOT_TABS.CHART,
                         DBOT_TABS.DERIV_CHARTS,
+                        DBOT_TABS.FREE_BOTS,
                         DBOT_TABS.ANALYSIS_TOOL,
                     ].includes(active_tab),
                 })}
