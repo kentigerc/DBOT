@@ -13,8 +13,8 @@ type Market = {
 };
 type Tick = { quote: number; epoch: number; pip_size: number; symbol?: string; underlying_symbol?: string };
 
-export default function DigitAnalysis() {
-    const panelRef = useMarketPanelHeight<HTMLElement>();
+export default function DigitAnalysis({ active = true }: { active?: boolean }) {
+    const panelRef = useMarketPanelHeight<HTMLElement>({ enabled: active });
     const [markets, setMarkets] = useState<Market[]>([]);
     const [symbol, setSymbol] = useState('R_100');
     const [sampleSize, setSampleSize] = useState(1000);

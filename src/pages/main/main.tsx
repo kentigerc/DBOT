@@ -243,7 +243,7 @@ const AppWrapper = observer(() => {
                     <div>
                         {!isDesktop && left_tab_shadow && <span className='tabs-shadow tabs-shadow--left' />}{' '}
                         <Tabs
-                            keep_mounted_indices={[DBOT_TABS.DERIV_CHARTS]}
+                            keep_mounted_indices={[DBOT_TABS.DERIV_CHARTS, DBOT_TABS.DIGIT_ANALYSIS]}
                             active_index={active_tab}
                             className='main__tabs'
                             onTabItemClick={handleTabChange}
@@ -310,7 +310,7 @@ const AppWrapper = observer(() => {
                                 id='id-digit-analysis'
                             >
                                 <Suspense fallback={<ChunkLoader message={localize('Loading digit analysis...')} />}>
-                                    <DigitAnalysis />
+                                    <DigitAnalysis active={active_tab === DBOT_TABS.DIGIT_ANALYSIS} />
                                 </Suspense>
                             </div>
                             <div
