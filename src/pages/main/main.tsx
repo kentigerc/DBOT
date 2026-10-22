@@ -242,7 +242,13 @@ const AppWrapper = observer(() => {
                 >
                     <div>
                         {!isDesktop && left_tab_shadow && <span className='tabs-shadow tabs-shadow--left' />}{' '}
-                        <Tabs active_index={active_tab} className='main__tabs' onTabItemClick={handleTabChange} top>
+                        <Tabs
+                            keep_mounted_indices={[DBOT_TABS.DERIV_CHARTS]}
+                            active_index={active_tab}
+                            className='main__tabs'
+                            onTabItemClick={handleTabChange}
+                            top
+                        >
                             <div
                                 label={
                                     <>
@@ -323,7 +329,7 @@ const AppWrapper = observer(() => {
                             >
                                 <div className='deriv-charts-wrapper'>
                                     <Suspense fallback={<ChunkLoader message={localize('Loading Deriv Charts...')} />}>
-                                        <DerivCharts />
+                                        <DerivCharts active={active_tab === DBOT_TABS.DERIV_CHARTS} />
                                     </Suspense>
                                 </div>
                             </div>

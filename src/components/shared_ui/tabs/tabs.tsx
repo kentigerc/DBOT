@@ -29,6 +29,7 @@ type TTabsProps = {
     icon_size?: number;
     is_100vw?: boolean;
     is_full_width?: boolean;
+    keep_mounted_indices?: number[];
     is_overflow_hidden?: boolean;
     is_scrollable?: boolean;
     onTabItemClick?: (active_tab_index: number) => void;
@@ -54,6 +55,7 @@ const Tabs = ({
     icon_size = 0,
     is_100vw = false,
     is_full_width = false,
+    keep_mounted_indices = [],
     is_overflow_hidden = false,
     is_scrollable = false,
     onTabItemClick,
@@ -62,6 +64,7 @@ const Tabs = ({
     top,
 }: TTabsProps) => {
     const [active_line_style, updateActiveLineStyle] = React.useState({});
+    const mounted_tabs = React.useRef(new Set<number>());
     const active_tab_ref = React.useRef<HTMLLIElement>(null);
     const tabs_wrapper_ref = React.useRef<HTMLUListElement>(null);
     const pushHash = (hash: string) => {
@@ -124,6 +127,8 @@ const Tabs = ({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active_index]);
+
+    if (keep_mounted_indices.includes(active_tab_index)) mounted_tabs.current.add(active_tab_index);
 
     const onClickTabItem = (index: number) => {
         if (should_update_hash) {
@@ -222,6 +227,18 @@ const Tabs = ({
             >
                 {React.Children.map(children, (child, index) => {
                     if (!child) return null;
+                    if (keep_mounted_indices.includes(index) && mounted_tabs.current.has(index)) {
+                        return (
+                            <div
+                                className={classNames('dc-tabs__persistent-panel', {
+                                    'dc-tabs__persistent-panel--inactive': index !== active_tab_index,
+                                })}
+                                aria-hidden={index !== active_tab_index}
+                            >
+                                {child.props.children}
+                            </div>
+                        );
+                    }
                     if (index !== active_tab_index) {
                         return undefined;
                     }

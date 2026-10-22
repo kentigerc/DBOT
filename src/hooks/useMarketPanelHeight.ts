@@ -5,11 +5,13 @@ let activePanels = 0;
 
 // Keep market views between the actual header, tab bar and fixed trading controls.
 export default function useMarketPanelHeight<T extends HTMLElement>({
+    enabled = true,
     fitToContainer = false,
     fullViewport = false,
-}: { fitToContainer?: boolean; fullViewport?: boolean } = {}) {
+}: { enabled?: boolean; fitToContainer?: boolean; fullViewport?: boolean } = {}) {
     const panelRef = useRef<T>(null);
     useEffect(() => {
+        if (!enabled) return;
         activePanels++;
         document.body.classList.add('market-panel-page');
         const measure = () => {
@@ -66,6 +68,6 @@ export default function useMarketPanelHeight<T extends HTMLElement>({
             window.visualViewport?.removeEventListener('scroll', measure);
             document.removeEventListener('transitionend', measure);
         };
-    }, [fitToContainer, fullViewport]);
+    }, [enabled, fitToContainer, fullViewport]);
     return panelRef;
 }

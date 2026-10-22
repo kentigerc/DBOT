@@ -2,19 +2,27 @@ import { useEffect, useState } from 'react';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import './deriv-charts.scss';
 
-export default function DerivCharts() {
+export default function DerivCharts({ active = true }: { active?: boolean }) {
     const [expanded, setExpanded] = useState(false);
-    const panel = useMarketPanelHeight<HTMLDivElement>({ fitToContainer: true, fullViewport: expanded });
+    const panel = useMarketPanelHeight<HTMLDivElement>({
+        enabled: active,
+        fitToContainer: true,
+        fullViewport: expanded,
+    });
     const [version, setVersion] = useState(0);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
+        if (!active) {
+            setExpanded(false);
+            return;
+        }
         if (!expanded) return;
         const close = (event: KeyboardEvent) => {
             if (event.key === 'Escape') setExpanded(false);
         };
         window.addEventListener('keydown', close);
         return () => window.removeEventListener('keydown', close);
-    }, [expanded]);
+    }, [active, expanded]);
     return (
         <div className={`deriv-charts-page${expanded ? ' deriv-charts-page--expanded' : ''}`} ref={panel}>
             <div className='deriv-charts-page__toolbar'>
