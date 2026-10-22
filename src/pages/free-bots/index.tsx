@@ -110,7 +110,7 @@ const BOTS: Bot[] = [
     {
         id: '12',
         name: 'Over Punisher',
-        description: 'Balanced random Digit Over trading with Digit Under recovery.',
+        description: 'Automated trading bot by NetoAcademy.',
         fileName: 'over-punisher.xml',
         category: 'Over/Under',
         icon: '📈',

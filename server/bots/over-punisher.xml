@@ -748,7 +748,7 @@
                         <field name="NOTIFICATION_SOUND">silent</field>
                         <value name="MESSAGE">
                           <block type="text">
-                            <field name="TEXT">Balanced OVER 0/1/2; 3 consecutive digits 5-9 triggers UNDER 4</field>
+                            <field name="TEXT">Over Punisher • Monitoring market conditions</field>
                           <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
                         </value>
                       <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
