@@ -1,4 +1,4 @@
-<xml xmlns="https://developers.google.com/blockly/xml" xmlns:html="http://www.w3.org/1999/xhtml" is_dbot="true" collection="false" neto_protected="true">
+<xml xmlns="https://developers.google.com/blockly/xml" is_dbot="true" collection="false" neto_protected="true">
   <variables>
     <variable id="Gm4q3W58^moakYv0*8U*">stake1</variable>
     <variable id="9dQ4tsj$@`vWpu;:2{K=">Stake</variable>
@@ -186,7 +186,7 @@
                                                 </value>
                                                 <next>
                                                   <block type="procedures_callnoreturn" id="~4gXRl4o4.H!v=z-H:0|">
-                                                    <html:mutation name="Trade" />
+                                                    <mutation name="Trade" />
                                                   </block>
                                                 </next>
                                               <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
@@ -213,7 +213,7 @@
     </statement>
     <statement name="SUBMARKET">
       <block type="trade_definition_tradeoptions" id="|l`ZPC*)`xyrT??613l|">
-        <html:mutation has_first_barrier="false" has_second_barrier="false" has_prediction="true" />
+        <mutation has_first_barrier="false" has_second_barrier="false" has_prediction="true" />
         <field name="DURATIONTYPE_LIST">t</field>
         <value name="DURATION">
           <shadow type="math_number" id="0K[_HzPgXhG9D$Z#ynRq">
@@ -294,7 +294,7 @@
   <block type="after_purchase" id="PD:2B-y0}=INZ*/N6)+[" x="2322" y="110">
     <statement name="AFTERPURCHASE_STACK">
       <block type="controls_if" id="60xCrMs_T4hr{8i6CHZv">
-        <html:mutation elseif="1" />
+        <mutation elseif="1" />
         <value name="IF0">
           <block type="contract_check_result" id="=/oz(3wg{Hv$:f,%2GRP">
             <field name="CHECK_RESULT">win</field>
@@ -411,7 +411,7 @@
         </statement>
         <next>
           <block type="controls_if" id=";HJ9_]LB%zy$+.KNPT_o">
-            <html:mutation elseif="1" />
+            <mutation elseif="1" />
             <value name="IF0">
               <block type="contract_check_result" id="J@|Wyk*OkgYZ$k5@U51P">
                 <field name="CHECK_RESULT">loss</field>
@@ -419,13 +419,13 @@
             </value>
             <statement name="DO0">
               <block type="controls_if" id="W=BeyNa~-,$1+]wT0:eo">
-                <html:mutation else="1" />
+                <mutation else="1" />
                 <value name="IF0">
                   <block type="logic_operation" id="1zWx=BB8*siNSX,K#onc">
                     <field name="OP">AND</field>
                     <value name="A">
                       <block type="math_number_property" id="bseT6nZNwEl.mOC%Q8q.">
-                        <html:mutation divisor_input="false" />
+                        <mutation divisor_input="false" />
                         <field name="PROPERTY">NEGATIVE</field>
                         <value name="NUMBER_TO_CHECK">
                           <block type="total_profit" id="2D0sJRCb$cznM;yI%J%r"><data>netoacademy:hosted-bot:over-punisher.xml</data></block>
@@ -618,7 +618,7 @@
             </value>
             <statement name="DO1">
               <block type="controls_if" id="aP%=EB#$HP[V%%+U,3k1">
-                <html:mutation else="1" />
+                <mutation else="1" />
                 <value name="IF0">
                   <block type="logic_compare" id="]By_beSk!]ma){*TNlHx">
                     <field name="OP">GTE</field>
@@ -1112,63 +1112,10 @@
   <block type="procedures_defnoreturn" id="8B/F.imc3(9g{ljt5*%c" collapsed="true" x="454" y="2630">
     <field name="NAME">werttyg</field>
     <statement name="STACK">
-      <block type="controls_if" id="vwr#al?otL/M%}FP/H`T" collapsed="true">
-        <mutation else="1" />
-        <value name="IF0">
-          <block type="logic_compare" id="(5iz91wBWXwm|Bd-kGil" collapsed="true">
-            <field name="OP">EQ</field>
-            <value name="A">
-              <block type="text_prompt_ext" id="KG{KinUs(~gwtv/_W{!Q" collapsed="true">
-                <field name="TYPE">TEXT</field>
-                <value name="TEXT">
-                  <shadow type="text" id="GxpcCqd?mKY{W#f~e?Gw">
-                    <field name="TEXT">Password</field>
-                  <data>netoacademy:hosted-bot:over-punisher.xml</data></shadow>
-                </value>
-              <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
-            </value>
-            <value name="B">
-              <block type="text" id="}.6A6R89fwz^:Rq8G[jM" collapsed="true">
-                <field name="TEXT" />
-              <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
-            </value>
-          <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
-        </value>
-        <statement name="DO0">
-          <block type="procedures_callnoreturn" id="UX|FzA^ba9.)KPeWRYTq" collapsed="true">
+      <block type="procedures_callnoreturn" id="UX|FzA^ba9.)KPeWRYTq" collapsed="true">
             <mutation name="uytre" />
           </block>
         </statement>
-        <statement name="ELSE">
-          <block type="procedures_callnoreturn" id="DtNt#6BPuJ1Gds(-]PAr" collapsed="true">
-            <mutation name="error" />
-          </block>
-        </statement>
-      <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
-    </statement>
-  </block>
-  <block type="procedures_defnoreturn" id="Zq96XB-MQh]BMW`VJwDg" collapsed="true" x="472" y="2693">
-    <field name="NAME">error</field>
-    <statement name="STACK">
-      <block type="text_print" id="$gl|{cfkHG.[m@~QU#48" collapsed="true">
-        <value name="TEXT">
-          <shadow type="text" id="$ma#Dsk|iDDkf4fo.]R5">
-            <field name="TEXT">Wrong Password ❌❌</field>
-          <data>netoacademy:hosted-bot:over-punisher.xml</data></shadow>
-        </value>
-        <next>
-          <block type="notify" id="!4W.,62C,Tx3$Z^:pj1r" collapsed="true">
-            <field name="NOTIFICATION_TYPE">success</field>
-            <field name="NOTIFICATION_SOUND">error</field>
-            <value name="MESSAGE">
-              <shadow type="text" id="Z4XdwP/Usx7FwB56.25X">
-                <field name="TEXT">Wrong password ❌❌</field>
-              <data>netoacademy:hosted-bot:over-punisher.xml</data></shadow>
-            </value>
-          <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
-        </next>
-      <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
-    </statement>
   </block>
   <block type="procedures_defnoreturn" id="L.%j*-9{vYun,g#!%/-v" collapsed="true" x="479" y="2757">
     <field name="NAME">uytre</field>
