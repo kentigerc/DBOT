@@ -213,7 +213,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                     Latest digit
                 </span>
             </div>
-            <MarketScanner sampleSize={sampleSize} onSelect={setSymbol} active={active} />
+            <MarketScanner sampleSize={sampleSize} onSelect={setSymbol} />
             <p className='digit-analysis__note'>
                 Percentages describe the selected rolling sample of past ticks. They do not predict the next digit or
                 guarantee a trading outcome.

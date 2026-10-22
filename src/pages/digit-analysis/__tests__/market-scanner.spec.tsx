@@ -14,10 +14,9 @@ const history = (counts: number[]) => ({
     pip_size: 2,
     history: { prices: counts.flatMap((n, digit) => Array<number>(n).fill(100 + digit / 100)) },
 });
-const over = history([9, 9, 9, 9, 8, 11, 11, 11, 11, 12]);
-const under = history([8, 11, 11, 11, 11, 12, 9, 9, 9, 9]);
+const over = history([8, 9, 9, 9, 10, 10, 11, 11, 11, 12]);
+const under = history([12, 11, 11, 11, 10, 10, 9, 9, 9, 8]);
 under.history.prices.push(under.history.prices.shift()!);
-const mute = () => fireEvent.click(screen.getByLabelText('Scanning sound'));
 
 beforeEach(() => jest.clearAllMocks());
 it('scans only available Volatility indices, shows matches and selects the correct market', async () => {
@@ -31,8 +30,7 @@ it('scans only available Volatility indices, shows matches and selects the corre
     };
     connect.mockResolvedValue(api);
     const select = jest.fn();
-    render(<MarketScanner sampleSize={100} onSelect={select} active />);
-    mute();
+    render(<MarketScanner sampleSize={100} onSelect={select} />);
     fireEvent.click(screen.getByRole('button', { name: 'SCAN' }));
     await screen.findByText('Volatility 100');
     expect(screen.getByRole('status').textContent).toContain('1 matching market');
@@ -52,8 +50,7 @@ it('uses Under conditions and reports failed or incomplete histories without mat
         disconnect: jest.fn(),
     };
     connect.mockResolvedValue(api);
-    render(<MarketScanner sampleSize={100} onSelect={jest.fn()} active />);
-    mute();
+    render(<MarketScanner sampleSize={100} onSelect={jest.fn()} />);
     fireEvent.change(screen.getByLabelText('Contract type'), { target: { value: 'under' } });
     fireEvent.click(screen.getByRole('button', { name: 'SCAN' }));
     await screen.findByText('Volatility 100');
@@ -67,8 +64,7 @@ it('cancels a pending scan without allowing its late response to overwrite statu
     });
     const api = { send: jest.fn().mockReturnValue(pending), disconnect: jest.fn() };
     connect.mockResolvedValue(api);
-    render(<MarketScanner sampleSize={100} onSelect={jest.fn()} active />);
-    mute();
+    render(<MarketScanner sampleSize={100} onSelect={jest.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'SCAN' }));
     await waitFor(() => expect(api.send).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
@@ -88,11 +84,10 @@ it('resets results when the tick sample changes', async () => {
         disconnect: jest.fn(),
     };
     connect.mockResolvedValue(api);
-    const { rerender } = render(<MarketScanner sampleSize={100} onSelect={jest.fn()} active />);
-    mute();
+    const { rerender } = render(<MarketScanner sampleSize={100} onSelect={jest.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'SCAN' }));
     await screen.findByText('Volatility 100');
-    rerender(<MarketScanner sampleSize={500} onSelect={jest.fn()} active />);
+    rerender(<MarketScanner sampleSize={500} onSelect={jest.fn()} />);
     expect(screen.queryByText('Volatility 100')).toBeNull();
     expect(screen.queryByRole('button', { name: 'View digits' })).toBeNull();
 });

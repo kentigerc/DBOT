@@ -5,39 +5,27 @@ import { evaluateScan, scanDigits, ScanSide } from './scanner';
 
 type Market = { symbol: string; display_name: string };
 type Api = Awaited<ReturnType<typeof generateDerivApiInstance>>;
-type Result = Market & { selected: ReturnType<typeof evaluateScan>['selected'] };
+type Result = Market & ReturnType<typeof evaluateScan>;
 
 export default function MarketScanner({
     sampleSize,
     onSelect,
-    active,
 }: {
     sampleSize: number;
     onSelect: (symbol: string) => void;
-    active: boolean;
 }) {
     const [side, setSide] = useState<ScanSide>('over');
-    const [sound, setSound] = useState(true);
     const [running, setRunning] = useState(false);
     const [message, setMessage] = useState('Choose a contract type and scan the Volatility markets.');
     const [results, setResults] = useState<Result[]>([]);
     const [scannedAt, setScannedAt] = useState('');
     const generation = useRef(0);
     const connection = useRef<Api>();
-    const audio = useRef<AudioContext>();
-    const timer = useRef<ReturnType<typeof setInterval>>();
-    const stopSound = useCallback(() => {
-        clearInterval(timer.current);
-        timer.current = undefined;
-        void audio.current?.close().catch(() => {});
-        audio.current = undefined;
-    }, []);
     const stop = useCallback(() => {
         generation.current++;
         connection.current?.disconnect();
         connection.current = undefined;
-        stopSound();
-    }, [stopSound]);
+    }, []);
     useEffect(() => {
         stop();
         setRunning(false);
@@ -46,18 +34,6 @@ export default function MarketScanner({
         setMessage('Choose a contract type and scan the Volatility markets.');
         return stop;
     }, [side, sampleSize, stop]); // Cancel stale requests before settings change or unmount.
-    useEffect(() => {
-        if (!active || !sound) stopSound();
-    }, [active, sound, stopSound]);
-
-    useEffect(() => {
-        const hide = () => {
-            if (document.hidden) stopSound();
-        };
-        document.addEventListener('visibilitychange', hide);
-        return () => document.removeEventListener('visibilitychange', hide);
-    }, [stopSound]);
-
     const scan = async () => {
         stop();
         const current = generation.current;
@@ -68,33 +44,6 @@ export default function MarketScanner({
         setResults([]);
         setScannedAt('');
         setMessage('Connecting to market data…');
-        // Audio is created only after this user gesture; failures never prevent a scan.
-        if (sound && active) {
-            try {
-                const context = new AudioContext();
-                audio.current = context;
-                void context.resume().catch(() => {});
-                timer.current = setInterval(() => {
-                    if (context.state !== 'running') return;
-                    const oscillator = context.createOscillator();
-                    const gain = context.createGain();
-                    oscillator.type = 'square';
-                    oscillator.frequency.value = 180 + Math.random() * 650;
-                    gain.gain.setValueAtTime(0.012, context.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.045);
-                    oscillator.connect(gain);
-                    gain.connect(context.destination);
-                    oscillator.onended = () => {
-                        oscillator.disconnect();
-                        gain.disconnect();
-                    };
-                    oscillator.start();
-                    oscillator.stop(context.currentTime + 0.05);
-                }, 150);
-            } catch {
-                stopSound();
-            }
-        }
         const request = async (payload: Parameters<Api['send']>[0]) => {
             let timeout: ReturnType<typeof setTimeout> | undefined;
             try {
@@ -142,7 +91,7 @@ export default function MarketScanner({
                         .slice(-sampleSize);
                     if (digits.length !== sampleSize) throw new Error('Incomplete history');
                     const evaluation = evaluateScan(digits, side, sampleSize);
-                    if (evaluation.matches) found.push({ ...market, selected: evaluation.selected });
+                    if (evaluation.matches) found.push({ ...market, ...evaluation });
                 } catch {
                     failed++;
                 }
@@ -161,7 +110,6 @@ export default function MarketScanner({
             if (current === generation.current) {
                 connection.current?.disconnect();
                 connection.current = undefined;
-                stopSound();
                 setRunning(false);
             }
         }
@@ -177,10 +125,6 @@ export default function MarketScanner({
                         <option value='over'>Over</option>
                         <option value='under'>Under</option>
                     </select>
-                </label>
-                <label className='digit-scanner__sound'>
-                    <input type='checkbox' checked={sound} onChange={event => setSound(event.target.checked)} />
-                    Scanning sound
                 </label>
                 <button onClick={() => void scan()} disabled={running}>
                     SCAN
@@ -198,8 +142,9 @@ export default function MarketScanner({
                 )}
             </div>
             <p className='digit-scanner__rules'>
-                Digits {scanDigits(side).join(', ')}: each below 10%, with no most-frequent, least-frequent or
-                latest-digit mark.
+                Digits {scanDigits(side).join(', ')}: each below 10%. Red (least frequent) must be in this group; green
+                (most frequent) must be in {scanDigits(side === 'over' ? 'under' : 'over').join(', ')}. All tied marks
+                must stay within their required group.
             </p>
             <p role='status' aria-live='polite'>
                 {message}
@@ -210,6 +155,9 @@ export default function MarketScanner({
                     <article key={result.symbol}>
                         <h3>{result.display_name}</h3>
                         <p>{result.selected.map(item => `${item.digit}: ${item.percent.toFixed(2)}%`).join(' · ')}</p>
+                        <p>
+                            Red: {result.redDigits.join(', ')} · Green: {result.greenDigits.join(', ')}
+                        </p>
                         <button onClick={() => onSelect(result.symbol)}>View digits</button>
                     </article>
                 ))}

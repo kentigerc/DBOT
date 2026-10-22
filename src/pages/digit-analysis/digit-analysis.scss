@@ -309,11 +309,6 @@
         display: grid;
         gap: 8px;
     }
-    label.digit-scanner__sound {
-        display: flex;
-        align-items: center;
-        min-height: 44px;
-    }
     select {
         color: var(--text-general);
         background: var(--general-main-1);
