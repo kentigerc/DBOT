@@ -8,7 +8,9 @@ const { fetch: proxyFetch, ProxyAgent } = require('undici');
 const { attachSockets } = require('./socket.cjs');
 
 const development = process.argv.includes('--dev');
-const origin = process.env.NETO_ORIGIN || (development ? 'http://localhost:5000' : process.env.RENDER_EXTERNAL_URL || 'https://netoacademy.com');
+const origin =
+    process.env.NETO_ORIGIN ||
+    (development ? 'http://localhost:5000' : process.env.RENDER_EXTERNAL_URL || 'https://netoacademy.com');
 const secret = process.env.NETO_SESSION_SECRET || (development ? randomBytes(48).toString('base64url') : undefined);
 const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
 const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
@@ -17,6 +19,8 @@ const handleAuth = createAuthHandler({
     secret,
     fetchImpl: (url, options) => proxyFetch(url, { ...options, ...(dispatcher ? { dispatcher } : {}) }),
 });
+const { createAnalysisService } = require('./analysis.cjs');
+const analysis = createAnalysisService(handleAuth, { dispatcher });
 const root = path.resolve(__dirname, '../dist');
 const types = {
     '.html': 'text/html',
@@ -31,6 +35,7 @@ const types = {
 };
 
 const server = http.createServer(async (req, res) => {
+    if (req.url.split('?')[0] === '/api/analysis') return analysis.handle(req, res);
     if (req.url.split('?')[0].startsWith('/api/')) return handleAuth(req, res);
     if (development) {
         res.writeHead(404);
@@ -72,7 +77,12 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-attachSockets(server, handleAuth, dispatcher);
+attachSockets(server, handleAuth, dispatcher, { analysis });
+process.on('SIGTERM', () => {
+    analysis.stopAll();
+    server.close();
+    setTimeout(() => process.exit(0), 10000).unref();
+});
 server.listen(Number(process.env.PORT || (development ? 3001 : 5000)), development ? '127.0.0.1' : '0.0.0.0', () => {
     console.log(`NetoAcademy ${development ? 'API' : 'server'} started.`);
 });

@@ -6,11 +6,11 @@
         "node": "20.x"
     },
     "scripts": {
-        "dev": "node server/dev.cjs",
+        "dev": "npm run build:strategy && node server/dev.cjs",
         "start:production": "node server/index.cjs",
-        "test:server": "node --test server/auth.test.cjs server/socket.test.cjs",
+        "test:server": "npm run build:strategy && node --test server/*.test.cjs",
         "start": "node server/index.cjs",
-        "build": "rsbuild build",
+        "build": "npm run build:strategy && rsbuild build",
         "watch": "rsbuild build --watch",
         "serve": "http-server dist -p 8443 -a localhost -o",
         "start:webpack": "webpack serve --open --config webpack.config.js",
@@ -20,7 +20,8 @@
         "test": "jest",
         "coverage": "jest --coverage",
         "prepare": "husky install",
-        "build:analyze": "BUNDLE_ANALYZE=true rsbuild build"
+        "build:analyze": "BUNDLE_ANALYZE=true rsbuild build",
+        "build:strategy": "node scripts/build-strategy.cjs"
     },
     "dependencies": {
         "@datadog/browser-rum": "^5.31.1",

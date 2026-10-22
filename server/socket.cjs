@@ -1,3 +1,4 @@
+const { randomUUID } = require('node:crypto');
 const { WebSocketServer } = require('ws');
 const { WebSocket } = require('undici');
 
@@ -5,7 +6,7 @@ function attachSockets(
     server,
     auth,
     dispatcher,
-    { createUpstream = url => new WebSocket(url, { ...(dispatcher ? { dispatcher } : {}) }) } = {}
+    { analysis, createUpstream = url => new WebSocket(url, { ...(dispatcher ? { dispatcher } : {}) }) } = {}
 ) {
     const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
     server.on('upgrade', async (req, socket, head) => {
@@ -54,6 +55,7 @@ function attachSockets(
                         return;
                     }
                     sockets.handleUpgrade(req, socket, head, client => {
+                        const clientKey = randomUUID();
                         const expiry = expires
                             ? setTimeout(
                                   () => client.close(1008, 'Session expired. Log in again.'),
@@ -78,6 +80,20 @@ function attachSockets(
                                 client.close(1013, 'Connection is busy.');
                                 return;
                             }
+                            let body;
+                            try {
+                                body = JSON.parse(data.toString());
+                                if (account) analysis?.beforeBuilder(account, body, clientKey);
+                            } catch (error) {
+                                client.send(
+                                    JSON.stringify({
+                                        error: { code: 'AnalysisToolRunning', message: error.message },
+                                        req_id: body?.req_id,
+                                        echo_req: body,
+                                    })
+                                );
+                                return;
+                            }
                             upstream.send(data.toString());
                         });
                         upstream.addEventListener('message', event => {
@@ -85,6 +101,11 @@ function attachSockets(
                                 if (client.bufferedAmount > 1024 * 1024) {
                                     client.close(1013, 'Connection is busy.');
                                     return;
+                                }
+                                try {
+                                    if (account) analysis?.builderResponse(account, JSON.parse(event.data), clientKey);
+                                } catch {
+                                    /* invalid upstream packet */
                                 }
                                 client.send(event.data);
                             }

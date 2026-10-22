@@ -1,7 +1,4 @@
-import { api_base } from '@/external/bot-skeleton';
-import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
-import { type DerivAccount, getDerivAccount } from '@/utils/deriv-session';
-import { setAnalysisTrading } from '@/utils/trading-lock';
+import { type DerivAccount } from '@/utils/deriv-session';
 import {
     cents,
     chooseSignal,
@@ -82,7 +79,7 @@ export type Snapshot = {
     liveUntil: number;
     owner: string;
 };
-const empty = (): Snapshot => ({
+export const empty = (): Snapshot => ({
     accountId: '',
     settings: { ...DEFAULT_SETTINGS },
     phase: 'Ready',
@@ -140,7 +137,6 @@ export class DigitStrategyEngine {
     private generation = 0;
     private reportAt = 0;
     private watching?: number;
-    private releaseBrowserLock?: () => void;
     private readonly owner = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     constructor(
         private deps: {
@@ -150,6 +146,7 @@ export class DigitStrategyEngine {
             now?: () => number;
             random?: () => number;
             storage?: Storage;
+            lockChanged?: (locked: boolean) => void;
         } = {}
     ) {}
     getSnapshot = () => this.state;
@@ -166,7 +163,7 @@ export class DigitStrategyEngine {
         return this.deps.storage ?? localStorage;
     }
     private account() {
-        return this.deps.account?.() ?? getDerivAccount();
+        return this.deps.account?.();
     }
     private key(account = this.state.accountId) {
         return `neto.digit-strategy.v1.${account}`;
@@ -211,7 +208,7 @@ export class DigitStrategyEngine {
             markets: [],
             phase: saved.pending ? 'Resume pending contract' : 'Ready',
         });
-        setAnalysisTrading(!!this.state.pending);
+        this.deps.lockChanged?.(!!this.state.pending);
     }
     reset() {
         if (this.state.active || this.state.pending)
@@ -220,23 +217,6 @@ export class DigitStrategyEngine {
         this.update({ ...empty(), accountId, settings, stake: cents(settings.stake) });
         if (accountId) this.persist();
     }
-    private async browserLock(account: string) {
-        if (typeof navigator === 'undefined' || !navigator.locks) return;
-        await new Promise<void>((resolve, reject) => {
-            navigator.locks
-                .request(`neto-trading-${account}`, { ifAvailable: true }, async lock => {
-                    if (!lock) {
-                        reject(new Error('This account already has an Analysis Tool running in another tab.'));
-                        return;
-                    }
-                    await new Promise<void>(release => {
-                        this.releaseBrowserLock = release;
-                        resolve();
-                    });
-                })
-                .catch(reject);
-        });
-    }
     async start(settings: Settings, reconcileId?: number) {
         if (this.state.active) return;
         validateSettings(settings);
@@ -244,7 +224,7 @@ export class DigitStrategyEngine {
         if (!account || account.status !== 'active')
             throw new Error('Log in with Deriv and select an active account first.');
         if (account.currency !== 'USD') throw new Error('This uploaded strategy uses USD. Select a USD account.');
-        if (this.deps.builderRunning?.() ?? api_base.is_running)
+        if (this.deps.builderRunning?.() ?? false)
             throw new Error('Stop the Bot Builder bot before running Analysis Tool.');
         this.selectAccount(account);
         if (this.state.accountId !== account.account_id) throw new Error('Resolve the previous account session first.');
@@ -268,7 +248,6 @@ export class DigitStrategyEngine {
                 this.state.trades.length ? this.state.stake : cents(settings.stake)
             );
         if (reason) throw new Error(`${reason}. Reset the stopped session to start a new one.`);
-        await this.browserLock(account.account_id);
         const generation = ++this.generation;
         this.closing = false;
         this.initialized = false;
@@ -288,10 +267,11 @@ export class DigitStrategyEngine {
             owner: this.owner,
             liveUntil: this.now() + 15000,
         });
-        setAnalysisTrading(true);
+        this.deps.lockChanged?.(true);
         try {
             this.persist();
-            const api: Broker = await (this.deps.createApi?.() ?? generateDerivApiInstance());
+            if (!this.deps.createApi) throw new Error('Trading connection is unavailable.');
+            const api: Broker = await this.deps.createApi();
             this.api = api;
             if (generation !== this.generation || !this.state.active) {
                 api.disconnect();
@@ -774,13 +754,13 @@ export class DigitStrategyEngine {
             } catch {
                 /* preserve the existing intent */
             }
-            setAnalysisTrading(true);
+            this.deps.lockChanged?.(true);
         } else this.finish(message);
     }
     private finish(reason: string) {
         this.update({ active: false, wantsRun: false, phase: reason, liveUntil: 0 });
         this.cleanup();
-        setAnalysisTrading(!!this.state.pending);
+        this.deps.lockChanged?.(!!this.state.pending);
         try {
             this.persist();
         } catch {
@@ -795,15 +775,5 @@ export class DigitStrategyEngine {
         this.subscription?.unsubscribe();
         this.api?.disconnect();
         this.api = undefined;
-        this.releaseBrowserLock?.();
-        this.releaseBrowserLock = undefined;
     }
 }
-export const digitStrategyEngine = new DigitStrategyEngine();
-if (typeof window !== 'undefined')
-    window.addEventListener('beforeunload', event => {
-        if (digitStrategyEngine.getSnapshot().active || digitStrategyEngine.getSnapshot().pending) {
-            event.preventDefault();
-            event.returnValue = '';
-        }
-    });

@@ -246,6 +246,20 @@ function createAuthHandler({
             });
         }
     };
+    const accountCache = new Map();
+    handle.authorizeAccount = async (req, accountId) => {
+        const saved = session(req);
+        const cacheKey = createHash('sha256').update(saved.access_token).digest('hex');
+        let cached = accountCache.get(cacheKey);
+        if (!cached || cached.until < now()) {
+            cached = { accounts: await getAccounts(saved.access_token), until: now() + 30000 };
+            if (accountCache.size > 1000) accountCache.clear();
+            accountCache.set(cacheKey, cached);
+        }
+        const account = cached.accounts.find(item => item.account_id === accountId && item.status === 'active');
+        if (!account) throw new HttpError(403, 'This trading account is not available in your Deriv session.');
+        return account;
+    };
     handle.connectionUrl = connectionUrl;
     handle.sessionExpires = req => session(req).expires;
     handle.publicOrigin = publicOrigin;

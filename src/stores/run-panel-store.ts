@@ -10,7 +10,7 @@ import { getSelectedTradeType } from '@/external/bot-skeleton/scratch/utils';
 import GTM from '@/utils/gtm';
 import { helpers } from '@/utils/store-helpers';
 // import { journalError, switch_account_notification } from '@/utils/bot-notifications';
-import { isAnalysisTrading } from '@/utils/trading-lock';
+import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
 import { Buy, ProposalOpenContract } from '@deriv/api-types';
 import { TStores } from '@deriv/stores/types';
 import { localize } from '@deriv-com/translations';
@@ -171,6 +171,15 @@ export default class RunPanelStore {
     };
 
     onRunButtonClick = async () => {
+        try {
+            if (await checkServerAnalysis()) {
+                botNotification(localize('Stop and settle the server Analysis Tool before running a Builder bot.'));
+                return;
+            }
+        } catch {
+            botNotification(localize('Unable to verify the server trading session. Try again before running a bot.'));
+            return;
+        }
         if (isAnalysisTrading()) {
             botNotification(localize('Stop and settle the Analysis Tool strategy before running a Builder bot.'));
             return;

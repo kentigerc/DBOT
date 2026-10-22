@@ -44,3 +44,5 @@ lerna-debug.log*
 .chatgpt-instructions.md
 .claude-instructions.md
 .ai-rules.md
+.server-build/
+.analysis-state/

@@ -11,3 +11,5 @@ services:
             value: 20.20.1
           - key: NETO_SESSION_SECRET
             generateValue: true
+          - key: NETO_ANALYSIS_ALLOW_REAL
+            value: 'false'

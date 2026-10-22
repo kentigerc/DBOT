@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
-import { digitStrategyEngine } from '@/services/digit-strategy/engine';
+import { digitStrategyEngine } from '@/services/digit-strategy/client';
 import { RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, getDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/deriv-session';
 import './analysis-tool.scss';
@@ -50,15 +50,18 @@ export default function AnalysisTool() {
             setError(reason instanceof Error ? reason.message : 'Unable to start strategy.');
         }
     };
-    const reset = () => {
+    const reset = async () => {
         setError('');
         try {
-            digitStrategyEngine.reset();
+            await digitStrategyEngine.reset();
             setDraft({ ...digitStrategyEngine.getSnapshot().settings });
         } catch (reason) {
             setError((reason as Error).message);
         }
     };
+    useEffect(() => {
+        if (state.active || state.pending || state.trades.length) setDraft({ ...state.settings });
+    }, [state.active, state.settings, state.pending, state.trades.length]);
     const locked = state.active || !!state.pending || state.trades.length > 0;
     const field = (
         label: string,
@@ -120,6 +123,11 @@ export default function AnalysisTool() {
                     Log in with Deriv to run the strategy on your selected USD account.
                     <button onClick={startDerivLogin}>Log in with Deriv</button>
                 </div>
+            )}
+            {state.demoOnly && (
+                <p className='analysis-tool__hint'>
+                    Server preview · use a USD demo account. Devices sharing that account see the same session.
+                </p>
             )}
             <section className='analysis-tool__panel' aria-label='Trading parameters'>
                 <div className='analysis-tool__settings'>
@@ -187,7 +195,7 @@ export default function AnalysisTool() {
                     </button>
                     <button
                         className='analysis-tool__stop'
-                        onClick={() => digitStrategyEngine.stop()}
+                        onClick={() => digitStrategyEngine.stop().catch(reason => setError(reason.message))}
                         disabled={!state.active || !state.wantsRun}
                     >
                         STOP
@@ -200,8 +208,8 @@ export default function AnalysisTool() {
                     </span>
                 </div>
                 <p className='analysis-tool__hint'>
-                    Keep this tab open while running. STOP blocks new purchases and waits for an open contract to
-                    settle. Use New session to clear a stopped session and change its parameters.
+                    Runs on the server; connected devices share this session. STOP blocks new purchases and waits for an
+                    open contract to settle. Use New session to clear a stopped session and change its parameters.
                 </p>
             </section>
             {(error || state.error) && (
