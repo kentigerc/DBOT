@@ -29,7 +29,7 @@ import Dashboard from '../dashboard';
 import RunStrategy from '../dashboard/run-strategy';
 import './main.scss';
 
-const ChartWrapper = lazy(() => import('../chart/chart-wrapper'));
+const ChartPage = lazy(() => import('../chart/chart-page'));
 const DigitAnalysis = lazy(() => import('../digit-analysis'));
 const Tutorial = lazy(() => import('../tutorials'));
 const FreeBots = lazy(() => import('../free-bots'));
@@ -227,7 +227,11 @@ const AppWrapper = observer(() => {
     const handleLoginGeneration = startDerivLogin;
     return (
         <React.Fragment>
-            <div className='main'>
+            <div
+                className={classNames('main', {
+                    'main--market-panel': [DBOT_TABS.DIGIT_ANALYSIS, DBOT_TABS.CHART].includes(active_tab),
+                })}
+            >
                 <div
                     className={classNames('main__container', {
                         'main__container--active': active_tour && active_tab === DASHBOARD && !isDesktop,
@@ -284,7 +288,7 @@ const AppWrapper = observer(() => {
                                 <Suspense
                                     fallback={<ChunkLoader message={localize('Please wait, loading chart...')} />}
                                 >
-                                    <ChartWrapper show_digits_stats={false} />
+                                    <ChartPage />
                                 </Suspense>
                             </div>
                             <div

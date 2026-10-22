@@ -1,0 +1,5 @@
+// Prevent the inactive Blockly workspace from extending market pages beyond the viewport.
+.market-panel-page .main-body {
+    min-height: 0;
+    overflow: hidden;
+}

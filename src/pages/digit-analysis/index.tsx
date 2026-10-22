@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
+import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { digitFrequencies, lastDigit } from './digits';
 import './digit-analysis.scss';
 
@@ -13,6 +14,7 @@ type Market = {
 type Tick = { quote: number; epoch: number; pip_size: number; symbol?: string; underlying_symbol?: string };
 
 export default function DigitAnalysis() {
+    const panelRef = useMarketPanelHeight<HTMLElement>();
     const [markets, setMarkets] = useState<Market[]>([]);
     const [symbol, setSymbol] = useState('R_100');
     const [sampleSize, setSampleSize] = useState(1000);
@@ -111,7 +113,7 @@ export default function DigitAnalysis() {
     const latestDigit = digits.at(-1);
     const marketName = markets.find(market => market.symbol === symbol)?.display_name || symbol;
     return (
-        <section className='digit-analysis' aria-labelledby='digit-analysis-title'>
+        <section className='digit-analysis' aria-labelledby='digit-analysis-title' ref={panelRef} tabIndex={0}>
             <div className='digit-analysis__heading'>
                 <div>
                     <p className='digit-analysis__eyebrow'>LIVE MARKET STATISTICS</p>

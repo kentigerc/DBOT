@@ -172,3 +172,14 @@
     left: 0;
     top: 0;
 }
+
+.market-chart-page {
+    width: 100%;
+    min-width: 0;
+    height: var(--market-panel-height, 100%);
+    overflow: hidden;
+    overscroll-behavior: contain;
+    .dashboard__chart-wrapper {
+        height: 100%;
+    }
+}

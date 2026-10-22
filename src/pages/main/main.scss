@@ -766,3 +766,13 @@
 .main .dc-tabs__list {
     justify-content: flex-start !important;
 }
+
+// Size this scrollable statistics view to the space beneath the responsive header.
+.main.main--market-panel {
+    height: calc(100vh - var(--neto-header-height, 6.4rem) - 3.6rem);
+    height: calc(100dvh - var(--neto-header-height, 6.4rem) - 3.6rem);
+    @include mobile-or-tablet-screen {
+        height: calc(100vh - var(--neto-header-height, 6.4rem));
+        height: calc(100dvh - var(--neto-header-height, 6.4rem));
+    }
+}
