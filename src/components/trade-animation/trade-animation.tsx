@@ -10,6 +10,7 @@ import { LabelPairedPlayLgFillIcon, LabelPairedSquareLgFillIcon } from '@deriv/q
 import { Localize, localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
 import { rudderStackSendRunBotEvent } from '../../analytics/rudderstack-common-events';
+import useMovablePanel from '../movable-panel/use-movable-panel';
 import Button from '../shared_ui/button';
 import Tooltip from '../shared_ui/tooltip/tooltip';
 import CircularWrapper from './circular-wrapper';
@@ -22,6 +23,7 @@ type TTradeAnimation = {
 };
 
 const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnimation) => {
+    const movable = useMovablePanel('Run/Stop bar');
     const { dashboard, run_panel, summary_card, blockly_store } = useStore();
     const { client } = useStore();
     const { active_tab } = dashboard;
@@ -182,7 +184,12 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
     };
 
     return (
-        <div className={classNames('animation__wrapper', className)}>
+        <div
+            ref={movable.ref}
+            style={movable.style}
+            className={classNames('animation__wrapper', className, { 'animation__wrapper--movable': movable.moved })}
+        >
+            {movable.handle}
             {should_show_tooltip ? (
                 <div className='run__button_wrapper'>
                     <Tooltip

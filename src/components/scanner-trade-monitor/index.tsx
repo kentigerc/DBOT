@@ -5,11 +5,13 @@ import { useStore } from '@/hooks/useStore';
 import { lastDigit } from '@/pages/digit-analysis/digits';
 import { evaluateScan } from '@/pages/digit-analysis/scanner';
 import { getScannerWatch, setScannerWatch, subscribeScannerWatch } from '@/utils/scanner-watch';
+import useMovablePanel from '../movable-panel/use-movable-panel';
 import './scanner-trade-monitor.scss';
 
 type Tick = { quote: number; epoch: number; pip_size: number; symbol?: string; underlying_symbol?: string };
 const ScannerTradeMonitor = observer(() => {
     const { run_panel } = useStore();
+    const movable = useMovablePanel('market monitor');
     const target = useSyncExternalStore(subscribeScannerWatch, getScannerWatch);
     const running = run_panel.is_running;
     const workspaceName = (window as unknown as { Blockly?: { xmlValues?: { file_name?: string } } }).Blockly?.xmlValues
@@ -152,10 +154,13 @@ const ScannerTradeMonitor = observer(() => {
     const warning = issue;
     return (
         <aside
+            ref={movable.ref}
+            style={movable.style}
             className={`scanner-trade-monitor${warning ? ' scanner-trade-monitor--warning' : ''}`}
             role={warning ? 'alert' : 'status'}
             aria-live={warning ? 'assertive' : 'polite'}
         >
+            {movable.handle}
             <div>
                 <strong>
                     {warning

@@ -1,0 +1,43 @@
+button.movable-panel__handle {
+    flex: 0 0 30px;
+    width: 30px;
+    min-width: 30px;
+    min-height: 40px;
+    align-self: stretch;
+    padding: 0;
+    border: 1px solid var(--border-normal);
+    border-radius: 6px;
+    background: var(--general-main-2);
+    color: var(--text-general);
+    font-size: 24px;
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    &:active {
+        cursor: grabbing;
+    }
+    &:focus-visible {
+        outline: 2px solid var(--brand-red-coral);
+        outline-offset: 2px;
+    }
+}
+.animation__wrapper--movable {
+    max-width: calc(100vw - 16px);
+    background: var(--general-main-1);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 25%);
+}
+
+.main__run-strategy-wrapper:has(.animation__wrapper--movable),
+.controls__section:has(.animation__wrapper--movable) {
+    z-index: 1250;
+}
+.controls__section:has(.animation__wrapper--movable) {
+    background: transparent;
+    border-top: 0;
+    pointer-events: none;
+    .animation__wrapper--movable {
+        pointer-events: auto;
+    }
+}
