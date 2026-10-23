@@ -260,9 +260,6 @@ export class DigitStrategyEngine {
         this.disabled.clear();
         this.update({
             settings: { ...settings },
-            ...(settings.strategy === 'over2-under7'
-                ? { batchPause: 0, recovery: { ...this.state.recovery, countAfter: 0, pauseUntil: 0 } }
-                : {}),
             active: true,
             wantsRun: !reconcileId,
             error: '',
@@ -724,18 +721,20 @@ export class DigitStrategyEngine {
             }
         }
         if (!p.signal.recovery) recovery.previous = p.signal.direction;
-        const batch = this.state.batch + 1;
+        let batch = this.state.batch + 1;
         let pause = batch >= 3 && streak === 0;
         if (this.state.settings.strategy === 'over2-under7') {
-            pause = false;
+            // Recovery is separate from the three normal wins that complete a batch.
+            batch = profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
+            pause = batch >= 3 && streak === 0;
             recovery = {
                 streak,
-                countAfter: 0,
-                pauseUntil: 0,
-                lockedSymbol: p.signal.symbol,
-                lockedDirection: p.signal.direction,
+                countAfter: pause ? this.now() + 5000 : 0,
+                pauseUntil: pause ? this.now() + 5000 : 0,
+                ...(pause ? {} : { lockedSymbol: p.signal.symbol, lockedDirection: p.signal.direction }),
             };
             recoveryLosses = 0;
+            if (pause) this.log('Three-win batch complete. Returning to fresh market analysis after five seconds.');
         }
         const pnl = this.state.pnl + profit,
             peak = Math.max(this.state.peak, pnl);
@@ -751,8 +750,7 @@ export class DigitStrategyEngine {
             losses: this.state.losses + (profit < 0 ? 1 : 0),
             voids: this.state.voids + (profit === 0 ? 1 : 0),
             batch: pause ? 0 : batch,
-            batchPause:
-                this.state.settings.strategy === 'over2-under7' ? 0 : pause ? this.now() + 5000 : this.state.batchPause,
+            batchPause: pause ? this.now() + 5000 : this.state.batchPause,
             pending: undefined,
             trades: this.state.trades.map(t =>
                 t.id === p.nonce ? { ...t, profit, status: profit > 0 ? 'Won' : profit < 0 ? 'Lost' : 'Void' } : t

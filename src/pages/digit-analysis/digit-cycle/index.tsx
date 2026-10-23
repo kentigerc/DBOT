@@ -138,8 +138,7 @@ export default function DigitCycle() {
                         </span>
                         <span>Next stake: {money(state.stake)}</span>
                         <span>
-                            Trades in run: {state.batch}
-                            {state.streak ? ' · Recovery active' : ''}
+                            Batch wins: {state.batch} / 3{state.streak ? ' · Recovery active' : ''}
                         </span>
                     </div>
                     <div className='digit-cycle__markets'>
@@ -158,7 +157,7 @@ export default function DigitCycle() {
                                         <p>
                                             {market.status} · Last digit: {market.latest ?? '—'} ·{' '}
                                             {state.recovery.lockedSymbol === market.symbol
-                                                ? `Continuous ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'} trading`
+                                                ? `${state.streak ? 'Recovering' : 'Trading batch'} · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'}`
                                                 : candidates.length
                                                   ? candidates
                                                         .map(direction =>
