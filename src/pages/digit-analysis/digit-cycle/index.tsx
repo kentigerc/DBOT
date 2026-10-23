@@ -79,47 +79,7 @@ export default function DigitCycle() {
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
-                <label>
-                    Recovery method
-                    <select
-                        value={draft.hitRecovery || 'same_contract'}
-                        disabled={locked}
-                        onChange={event =>
-                            setDraft(previous => ({
-                                ...previous,
-                                hitRecovery: event.target.value as Settings['hitRecovery'],
-                            }))
-                        }
-                    >
-                        <option value='analysis'>Analysis Tool recovery policy</option>
-                        <option value='same_contract'>Same contract · martingale</option>
-                    </select>
-                </label>
-                {draft.hitRecovery === 'analysis' && (
-                    <>
-                        <label>
-                            Recovery policy
-                            <select
-                                value={draft.recoveryMode}
-                                disabled={locked}
-                                onChange={event =>
-                                    setDraft(previous => ({
-                                        ...previous,
-                                        recoveryMode: event.target.value as Settings['recoveryMode'],
-                                    }))
-                                }
-                            >
-                                {Object.entries(RECOVERY_MODES).map(([value, label]) => (
-                                    <option key={value} value={value}>
-                                        {label}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        {field('High-digit formation count', 'triggerCount', 1, 1)}
-                    </>
-                )}
-
+                {draft.hitRecovery === 'analysis' && field('High-digit formation count', 'triggerCount', 1, 1)}
                 {field('Maximum consecutive losses', 'maxLosses', 1, 1)}
                 {field('Maximum stake per trade (USD)', 'maxStake', 0.35)}
                 {field('Session stop-loss (USD)', 'stopLoss', 0.35)}
