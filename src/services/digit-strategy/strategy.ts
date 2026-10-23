@@ -229,13 +229,13 @@ export function cycleDirections(digits: Frequency[], latest: number | undefined)
     return result;
 }
 export function cycleSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
-    if (
-        !m.ready(now) ||
-        now < state.pauseUntil ||
-        m.received <= state.countAfter ||
-        (state.lockedSymbol && m.symbol !== state.lockedSymbol)
-    )
-        return;
+    if (state.lockedSymbol) {
+        if (m.symbol !== state.lockedSymbol || !m.ready(now)) return;
+        const direction = state.lockedDirection;
+        if (direction !== 'DIGITOVER' && direction !== 'DIGITUNDER') return;
+        return signalOn(m, direction, direction === 'DIGITOVER' ? '2' : '7', state.streak > 0);
+    }
+    if (!m.ready(now) || now < state.pauseUntil || m.received <= state.countAfter) return;
     const direction = cycleDirections(m.frequencies(), m.digits[m.digits.length - 1]).find(
         value => !state.lockedDirection || value === state.lockedDirection
     );
@@ -250,7 +250,11 @@ export function chooseSignal(
     now: number,
     random = Math.random
 ): Signal | undefined {
-    if (config.strategy === 'over2-under7')
+    if (config.strategy === 'over2-under7') {
+        if (state.lockedSymbol) {
+            const selected = markets.find(m => m.symbol === state.lockedSymbol);
+            return selected ? cycleSignal(selected, state, now) : undefined;
+        }
         return markets
             .map(m => cycleSignal(m, state, now))
             .filter((signal): signal is Signal => !!signal)
@@ -259,6 +263,7 @@ export function chooseSignal(
                     markets.find(m => m.symbol === b.symbol)!.received -
                     markets.find(m => m.symbol === a.symbol)!.received
             )[0];
+    }
     const pick = <T>(rows: T[]) => rows[Math.min(rows.length - 1, Math.floor(random() * rows.length))];
     if (state.streak) {
         const signals = markets.map(m => recoverySignal(m, state, config, now)).filter((s): s is Signal => !!s);

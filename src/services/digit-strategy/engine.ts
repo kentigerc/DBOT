@@ -260,6 +260,9 @@ export class DigitStrategyEngine {
         this.disabled.clear();
         this.update({
             settings: { ...settings },
+            ...(settings.strategy === 'over2-under7'
+                ? { batchPause: 0, recovery: { ...this.state.recovery, countAfter: 0, pauseUntil: 0 } }
+                : {}),
             active: true,
             wantsRun: !reconcileId,
             error: '',
@@ -464,11 +467,18 @@ export class DigitStrategyEngine {
             this.now(),
             this.deps.random
         );
-        if (!signal || this.attempts.get(signal.symbol) === signal.epoch) {
+        if (
+            !signal ||
+            (!(this.state.settings.strategy === 'over2-under7' && this.state.recovery.lockedSymbol) &&
+                this.attempts.get(signal.symbol) === signal.epoch)
+        ) {
             this.update({
-                phase: this.state.streak
-                    ? 'Waiting for recovery formation / filters'
-                    : 'Waiting for eligible digit entry',
+                phase:
+                    this.state.settings.strategy === 'over2-under7' && this.state.recovery.lockedSymbol
+                        ? 'Waiting for fresh data on selected market'
+                        : this.state.streak
+                          ? 'Waiting for recovery formation / filters'
+                          : 'Waiting for eligible digit entry',
             });
             return;
         }
@@ -483,7 +493,7 @@ export class DigitStrategyEngine {
             return (
                 fresh?.direction === signal.direction &&
                 fresh.barrier === signal.barrier &&
-                fresh.epoch === signal.epoch
+                (!signal.formation || fresh.epoch === signal.epoch)
             );
         }
         if (signal.recovery) {
@@ -717,15 +727,15 @@ export class DigitStrategyEngine {
         const batch = this.state.batch + 1;
         let pause = batch >= 3 && streak === 0;
         if (this.state.settings.strategy === 'over2-under7') {
-            pause = streak === 0 && (batch >= 3 || (p.signal.recovery && profit > 0));
+            pause = false;
             recovery = {
                 streak,
-                countAfter: this.now() + (pause ? 5000 : 0),
-                pauseUntil: pause ? this.now() + 5000 : 0,
-                ...(pause ? {} : { lockedSymbol: p.signal.symbol, lockedDirection: p.signal.direction }),
+                countAfter: 0,
+                pauseUntil: 0,
+                lockedSymbol: p.signal.symbol,
+                lockedDirection: p.signal.direction,
             };
             recoveryLosses = 0;
-            if (pause) this.log('Sequence complete. Returning to fresh market analysis after five seconds.');
         }
         const pnl = this.state.pnl + profit,
             peak = Math.max(this.state.peak, pnl);
@@ -741,7 +751,8 @@ export class DigitStrategyEngine {
             losses: this.state.losses + (profit < 0 ? 1 : 0),
             voids: this.state.voids + (profit === 0 ? 1 : 0),
             batch: pause ? 0 : batch,
-            batchPause: pause ? this.now() + 5000 : this.state.batchPause,
+            batchPause:
+                this.state.settings.strategy === 'over2-under7' ? 0 : pause ? this.now() + 5000 : this.state.batchPause,
             pending: undefined,
             trades: this.state.trades.map(t =>
                 t.id === p.nonce ? { ...t, profit, status: profit > 0 ? 'Won' : profit < 0 ? 'Lost' : 'Void' } : t

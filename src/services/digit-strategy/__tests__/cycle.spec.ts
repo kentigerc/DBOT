@@ -45,7 +45,7 @@ describe('HIT AND RUN entry rules', () => {
             expect(cycleDirections(changed, 1)).toEqual([]);
         }
     });
-    it('scans both directions, locks a sequence and requires fresh recovery eligibility', () => {
+    it('scans both directions initially, then retains the selected contract without reanalysis', () => {
         const over = market(),
             under = market(true);
         under.symbol = 'R_50';
@@ -55,7 +55,14 @@ describe('HIT AND RUN entry rules', () => {
         const locked = { ...recovery, streak: 1, lockedSymbol: 'R_100', lockedDirection: 'DIGITOVER' as const };
         expect(chooseSignal([under], locked, settings, 10000)).toBeUndefined();
         expect(cycleSignal(over, locked, 10000)?.recovery).toBe(true);
-        expect(cycleSignal(over, { ...locked, countAfter: 10000 }, 10000)).toBeUndefined();
+        over.digits[over.digits.length - 1] = 5;
+        expect(cycleSignal(over, recovery, 10000)).toBeUndefined();
+        expect(cycleSignal(over, { ...locked, countAfter: 10000 }, 10000)).toMatchObject({
+            direction: 'DIGITOVER',
+            barrier: '2',
+            recovery: true,
+            formation: false,
+        });
         expect(cycleSignal(over, locked, 14000)).toBeUndefined();
         expect(() => validateSettings({ ...settings, strategy: 'bad' } as never)).toThrow('Invalid trading strategy');
     });

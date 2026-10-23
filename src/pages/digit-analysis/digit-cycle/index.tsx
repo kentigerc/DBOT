@@ -138,42 +138,51 @@ export default function DigitCycle() {
                         </span>
                         <span>Next stake: {money(state.stake)}</span>
                         <span>
-                            Sequence trades: {state.batch}
+                            Trades in run: {state.batch}
                             {state.streak ? ' · Recovery active' : ''}
                         </span>
                     </div>
                     <div className='digit-cycle__markets'>
-                        {state.markets.map(market => {
-                            const candidates = market.ready ? cycleDirections(market.digits, market.latest) : [];
-                            return (
-                                <article key={market.symbol}>
-                                    <h3>{market.name}</h3>
-                                    <p>
-                                        {market.status} · Last digit: {market.latest ?? '—'} ·{' '}
-                                        {candidates.length
-                                            ? candidates
-                                                  .map(direction =>
-                                                      direction === 'DIGITOVER'
-                                                          ? 'Over 2 entry ready'
-                                                          : 'Under 7 entry ready'
-                                                  )
-                                                  .join(', ')
-                                            : 'Waiting for entry conditions'}
-                                    </p>
-                                    <div className='digit-cycle__circles'>
-                                        {market.digits.map(digit => (
-                                            <span
-                                                key={digit.digit}
-                                                className={digit.most ? 'is-most' : digit.least ? 'is-least' : ''}
-                                            >
-                                                <strong>{digit.digit}</strong>
-                                                {digit.percentage.toFixed(1)}%
-                                            </span>
-                                        ))}
-                                    </div>
-                                </article>
-                            );
-                        })}
+                        {state.markets
+                            .filter(
+                                market => !state.recovery.lockedSymbol || market.symbol === state.recovery.lockedSymbol
+                            )
+                            .map(market => {
+                                const candidates =
+                                    market.ready && !state.recovery.lockedSymbol
+                                        ? cycleDirections(market.digits, market.latest)
+                                        : [];
+                                return (
+                                    <article key={market.symbol}>
+                                        <h3>{market.name}</h3>
+                                        <p>
+                                            {market.status} · Last digit: {market.latest ?? '—'} ·{' '}
+                                            {state.recovery.lockedSymbol === market.symbol
+                                                ? `Continuous ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'} trading`
+                                                : candidates.length
+                                                  ? candidates
+                                                        .map(direction =>
+                                                            direction === 'DIGITOVER'
+                                                                ? 'Over 2 entry ready'
+                                                                : 'Under 7 entry ready'
+                                                        )
+                                                        .join(', ')
+                                                  : 'Waiting for entry conditions'}
+                                        </p>
+                                        <div className='digit-cycle__circles'>
+                                            {market.digits.map(digit => (
+                                                <span
+                                                    key={digit.digit}
+                                                    className={digit.most ? 'is-most' : digit.least ? 'is-least' : ''}
+                                                >
+                                                    <strong>{digit.digit}</strong>
+                                                    {digit.percentage.toFixed(1)}%
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </article>
+                                );
+                            })}
                     </div>
                     {state.trades.length > 0 && (
                         <div className='digit-cycle__table'>
