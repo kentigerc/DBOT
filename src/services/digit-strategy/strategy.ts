@@ -255,14 +255,12 @@ export function chooseSignal(
             const selected = markets.find(m => m.symbol === state.lockedSymbol);
             return selected ? cycleSignal(selected, state, now) : undefined;
         }
-        return markets
-            .map(m => cycleSignal(m, state, now))
-            .filter((signal): signal is Signal => !!signal)
-            .sort(
-                (a, b) =>
-                    markets.find(m => m.symbol === b.symbol)!.received -
-                    markets.find(m => m.symbol === a.symbol)!.received
-            )[0];
+        const eligible = markets.map(m => cycleSignal(m, state, now)).filter((signal): signal is Signal => !!signal);
+        // Every candidate has passed both the full entry rules and freshness checks.
+        // Randomize ties rather than privileging the feed whose tick arrived last.
+        return eligible.length
+            ? eligible[Math.min(eligible.length - 1, Math.floor(random() * eligible.length))]
+            : undefined;
     }
     const pick = <T>(rows: T[]) => rows[Math.min(rows.length - 1, Math.floor(random() * rows.length))];
     if (state.streak) {

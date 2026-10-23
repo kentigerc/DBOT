@@ -67,3 +67,40 @@ describe('HIT AND RUN entry rules', () => {
         expect(() => validateSettings({ ...settings, strategy: 'bad' } as never)).toThrow('Invalid trading strategy');
     });
 });
+
+describe('HIT AND RUN direction selection across fresh analyses', () => {
+    const settings = { ...DEFAULT_SETTINGS, strategy: 'over2-under7' as const };
+    it('can select either direction when both qualify, without privileging the newest feed', () => {
+        const over = market(),
+            under = market(true);
+        under.symbol = 'R_50';
+        under.received = 10001;
+        expect(chooseSignal([over, under], recovery, settings, 10001, () => 0)).toMatchObject({
+            direction: 'DIGITOVER',
+            barrier: '2',
+        });
+        expect(chooseSignal([over, under], recovery, settings, 10001, () => 0.999)).toMatchObject({
+            direction: 'DIGITUNDER',
+            barrier: '7',
+        });
+    });
+    it('never forces alternation when only one direction fully qualifies', () => {
+        const over = market(false, 5),
+            under = market(true);
+        under.symbol = 'R_50';
+        for (const random of [0, 0.5, 0.999]) {
+            expect(chooseSignal([over, under], recovery, settings, 10000, () => random)?.direction).toBe('DIGITUNDER');
+        }
+        over.digits[over.digits.length - 1] = 2;
+        under.digits[under.digits.length - 1] = 9;
+        expect(chooseSignal([over, under], recovery, settings, 10000, () => 0.999)?.direction).toBe('DIGITOVER');
+    });
+    it('holds Under through recovery, then allows Over after the batch releases the lock', () => {
+        const over = market(),
+            under = market(true);
+        under.symbol = 'R_50';
+        const locked = { ...recovery, streak: 1, lockedSymbol: 'R_50', lockedDirection: 'DIGITUNDER' as const };
+        expect(chooseSignal([over, under], locked, settings, 10000, () => 0)?.direction).toBe('DIGITUNDER');
+        expect(chooseSignal([over, under], recovery, settings, 10000, () => 0)?.direction).toBe('DIGITOVER');
+    });
+});
