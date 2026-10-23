@@ -16,7 +16,6 @@ export default function DigitCycle() {
     const busy = state.active || !!state.pending;
     const history = state.trades.length > 0;
     const locked = busy || history;
-    const account = getDerivAccount();
     useEffect(() => {
         const update = () => {
             setSession(getDerivSession());
@@ -75,15 +74,7 @@ export default function DigitCycle() {
     return (
         <section className='digit-cycle' aria-labelledby='digit-cycle-title'>
             <h2 id='digit-cycle-title'>HIT AND RUN STRATEGY</h2>
-            <p>
-                Scans both directions across available Volatility markets using 1,000 live ticks. Every entry requires
-                fresh matching percentages and the specified last digit.
-            </p>
-            <p>
-                <strong>Over 2:</strong> digits 0, 1, 2 each below 10%, with no red/green frequency marks; enter only
-                after digit 1 or 2. <strong>Under 7:</strong> digits 7, 8, 9 each below 10%, with no red/green frequency
-                marks; enter only after digit 7 or 8.
-            </p>
+            <p>Analysing Under 7 and Over 2 markets.</p>
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
@@ -105,25 +96,7 @@ export default function DigitCycle() {
                     </select>
                 </label>
             </div>
-            <p>
-                Up to three normal trades per sequence on the selected market and direction. Recovery may require
-                additional trades. After a loss, wait for another qualifying entry on that market, apply the multiplier,
-                and recover until a win or a risk limit. After three runs or a recovery win, pause five seconds, then
-                analyse afresh. Recovery wins end the sequence; they do not guarantee that all earlier losses are
-                repaid.
-            </p>
-            <p>
-                {account
-                    ? `${account.account_type === 'demo' ? 'Demo' : 'Real'} · ${account.account_id} · ${account.currency}`
-                    : 'Log in with Deriv to trade.'}
-                {state.demoOnly ? ' · Server preview: USD demo accounts only.' : ''}
-            </p>
-            {!own && (busy || history) && (
-                <p>
-                    The Analysis Tool has a session on this account. Stop it there and reset the stopped session before
-                    switching tools.
-                </p>
-            )}
+            {!own && (busy || history) && <p>Existing Analysis Tool session.</p>}
             {own && state.pending && !state.pending.contractId && (
                 <label>
                     Unconfirmed contract ID from Deriv history
@@ -148,11 +121,6 @@ export default function DigitCycle() {
                     Reset stopped session
                 </button>
             </div>
-            <p>
-                Uses the same account session as Analysis Tool; only one tool or Bot Builder can trade at a time. Reset
-                clears the stopped session’s statistics before changing settings or tools. RUN starts automated trading;
-                STOP prevents new entries while an existing contract settles.
-            </p>
             {error && <p role='alert'>{error}</p>}
             {own && (
                 <>
@@ -252,10 +220,6 @@ export default function DigitCycle() {
                     </details>
                 </>
             )}
-            <p>
-                Past digit frequencies do not predict the next tick. Martingale increases exposure and can reach your
-                risk limits.
-            </p>
         </section>
     );
 }
