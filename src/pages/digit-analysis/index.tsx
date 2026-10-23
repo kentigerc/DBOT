@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { DBOT_TABS } from '@/constants/bot-contents';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
+import { useStore } from '@/hooks/useStore';
+import { getDerivSession } from '@/utils/deriv-session';
 import { digitFrequencies, lastDigit } from './digits';
 import MarketScanner from './market-scanner';
 import './digit-analysis.scss';
@@ -15,6 +19,8 @@ type Market = {
 type Tick = { quote: number; epoch: number; pip_size: number; symbol?: string; underlying_symbol?: string };
 
 export default function DigitAnalysis({ active = true }: { active?: boolean }) {
+    const navigate = useNavigate();
+    const { dashboard, run_panel } = useStore();
     const panelRef = useMarketPanelHeight<HTMLElement>({ enabled: active });
     const [markets, setMarkets] = useState<Market[]>([]);
     const [symbol, setSymbol] = useState('R_100');
@@ -213,7 +219,28 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                     Latest digit
                 </span>
             </div>
-            <MarketScanner sampleSize={sampleSize} onSelect={setSymbol} />
+            <MarketScanner
+                sampleSize={sampleSize}
+                onSelect={setSymbol}
+                active={active}
+                onLoad={(side, matchedSymbol, submarket) => {
+                    if (!getDerivSession().authenticated)
+                        throw new Error('Log in with Deriv to load a NetoAcademy bot.');
+                    if (run_panel.is_running) throw new Error('Stop your running bot before loading another bot.');
+                    sessionStorage.setItem(
+                        'neto.pendingBot',
+                        JSON.stringify({
+                            fileName: side === 'over' ? 'over-punisher.xml' : 'under-punisher.xml',
+                            name: side === 'over' ? 'Over Punisher' : 'Under Punisher',
+                            symbol: matchedSymbol,
+                            submarket,
+                        })
+                    );
+                    dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
+                    navigate('/#bot_builder');
+                    return true;
+                }}
+            />
             <p className='digit-analysis__note'>
                 Percentages describe the selected rolling sample of past ticks. They do not predict the next digit or
                 guarantee a trading outcome.

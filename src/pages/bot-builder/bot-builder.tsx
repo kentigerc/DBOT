@@ -6,6 +6,7 @@ import { notification_message } from '@/components/bot-notification/bot-notifica
 import { DBOT_TABS } from '@/constants/bot-contents';
 import { load, save_types } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
+import { hostedBotMarket } from '@/utils/hosted-bot-market';
 import { localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
 import { TBlocklyEvents } from 'Types';
@@ -53,7 +54,7 @@ const BotBuilder = observer(() => {
                 )
                     throw new Error('This bot does not contain valid XML.');
                 const result = await load({
-                    block_string: content,
+                    block_string: hostedBotMarket(content, bot.symbol, bot.submarket),
                     file_name: bot.name,
                     workspace,
                     from: save_types.LOCAL,

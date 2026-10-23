@@ -1,123 +1,167 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
-import { lastDigit } from './digits';
+import { digitFrequencies, lastDigit } from './digits';
 import { evaluateScan, scanDigits, ScanSide } from './scanner';
 
-type Market = { symbol: string; display_name: string };
+type Market = { symbol: string; display_name: string; submarket?: string };
 type Api = Awaited<ReturnType<typeof generateDerivApiInstance>>;
-type Result = Market & ReturnType<typeof evaluateScan>;
+type Result = Market & ReturnType<typeof evaluateScan> & { checkedAt: number; digits: number[] };
+
+function delay(ms: number, signal: AbortSignal) {
+    return new Promise<void>(resolve => {
+        const finish = () => {
+            clearTimeout(timer);
+            signal.removeEventListener('abort', finish);
+            resolve();
+        };
+        const timer = setTimeout(finish, ms);
+        if (signal.aborted) finish();
+        else signal.addEventListener('abort', finish, { once: true });
+    });
+}
 
 export default function MarketScanner({
     sampleSize,
     onSelect,
+    onLoad,
+    active = true,
 }: {
     sampleSize: number;
     onSelect: (symbol: string) => void;
+    onLoad: (side: ScanSide, symbol: string, submarket: string) => boolean;
+    active?: boolean;
 }) {
     const [side, setSide] = useState<ScanSide>('over');
-    const [running, setRunning] = useState(false);
-    const [message, setMessage] = useState('Choose a contract type and scan the Volatility markets.');
+    const [enabled, setEnabled] = useState(true);
+    const [message, setMessage] = useState('Connecting to market data…');
     const [results, setResults] = useState<Result[]>([]);
-    const [scannedAt, setScannedAt] = useState('');
-    const generation = useRef(0);
-    const connection = useRef<Api>();
-    const stop = useCallback(() => {
-        generation.current++;
-        connection.current?.disconnect();
-        connection.current = undefined;
-    }, []);
+    const [preview, setPreview] = useState<Result>();
+    const [loadError, setLoadError] = useState('');
     useEffect(() => {
-        stop();
-        setRunning(false);
         setResults([]);
-        setScannedAt('');
-        setMessage('Choose a contract type and scan the Volatility markets.');
-        return stop;
-    }, [side, sampleSize, stop]); // Cancel stale requests before settings change or unmount.
-    const scan = async () => {
-        stop();
-        const current = generation.current;
-        const found: Result[] = [];
-        let completed = 0;
-        let failed = 0;
-        setRunning(true);
-        setResults([]);
-        setScannedAt('');
-        setMessage('Connecting to market data…');
+        setPreview(undefined);
+        setLoadError('');
+    }, [side, sampleSize]);
+    useEffect(() => {
+        if (!active || !enabled) {
+            setMessage('Scanner paused. Displayed percentages are snapshots.');
+            return;
+        }
+        const controller = new AbortController();
+        const { signal } = controller;
+        let api: Api | undefined;
         const request = async (payload: Parameters<Api['send']>[0]) => {
             let timeout: ReturnType<typeof setTimeout> | undefined;
+            let cancel: () => void = () => {};
             try {
                 return await Promise.race([
-                    connection.current!.send(payload),
+                    api!.send(payload),
                     new Promise<never>((_, reject) => {
+                        cancel = () => reject(new Error('Scan stopped.'));
+                        signal.addEventListener('abort', cancel, { once: true });
+                        if (signal.aborted) cancel();
                         timeout = setTimeout(() => reject(new Error('Market data request timed out.')), 15000);
                     }),
                 ]);
             } finally {
                 clearTimeout(timeout);
+                signal.removeEventListener('abort', cancel);
             }
         };
-        try {
-            const api = await generateDerivApiInstance({ publicOnly: true });
-            if (current !== generation.current) {
-                api.disconnect();
-                return;
-            }
-            connection.current = api;
-            const response = await request({ active_symbols: 'brief' });
-            if (current !== generation.current) return;
-            const markets: Market[] = (response.active_symbols || []).filter(
-                (market: Market & { exchange_is_open: number; is_trading_suspended: number }) =>
-                    /^(R_\d+|1HZ\d+V)$/.test(market.symbol) && market.exchange_is_open && !market.is_trading_suspended
-            );
-            if (!markets.length) throw new Error('No available Volatility markets. Please try again.');
-            // Sequential snapshots avoid flooding the public API with subscriptions.
-            for (const market of markets) {
-                if (current !== generation.current) return;
-                setMessage(`Scanning ${completed + 1}/${markets.length}: ${market.display_name}`);
+        const run = async () => {
+            let round = 0;
+            while (!signal.aborted) {
                 try {
-                    const history = await request({
-                        ticks_history: market.symbol,
-                        style: 'ticks',
-                        end: 'latest',
-                        count: sampleSize,
-                    });
-                    if (current !== generation.current) return;
-                    if (!Array.isArray(history.history?.prices) || !Number.isInteger(history.pip_size))
-                        throw new Error('Missing history');
-                    const digits = (history.history.prices as number[])
-                        .map(price => lastDigit(price, history.pip_size))
-                        .filter((digit): digit is number => digit !== null)
-                        .slice(-sampleSize);
-                    if (digits.length !== sampleSize) throw new Error('Incomplete history');
-                    const evaluation = evaluateScan(digits, side, sampleSize);
-                    if (evaluation.matches) found.push({ ...market, ...evaluation });
-                } catch {
-                    failed++;
+                    setMessage('Connecting to market data…');
+                    api = await generateDerivApiInstance({ publicOnly: true });
+                    if (signal.aborted) {
+                        api.disconnect();
+                        return;
+                    }
+                    const response = await request({ active_symbols: 'brief' });
+                    if (signal.aborted) return;
+                    const markets: Market[] = (response.active_symbols || []).filter(
+                        (market: Market & { exchange_is_open: number; is_trading_suspended: number }) =>
+                            /^(R_\d+|1HZ\d+V)$/.test(market.symbol) &&
+                            market.exchange_is_open &&
+                            !market.is_trading_suspended
+                    );
+                    if (!markets.length) throw new Error('No available Volatility markets.');
+                    // Keep polling in paced rounds; no tick subscriptions or trading requests.
+                    round++;
+                    for (const [index, market] of markets.entries()) {
+                        if (signal.aborted) return;
+                        setMessage(`Scanning ${index + 1}/${markets.length} · Round ${round} · ${market.display_name}`);
+                        try {
+                            const history = await request({
+                                ticks_history: market.symbol,
+                                style: 'ticks',
+                                end: 'latest',
+                                count: sampleSize,
+                            });
+                            if (signal.aborted) return;
+                            if (!Array.isArray(history.history?.prices) || !Number.isInteger(history.pip_size))
+                                throw new Error('Missing history');
+                            const digits = (history.history.prices as number[])
+                                .map(price => lastDigit(price, history.pip_size))
+                                .filter((digit): digit is number => digit !== null)
+                                .slice(-sampleSize);
+                            if (digits.length !== sampleSize) throw new Error('Incomplete history');
+                            const result = {
+                                ...market,
+                                ...evaluateScan(digits, side, sampleSize),
+                                digits,
+                                checkedAt: Date.now(),
+                            };
+                            setPreview(result);
+                            setResults(previous => [
+                                ...previous.filter(
+                                    item => item.symbol !== market.symbol && Date.now() - item.checkedAt < 60000
+                                ),
+                                ...(result.matches ? [result] : []),
+                            ]);
+                        } catch {
+                            if (signal.aborted) return;
+                            setResults(previous =>
+                                previous.filter(
+                                    item => item.symbol !== market.symbol && Date.now() - item.checkedAt < 60000
+                                )
+                            );
+                            setPreview(previous => (previous?.symbol === market.symbol ? undefined : previous));
+                            setMessage(`${market.display_name}: data unavailable; retrying next round.`);
+                        }
+                        await delay(1000, signal);
+                    }
+                    await delay(2000, signal);
+                    // Refresh availability each round as well as every market's snapshot.
+                } catch (error) {
+                    if (signal.aborted) return;
+                    setResults([]);
+                    setPreview(undefined);
+                    setMessage(
+                        `${error instanceof Error ? error.message : 'Market connection unavailable.'} Retrying in 5 seconds…`
+                    );
+                    await delay(5000, signal);
+                } finally {
+                    api?.disconnect();
+                    api = undefined;
                 }
-                completed++;
             }
-            if (current !== generation.current) return;
-            setResults(found);
-            setScannedAt(new Date().toLocaleTimeString());
-            setMessage(
-                `${found.length} matching ${found.length === 1 ? 'market' : 'markets'} · ${completed - failed}/${markets.length} checked${failed ? ` · ${failed} unavailable (retry scan)` : ''}`
-            );
-        } catch (error) {
-            if (current === generation.current)
-                setMessage(error instanceof Error ? error.message : 'Unable to scan. Please try again.');
-        } finally {
-            if (current === generation.current) {
-                connection.current?.disconnect();
-                connection.current = undefined;
-                setRunning(false);
-            }
-        }
-    };
+        };
+        void run();
+        return () => {
+            controller.abort();
+            api?.disconnect();
+        };
+    }, [active, enabled, side, sampleSize]);
+    const botName = side === 'over' ? 'Over Punisher' : 'Under Punisher';
     return (
         <section className='digit-scanner' aria-labelledby='digit-scanner-title'>
             <h2 id='digit-scanner-title'>Over / Under market scanner</h2>
-            <p>Find markets matching your digit conditions in the last {sampleSize.toLocaleString()} ticks.</p>
+            <p>
+                Automatically checks Volatility markets using the last {sampleSize.toLocaleString()} ticks. Matches are
+                refreshed on each pass.
+            </p>
             <div className='digit-scanner__controls'>
                 <label>
                     Contract type
@@ -126,20 +170,7 @@ export default function MarketScanner({
                         <option value='under'>Under</option>
                     </select>
                 </label>
-                <button onClick={() => void scan()} disabled={running}>
-                    SCAN
-                </button>
-                {running && (
-                    <button
-                        onClick={() => {
-                            stop();
-                            setRunning(false);
-                            setMessage('Scan cancelled.');
-                        }}
-                    >
-                        CANCEL
-                    </button>
-                )}
+                <button onClick={() => setEnabled(value => !value)}>{enabled ? 'PAUSE' : 'RESUME'}</button>
             </div>
             <p className='digit-scanner__rules'>
                 Digits {scanDigits(side).join(', ')}: each below 10%. Red (least frequent) must be in this group; green
@@ -149,7 +180,33 @@ export default function MarketScanner({
             <p role='status' aria-live='polite'>
                 {message}
             </p>
-            {scannedAt && <p>Snapshot at {scannedAt}. Rescan to refresh; conditions may change.</p>}
+            {preview && (
+                <div className='digit-scanner__preview'>
+                    <h3>Checking: {preview.display_name}</h3>
+                    <p>
+                        Last checked {new Date(preview.checkedAt).toLocaleTimeString()} · {preview.digits.length} ticks
+                        · {preview.matches ? 'Conditions matched' : 'Conditions not matched'}
+                    </p>
+                    <div className='digit-scanner__circles' aria-label='Scanner digit percentages'>
+                        {digitFrequencies(preview.digits).map((item, digit) => (
+                            <div
+                                key={digit}
+                                className={`digit-scanner__circle${preview.redDigits.includes(digit) ? ' digit-scanner__circle--red' : ''}${preview.greenDigits.includes(digit) ? ' digit-scanner__circle--green' : ''}`}
+                                aria-label={`Digit ${digit}: ${item.percent.toFixed(1)} percent${preview.redDigits.includes(digit) ? ', least frequent' : ''}${preview.greenDigits.includes(digit) ? ', most frequent' : ''}`}
+                            >
+                                <strong>{digit}</strong>
+                                <span>{item.percent.toFixed(1)}%</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {loadError && <p role='alert'>{loadError}</p>}
+            {results.length > 0 && (
+                <h3 className='digit-scanner__found' role='status'>
+                    Market found · {results.length} {results.length === 1 ? 'match' : 'matches'}
+                </h3>
+            )}
             <div className='digit-scanner__results'>
                 {results.map(result => (
                     <article key={result.symbol}>
@@ -158,11 +215,35 @@ export default function MarketScanner({
                         <p>
                             Red: {result.redDigits.join(', ')} · Green: {result.greenDigits.join(', ')}
                         </p>
-                        <button onClick={() => onSelect(result.symbol)}>View digits</button>
+                        <p>Last matched {new Date(result.checkedAt).toLocaleTimeString()}. Conditions may change.</p>
+                        <p>
+                            Suggested bot: <strong>{botName}</strong>
+                        </p>
+                        <div className='digit-scanner__actions'>
+                            <button onClick={() => onSelect(result.symbol)}>View digits</button>
+                            <button
+                                onClick={() => {
+                                    try {
+                                        if (onLoad(side, result.symbol, result.submarket || 'random_index')) {
+                                            setLoadError('');
+                                        }
+                                    } catch (error) {
+                                        setLoadError(
+                                            error instanceof Error ? error.message : 'Unable to load this bot.'
+                                        );
+                                    }
+                                }}
+                            >
+                                Load Bot
+                            </button>
+                        </div>
                     </article>
                 ))}
             </div>
-            <p>These are historical matches, not predictions or trading guarantees.</p>
+            <p>
+                The scanner pauses when you leave this tab. Loading selects the matched market in Bot Builder; review
+                your settings before running. Historical matches do not predict the next digit.
+            </p>
         </section>
     );
 }

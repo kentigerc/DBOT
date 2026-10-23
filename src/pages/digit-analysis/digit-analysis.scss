@@ -335,6 +335,66 @@
     &__rules {
         color: var(--text-less-prominent);
     }
+    &__preview {
+        padding: 16px 0;
+    }
+    &__circles {
+        display: grid;
+        grid-template-columns: repeat(10, minmax(0, 1fr));
+        gap: 10px;
+        max-width: 950px;
+    }
+    &__circle {
+        aspect-ratio: 1;
+        border: 2px solid var(--border-normal);
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        max-width: 72px;
+        font-variant-numeric: tabular-nums;
+        strong {
+            font-size: 20px;
+        }
+        span {
+            font-size: 12px;
+        }
+        &--red {
+            border-color: #f36976;
+        }
+        &--green {
+            border-color: #35c98b;
+        }
+    }
+    &__found {
+        color: var(--text-profit-success);
+        margin: 16px 0;
+    }
+    &__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    @media (max-width: 900px) {
+        &__circles {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 600px) {
+        &__circles {
+            gap: 8px;
+        }
+        &__circle {
+            strong {
+                font-size: 16px;
+            }
+            span {
+                font-size: 10px;
+            }
+        }
+    }
     &__results {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
