@@ -234,6 +234,8 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                             name: side === 'over' ? 'Over Punisher' : 'Under Punisher',
                             symbol: matchedSymbol,
                             submarket,
+                            scannerSide: side,
+                            sampleSize,
                         })
                     );
                     dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);

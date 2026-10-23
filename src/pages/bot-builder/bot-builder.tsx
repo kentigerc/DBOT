@@ -7,6 +7,7 @@ import { DBOT_TABS } from '@/constants/bot-contents';
 import { load, save_types } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
 import { hostedBotMarket } from '@/utils/hosted-bot-market';
+import { setScannerWatch } from '@/utils/scanner-watch';
 import { localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
 import { TBlocklyEvents } from 'Types';
@@ -63,6 +64,13 @@ const BotBuilder = observer(() => {
                     showIncompatibleStrategyDialog: null,
                 });
                 if (result?.error) throw new Error(result.error);
+                setScannerWatch(
+                    bot.symbol &&
+                        (bot.scannerSide === 'over' || bot.scannerSide === 'under') &&
+                        [100, 500, 1000].includes(bot.sampleSize)
+                        ? { symbol: bot.symbol, side: bot.scannerSide, sampleSize: bot.sampleSize, name: bot.name }
+                        : null
+                );
                 sessionStorage.removeItem('neto.pendingBot');
             } catch (reason) {
                 setImportError(reason instanceof Error ? reason.message : 'Unable to import this bot.');
