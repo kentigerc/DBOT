@@ -1,118 +1,43 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
-import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
 import { getDerivSession } from '@/utils/deriv-session';
-import { digitFrequencies, lastDigit } from './digits';
+import { digitFrequencies } from './digits';
+import { DigitMarket, subscribeLiveDigits } from './live-digits';
 import MarketScanner from './market-scanner';
 import './digit-analysis.scss';
-
-type Market = {
-    symbol: string;
-    display_name: string;
-    market: string;
-    exchange_is_open: number;
-    is_trading_suspended: number;
-};
-type Tick = { quote: number; epoch: number; pip_size: number; symbol?: string; underlying_symbol?: string };
 
 export default function DigitAnalysis({ active = true }: { active?: boolean }) {
     const navigate = useNavigate();
     const { dashboard, run_panel } = useStore();
     const panelRef = useMarketPanelHeight<HTMLElement>({ enabled: active });
-    const [markets, setMarkets] = useState<Market[]>([]);
+    const [markets, setMarkets] = useState<DigitMarket[]>([]);
     const [symbol, setSymbol] = useState('R_100');
     const [sampleSize, setSampleSize] = useState(1000);
     const [digits, setDigits] = useState<number[]>([]);
     const [latest, setLatest] = useState('');
     const [status, setStatus] = useState('Connecting to market…');
     const [error, setError] = useState('');
-    const [retry, setRetry] = useState(0);
 
     useEffect(() => {
-        let disposed = false;
-        let failed = false;
-        let api: Awaited<ReturnType<typeof generateDerivApiInstance>>;
-        let listener: { unsubscribe: () => void } | undefined;
-        let historyReady = false;
-        let snapshotEpoch = 0;
-        const queued: Tick[] = [];
         setDigits([]);
         setLatest('');
-        setError('');
-        setStatus('Connecting to market…');
-        const fail = (message: string) => {
-            if (!disposed && !failed) {
-                failed = true;
-                setError(message);
-                setStatus('Disconnected');
-            }
-        };
-        const acceptTick = (tick: Tick) => {
-            if (disposed || tick.epoch <= snapshotEpoch) return;
-            const digit = lastDigit(tick.quote, tick.pip_size);
-            if (digit === null) return;
-            setDigits(previous => [...previous, digit].slice(-sampleSize));
-            setLatest(Number(tick.quote).toFixed(tick.pip_size));
-            setStatus('Live');
-        };
-        const connect = async () => {
-            api = await generateDerivApiInstance({ publicOnly: true });
-            if (disposed) {
-                api.disconnect();
-                return;
-            }
-            api.connection.addEventListener('close', () =>
-                fail('Market connection closed. Reconnect to resume live analysis.')
-            );
-            api.connection.addEventListener('error', () => fail('Unable to connect to live market data.'));
-            listener = api.onMessage().subscribe(({ data }: { data: { tick?: Tick } }) => {
-                if (disposed || failed || !data.tick) return;
-                const tickSymbol = data.tick.symbol || data.tick.underlying_symbol;
-                if (tickSymbol && tickSymbol !== symbol) return;
-                if (!historyReady) queued.push(data.tick);
-                else acceptTick(data.tick);
-            });
-            const [symbols, history] = await Promise.all([
-                api.send({ active_symbols: 'brief' }),
-                api.send({ ticks_history: symbol, style: 'ticks', end: 'latest', count: sampleSize, subscribe: 1 }),
-            ]);
-            if (disposed) return;
-            setMarkets(
-                symbols.active_symbols.filter(
-                    (market: Market) =>
-                        market.market === 'synthetic_index' && market.exchange_is_open && !market.is_trading_suspended
-                )
-            );
-            const precision = history.pip_size;
-            if (!Array.isArray(history.history?.prices) || !Number.isInteger(precision))
-                throw new Error('Market history is unavailable. Select another market or reconnect.');
-            const prices = history.history.prices as number[];
-            setDigits(
-                prices
-                    .map(price => lastDigit(price, precision))
-                    .filter((digit): digit is number => digit !== null)
-                    .slice(-sampleSize)
-            );
-            if (prices.length) setLatest(Number(prices[prices.length - 1]).toFixed(precision));
-            snapshotEpoch = history.history.times?.at(-1) || 0;
-            historyReady = true;
-            setStatus('Live');
-            queued.forEach(acceptTick);
-        };
-        connect().catch(reason => {
-            fail(reason?.message || 'Unable to load market data. Please reconnect.');
-            listener?.unsubscribe();
-            api?.disconnect();
+        return subscribeLiveDigits({
+            symbol,
+            sampleSize,
+            onSnapshot: (nextDigits, quote) => {
+                setDigits(nextDigits);
+                setLatest(quote);
+            },
+            onMarkets: setMarkets,
+            onStatus: (nextStatus, nextError) => {
+                setStatus(nextStatus);
+                setError(nextError);
+            },
         });
-        return () => {
-            disposed = true;
-            listener?.unsubscribe();
-            api?.disconnect();
-        };
-    }, [symbol, sampleSize, retry]);
+    }, [symbol, sampleSize]);
 
     const frequencies = digitFrequencies(digits);
     const highest = Math.max(...frequencies.map(item => item.count));
@@ -172,7 +97,6 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
             {error && (
                 <div className='digit-analysis__error' role='alert'>
                     {error}
-                    <button onClick={() => setRetry(value => value + 1)}>Reconnect</button>
                 </div>
             )}
             <div className='digit-analysis__grid' aria-label='Last-digit frequencies'>

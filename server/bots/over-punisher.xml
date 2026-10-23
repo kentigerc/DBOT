@@ -206,10 +206,10 @@
         <field name="DURATIONTYPE_LIST">t</field>
         <value name="DURATION">
           <shadow type="math_number" id="0K[_HzPgXhG9D$Z#ynRq">
-            <field name="NUM">1</field>
+            <field name="NUM">2</field>
           <data>netoacademy:hosted-bot:over-punisher.xml</data></shadow>
           <block type="math_number" id="m!8`$M~/?PC6WmUn+|!j">
-            <field name="NUM">1</field>
+            <field name="NUM">2</field>
           <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
         </value>
         <value name="AMOUNT">

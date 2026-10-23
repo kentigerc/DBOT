@@ -241,6 +241,7 @@ test('real-account preview can reconcile a prior purchase without placing new re
         'neto.digit-strategy.v1.demo',
         JSON.stringify({
             ...empty(),
+            settings: { ...DEFAULT_SETTINGS, duration: 1 },
             version: 1,
             accountId: 'demo',
             pending: {
@@ -253,7 +254,10 @@ test('real-account preview can reconcile a prior purchase without placing new re
             },
         })
     );
-    assert.equal((await request('phone', { action: 'start', settings: DEFAULT_SETTINGS })).status, 200);
+    assert.equal(
+        (await request('phone', { action: 'start', settings: { ...DEFAULT_SETTINGS, duration: 1 } })).status,
+        200
+    );
     await service.sessions.get('demo').task;
     const state = (await request('laptop')).data;
     assert.equal(state.active, false);

@@ -65,7 +65,7 @@ class FakeBroker implements Broker {
                 barrier: body.parameters.barrier,
                 currency: 'USD',
                 buy_price: body.price,
-                tick_count: 1,
+                tick_count: body.parameters.duration,
                 is_sold: 0,
                 payout: Math.round(Math.round(body.price * 100) * 1.9) / 100,
                 entry_tick: 100.25,

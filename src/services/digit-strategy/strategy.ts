@@ -33,7 +33,7 @@ export const DEFAULT_SETTINGS: Settings = {
     takeProfit: 5,
     recoveryMode: 'under5_filtered_once',
     triggerCount: 3,
-    duration: 1,
+    duration: 2,
 };
 export function cents(value: unknown) {
     const amount = Number(value);
