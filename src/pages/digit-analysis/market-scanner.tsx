@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import { digitFrequencies, lastDigit } from './digits';
-import { evaluateScan, scanDigits, ScanSide } from './scanner';
+import { evaluateScan, ScanSide } from './scanner';
 
 type Market = { symbol: string; display_name: string; submarket?: string };
 type Api = Awaited<ReturnType<typeof generateDerivApiInstance>>;
-type Result = Market & ReturnType<typeof evaluateScan> & { checkedAt: number; digits: number[] };
+type Snapshot = Market & ReturnType<typeof evaluateScan> & { checkedAt: number; digits: number[] };
+type Result = Snapshot & { side: ScanSide };
 
 function delay(ms: number, signal: AbortSignal) {
     return new Promise<void>(resolve => {
@@ -31,17 +32,16 @@ export default function MarketScanner({
     onLoad: (side: ScanSide, symbol: string, submarket: string) => boolean;
     active?: boolean;
 }) {
-    const [side, setSide] = useState<ScanSide>('over');
     const [enabled, setEnabled] = useState(true);
     const [message, setMessage] = useState('Connecting to market data…');
     const [results, setResults] = useState<Result[]>([]);
-    const [preview, setPreview] = useState<Result>();
+    const [preview, setPreview] = useState<Snapshot & { matchedSides: ScanSide[] }>();
     const [loadError, setLoadError] = useState('');
     useEffect(() => {
         setResults([]);
         setPreview(undefined);
         setLoadError('');
-    }, [side, sampleSize]);
+    }, [sampleSize]);
     useEffect(() => {
         if (!active || !enabled) {
             setMessage('Scanner paused. Displayed percentages are snapshots.');
@@ -107,18 +107,20 @@ export default function MarketScanner({
                                 .filter((digit): digit is number => digit !== null)
                                 .slice(-sampleSize);
                             if (digits.length !== sampleSize) throw new Error('Incomplete history');
-                            const result = {
-                                ...market,
+                            // Evaluate both directions against the same snapshot and API request.
+                            const snapshot = { ...market, digits, checkedAt: Date.now() };
+                            const evaluations = (['over', 'under'] as const).map(side => ({
+                                ...snapshot,
                                 ...evaluateScan(digits, side, sampleSize),
-                                digits,
-                                checkedAt: Date.now(),
-                            };
-                            setPreview(result);
+                                side,
+                            }));
+                            const matches = evaluations.filter(result => result.matches);
+                            setPreview({ ...evaluations[0], matchedSides: matches.map(result => result.side) });
                             setResults(previous => [
                                 ...previous.filter(
                                     item => item.symbol !== market.symbol && Date.now() - item.checkedAt < 60000
                                 ),
-                                ...(result.matches ? [result] : []),
+                                ...matches,
                             ]);
                         } catch {
                             if (signal.aborted) return;
@@ -153,29 +155,21 @@ export default function MarketScanner({
             controller.abort();
             api?.disconnect();
         };
-    }, [active, enabled, side, sampleSize]);
-    const botName = side === 'over' ? 'Over Punisher' : 'Under Punisher';
+    }, [active, enabled, sampleSize]);
     return (
         <section className='digit-scanner' aria-labelledby='digit-scanner-title'>
             <h2 id='digit-scanner-title'>Over / Under market scanner</h2>
             <p>
-                Automatically checks Volatility markets using the last {sampleSize.toLocaleString()} ticks. Matches are
-                refreshed on each pass.
+                Automatically checks both Over and Under conditions on every Volatility market using the last{' '}
+                {sampleSize.toLocaleString()} ticks. Matches are refreshed on each pass.
             </p>
             <div className='digit-scanner__controls'>
-                <label>
-                    Contract type
-                    <select value={side} onChange={event => setSide(event.target.value as ScanSide)}>
-                        <option value='over'>Over</option>
-                        <option value='under'>Under</option>
-                    </select>
-                </label>
                 <button onClick={() => setEnabled(value => !value)}>{enabled ? 'PAUSE' : 'RESUME'}</button>
             </div>
             <p className='digit-scanner__rules'>
-                Digits {scanDigits(side).join(', ')}: each below 10%. Red (least frequent) must be in this group; green
-                (most frequent) must be in {scanDigits(side === 'over' ? 'under' : 'over').join(', ')}. All tied marks
-                must stay within their required group.
+                Over: digits 0–3 each below 10%, red (least frequent) on 0–3, green (most frequent) on 6–9. Under:
+                digits 6–9 each below 10%, red on 6–9, green on 0–3. All tied marks must stay within their required
+                group.
             </p>
             <p role='status' aria-live='polite'>
                 {message}
@@ -185,7 +179,10 @@ export default function MarketScanner({
                     <h3>Checking: {preview.display_name}</h3>
                     <p>
                         Last checked {new Date(preview.checkedAt).toLocaleTimeString()} · {preview.digits.length} ticks
-                        · {preview.matches ? 'Conditions matched' : 'Conditions not matched'}
+                        ·{' '}
+                        {preview.matchedSides.length
+                            ? `${preview.matchedSides.map(side => (side === 'over' ? 'Over' : 'Under')).join(' / ')} conditions matched`
+                            : 'Neither Over nor Under conditions matched'}
                     </p>
                     <div className='digit-scanner__circles' aria-label='Scanner digit percentages'>
                         {digitFrequencies(preview.digits).map((item, digit) => (
@@ -209,22 +206,25 @@ export default function MarketScanner({
             )}
             <div className='digit-scanner__results'>
                 {results.map(result => (
-                    <article key={result.symbol}>
-                        <h3>{result.display_name}</h3>
+                    <article key={`${result.symbol}-${result.side}`}>
+                        <h3>
+                            {result.display_name} · {result.side === 'over' ? 'Over' : 'Under'}
+                        </h3>
                         <p>{result.selected.map(item => `${item.digit}: ${item.percent.toFixed(2)}%`).join(' · ')}</p>
                         <p>
                             Red: {result.redDigits.join(', ')} · Green: {result.greenDigits.join(', ')}
                         </p>
                         <p>Last matched {new Date(result.checkedAt).toLocaleTimeString()}. Conditions may change.</p>
                         <p>
-                            Suggested bot: <strong>{botName}</strong>
+                            Suggested bot:{' '}
+                            <strong>{result.side === 'over' ? 'Over Punisher' : 'Under Punisher'}</strong>
                         </p>
                         <div className='digit-scanner__actions'>
                             <button onClick={() => onSelect(result.symbol)}>View digits</button>
                             <button
                                 onClick={() => {
                                     try {
-                                        if (onLoad(side, result.symbol, result.submarket || 'random_index')) {
+                                        if (onLoad(result.side, result.symbol, result.submarket || 'random_index')) {
                                             setLoadError('');
                                         }
                                     } catch (error) {

@@ -1,5 +1,5 @@
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import MarketScanner from '../market-scanner';
 
 jest.mock('@/external/bot-skeleton/services/api/appId', () => ({ generateDerivApiInstance: jest.fn() }));
@@ -44,20 +44,23 @@ it('automatically scans, shows circles and suggests Over Punisher without starti
     expect(screen.getByRole('button', { name: 'PAUSE' })).toBeTruthy();
     expect(api.send.mock.calls.every(([request]) => request.active_symbols || request.ticks_history)).toBe(true);
 });
-it('suggests Under Punisher for the matching Under market', async () => {
+it('finds Over and Under in the same pass without a selector and loads the right bot', async () => {
     const api = createApi();
     connect.mockResolvedValue(api);
     const load = jest.fn().mockReturnValue(true);
     render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} />);
-    fireEvent.change(screen.getByLabelText('Contract type'), { target: { value: 'under' } });
     await waitFor(() => expect(screen.queryByText('Under Punisher')).not.toBeNull(), { timeout: 3000 });
-    fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
+    expect(screen.getByText('Over Punisher')).toBeTruthy();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    const underCard = screen.getByText('Under Punisher').closest('article')!;
+    fireEvent.click(within(underCard).getByRole('button', { name: 'Load Bot' }));
     expect(load).toHaveBeenCalledWith('under', '1HZ10V', 'random_index');
     expect(
         api.send.mock.calls.some(
             ([request]) => request.ticks_history === 'CRASH500' || request.ticks_history === 'R_50'
         )
     ).toBe(false);
+    expect(api.send.mock.calls.filter(([request]) => request.ticks_history).length).toBe(2);
 });
 it('keeps rescanning and removes a market when conditions no longer match', async () => {
     jest.useFakeTimers();
@@ -132,4 +135,30 @@ it('reconnects automatically after a market service error', async () => {
     expect(screen.getByRole('button', { name: 'Load Bot' })).toBeTruthy();
     expect(connect).toHaveBeenCalledTimes(2);
     expect(offline.disconnect).toHaveBeenCalled();
+});
+it('replaces an Over match with Under when the same market changes direction', async () => {
+    jest.useFakeTimers();
+    let nextHistory = over;
+    const api = {
+        send: jest
+            .fn()
+            .mockImplementation(async request =>
+                request.active_symbols ? { active_symbols: markets.slice(0, 1) } : nextHistory
+            ),
+        disconnect: jest.fn(),
+    };
+    connect.mockResolvedValue(api);
+    const load = jest.fn().mockReturnValue(true);
+    render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} />);
+    await act(async () => {});
+    expect(screen.getByText('Over Punisher')).toBeTruthy();
+    nextHistory = under;
+    await act(async () => {
+        await jest.advanceTimersByTimeAsync(3000);
+    });
+    expect(screen.queryByText('Over Punisher')).toBeNull();
+    expect(screen.getByText('Under Punisher')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Load Bot' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
+    expect(load).toHaveBeenCalledWith('under', 'R_100', 'random_index');
 });
