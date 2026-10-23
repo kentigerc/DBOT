@@ -437,3 +437,70 @@ it('recovers a loss in a later HIT AND RUN session and then starts a full new th
     expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
     engine.stop();
 });
+describe('HIT AND RUN Analysis Tool recovery policies', () => {
+    it('waits for the chosen formation, buys Under 5 recovery, and restores the original Over 2 batch', async () => {
+        const { broker, engine, tick } = await setupCycle({
+            hitRecovery: 'analysis',
+            recoveryMode: 'under5_run',
+            triggerCount: 3,
+        });
+        broker.settle(-0.35);
+        expect(engine.getSnapshot().recovery).toMatchObject({ batchMarket: 'R_100', batchDirection: 'DIGITOVER' });
+        await tick(5);
+        await tick(6);
+        expect(broker.buys).toHaveLength(1);
+        await tick(7);
+        expect(broker.buys).toHaveLength(2);
+        expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 0.74 });
+        broker.settle(0.67);
+        await jest.advanceTimersByTimeAsync(150);
+        expect(broker.buys).toHaveLength(3);
+        expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', amount: 0.35 });
+        expect(engine.getSnapshot()).toMatchObject({
+            batch: 0,
+            recovery: { lockedSymbol: 'R_100', lockedDirection: 'DIGITOVER' },
+        });
+        engine.stop();
+    });
+    it('retains paired-loss pauses and requires the next fresh recovery formation', async () => {
+        const { broker, engine, tick } = await setupCycle({
+            hitRecovery: 'analysis',
+            recoveryMode: 'under5_pairs',
+            triggerCount: 3,
+        });
+        broker.settle(-0.35);
+        await tick(5);
+        await tick(6);
+        await tick(7);
+        expect(broker.buys).toHaveLength(2);
+        broker.settle(-0.74);
+        await tick(6);
+        expect(broker.buys).toHaveLength(3);
+        broker.settle(-1.55);
+        const state = engine.getSnapshot();
+        expect(state.recovery.pauseUntil).toBeGreaterThan(Date.now());
+        expect(state.recovery.countAfter).toBe(state.recovery.pauseUntil);
+        await jest.advanceTimersByTimeAsync(5000);
+        expect(broker.buys).toHaveLength(3);
+        await tick(5);
+        await tick(6);
+        expect(broker.buys).toHaveLength(3);
+        await tick(7);
+        expect(broker.buys).toHaveLength(4);
+        engine.stop();
+    });
+    it('uses parity recovery and alternates after a recovery loss instead of reusing the normal entry direction', async () => {
+        const { broker, engine, tick } = await setupCycle({ hitRecovery: 'analysis', recoveryMode: 'parity' });
+        broker.settle(-0.35);
+        await tick(5);
+        expect(broker.buys).toHaveLength(2);
+        const first = broker.buys[1].parameters.contract_type;
+        expect(['DIGITEVEN', 'DIGITODD']).toContain(first);
+        expect(broker.buys[1].parameters.barrier).toBeUndefined();
+        broker.settle(-0.74);
+        await tick(6);
+        expect(broker.buys).toHaveLength(3);
+        expect(broker.buys[2].parameters.contract_type).toBe(first === 'DIGITEVEN' ? 'DIGITODD' : 'DIGITEVEN');
+        engine.stop();
+    });
+});

@@ -466,12 +466,18 @@ export class DigitStrategyEngine {
         );
         if (
             !signal ||
-            (!(this.state.settings.strategy === 'over2-under7' && this.state.recovery.lockedSymbol) &&
+            (!(
+                this.state.settings.strategy === 'over2-under7' &&
+                this.state.recovery.lockedSymbol &&
+                !(this.state.settings.hitRecovery === 'analysis' && this.state.streak)
+            ) &&
                 this.attempts.get(signal.symbol) === signal.epoch)
         ) {
             this.update({
                 phase:
-                    this.state.settings.strategy === 'over2-under7' && this.state.recovery.lockedSymbol
+                    this.state.settings.strategy === 'over2-under7' &&
+                    this.state.recovery.lockedSymbol &&
+                    !(this.state.settings.hitRecovery === 'analysis' && this.state.streak)
                         ? 'Waiting for fresh data on selected market'
                         : this.state.streak
                           ? 'Waiting for recovery formation / filters'
@@ -485,7 +491,10 @@ export class DigitStrategyEngine {
     private current(signal: Signal) {
         const market = this.markets.get(signal.symbol);
         if (!market?.ready(this.now())) return false;
-        if (this.state.settings.strategy === 'over2-under7') {
+        if (
+            this.state.settings.strategy === 'over2-under7' &&
+            !(this.state.settings.hitRecovery === 'analysis' && signal.recovery)
+        ) {
             const fresh = cycleSignal(market, this.state.recovery, this.now());
             return (
                 fresh?.direction === signal.direction &&
@@ -727,13 +736,20 @@ export class DigitStrategyEngine {
             // Recovery is separate from the three normal wins that complete a batch.
             batch = profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
             pause = batch >= 3 && streak === 0;
-            recovery = {
-                streak,
-                countAfter: pause ? this.now() + 5000 : 0,
-                pauseUntil: pause ? this.now() + 5000 : 0,
-                ...(pause ? {} : { lockedSymbol: p.signal.symbol, lockedDirection: p.signal.direction }),
-            };
-            recoveryLosses = 0;
+            const batchMarket = this.state.recovery.batchMarket || p.signal.symbol;
+            const batchDirection = this.state.recovery.batchDirection || p.signal.direction;
+            if (this.state.settings.hitRecovery === 'analysis' && streak > 0) {
+                // Preserve the original policy's locks, formation counters and paired-loss pauses.
+                recovery = { ...recovery, batchMarket, batchDirection };
+            } else {
+                recovery = {
+                    streak,
+                    countAfter: pause ? this.now() + 5000 : 0,
+                    pauseUntil: pause ? this.now() + 5000 : 0,
+                    ...(pause ? {} : { lockedSymbol: batchMarket, lockedDirection: batchDirection }),
+                };
+                recoveryLosses = 0;
+            }
             if (pause) this.log('Three-win batch complete. Returning to fresh market analysis after five seconds.');
         }
         const pnl = this.state.pnl + profit,

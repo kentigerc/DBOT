@@ -75,3 +75,65 @@ it('shows command failures without pretending trading started', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Risk settings invalid');
 });
+it('offers Analysis Tool recovery policies and submits the chosen policy and formation count', async () => {
+    render(<DigitCycle />);
+    expect((screen.getByLabelText('Recovery method') as HTMLSelectElement).value).toBe('analysis');
+    fireEvent.change(screen.getByLabelText('Recovery policy'), { target: { value: 'under4_filtered_once' } });
+    fireEvent.change(screen.getByLabelText('High-digit formation count'), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
+    await waitFor(() =>
+        expect(client.start).toHaveBeenCalledWith(
+            expect.objectContaining({ hitRecovery: 'analysis', recoveryMode: 'under4_filtered_once', triggerCount: 4 }),
+            undefined
+        )
+    );
+});
+it('retains same-contract martingale as an explicit alternative', async () => {
+    render(<DigitCycle />);
+    fireEvent.change(screen.getByLabelText('Recovery method'), { target: { value: 'same_contract' } });
+    expect(screen.queryByLabelText('Recovery policy')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
+    await waitFor(() =>
+        expect(client.start).toHaveBeenCalledWith(expect.objectContaining({ hitRecovery: 'same_contract' }), undefined)
+    );
+});
+it('labels a live recovery market with its chosen policy rather than the normal Under 7 contract', () => {
+    client.getSnapshot.mockReturnValue({
+        ...empty(),
+        active: true,
+        streak: 1,
+        settings: {
+            ...DEFAULT_SETTINGS,
+            strategy: 'over2-under7',
+            hitRecovery: 'analysis',
+            recoveryMode: 'under6_filtered_once',
+        },
+        recovery: {
+            streak: 1,
+            countAfter: 0,
+            pauseUntil: 0,
+            lockedSymbol: 'R_50',
+            lockedDirection: 'DIGITUNDER',
+            batchMarket: 'R_100',
+            batchDirection: 'DIGITOVER',
+        },
+        markets: [
+            {
+                symbol: 'R_50',
+                name: 'Volatility 50',
+                ready: true,
+                latest: 8,
+                status: 'Live',
+                digits: Array.from({ length: 10 }, (_, digit) => ({
+                    digit,
+                    count: 100,
+                    percentage: 10,
+                    most: false,
+                    least: false,
+                })),
+            },
+        ],
+    });
+    render(<DigitCycle />);
+    expect(screen.getByText(/Recovery · Under 6 · count once, filtered/)).toBeTruthy();
+});

@@ -1,11 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
-import { cycleDirections, DEFAULT_SETTINGS, type Settings } from '@/services/digit-strategy/strategy';
+import { cycleDirections, DEFAULT_SETTINGS, RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
 import './digit-cycle.scss';
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-const defaults = (): Settings => ({ ...DEFAULT_SETTINGS, strategy: 'over2-under7' });
+const defaults = (): Settings => ({ ...DEFAULT_SETTINGS, strategy: 'over2-under7', hitRecovery: 'analysis' });
 export default function DigitCycle() {
     const state = useSyncExternalStore(digitStrategyEngine.subscribe, digitStrategyEngine.getSnapshot);
     const [draft, setDraft] = useState(defaults);
@@ -13,6 +13,7 @@ export default function DigitCycle() {
     const [contractId, setContractId] = useState('');
     const [session, setSession] = useState(getDerivSession());
     const own = state.settings.strategy === 'over2-under7';
+    const policyRecovery = own && state.streak > 0 && state.settings.hitRecovery === 'analysis';
     const busy = state.active || !!state.pending;
     const history = state.trades.length > 0;
     const locked = busy || history;
@@ -49,7 +50,7 @@ export default function DigitCycle() {
     };
     const field = (
         label: string,
-        key: 'stake' | 'multiplier' | 'maxLosses' | 'maxStake' | 'stopLoss' | 'takeProfit',
+        key: 'stake' | 'multiplier' | 'maxLosses' | 'maxStake' | 'stopLoss' | 'takeProfit' | 'triggerCount',
         min: number,
         step = 0.01
     ) => (
@@ -78,6 +79,47 @@ export default function DigitCycle() {
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
+                <label>
+                    Recovery method
+                    <select
+                        value={draft.hitRecovery || 'same_contract'}
+                        disabled={locked}
+                        onChange={event =>
+                            setDraft(previous => ({
+                                ...previous,
+                                hitRecovery: event.target.value as Settings['hitRecovery'],
+                            }))
+                        }
+                    >
+                        <option value='analysis'>Analysis Tool recovery policy</option>
+                        <option value='same_contract'>Same contract · martingale</option>
+                    </select>
+                </label>
+                {draft.hitRecovery === 'analysis' && (
+                    <>
+                        <label>
+                            Recovery policy
+                            <select
+                                value={draft.recoveryMode}
+                                disabled={locked}
+                                onChange={event =>
+                                    setDraft(previous => ({
+                                        ...previous,
+                                        recoveryMode: event.target.value as Settings['recoveryMode'],
+                                    }))
+                                }
+                            >
+                                {Object.entries(RECOVERY_MODES).map(([value, label]) => (
+                                    <option key={value} value={value}>
+                                        {label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        {field('High-digit formation count', 'triggerCount', 1, 1)}
+                    </>
+                )}
+
                 {field('Maximum consecutive losses', 'maxLosses', 1, 1)}
                 {field('Maximum stake per trade (USD)', 'maxStake', 0.35)}
                 {field('Session stop-loss (USD)', 'stopLoss', 0.35)}
@@ -148,7 +190,7 @@ export default function DigitCycle() {
                             )
                             .map(market => {
                                 const candidates =
-                                    market.ready && !state.recovery.lockedSymbol
+                                    !policyRecovery && market.ready && !state.recovery.lockedSymbol
                                         ? cycleDirections(market.digits, market.latest)
                                         : [];
                                 return (
@@ -156,17 +198,19 @@ export default function DigitCycle() {
                                         <h3>{market.name}</h3>
                                         <p>
                                             {market.status} · Last digit: {market.latest ?? '—'} ·{' '}
-                                            {state.recovery.lockedSymbol === market.symbol
-                                                ? `${state.streak ? 'Recovering' : 'Trading batch'} · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'}`
-                                                : candidates.length
-                                                  ? candidates
-                                                        .map(direction =>
-                                                            direction === 'DIGITOVER'
-                                                                ? 'Over 2 entry ready'
-                                                                : 'Under 7 entry ready'
-                                                        )
-                                                        .join(', ')
-                                                  : 'Waiting for entry conditions'}
+                                            {policyRecovery
+                                                ? `Recovery · ${RECOVERY_MODES[state.settings.recoveryMode]}`
+                                                : state.recovery.lockedSymbol === market.symbol
+                                                  ? `${state.streak ? 'Recovering' : 'Trading batch'} · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'}`
+                                                  : candidates.length
+                                                    ? candidates
+                                                          .map(direction =>
+                                                              direction === 'DIGITOVER'
+                                                                  ? 'Over 2 entry ready'
+                                                                  : 'Under 7 entry ready'
+                                                          )
+                                                          .join(', ')
+                                                    : 'Waiting for entry conditions'}
                                         </p>
                                         <div className='digit-cycle__circles'>
                                             {market.digits.map(digit => (

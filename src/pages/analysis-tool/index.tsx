@@ -45,7 +45,10 @@ export default function AnalysisTool() {
     const run = async (reconcile?: number) => {
         setError('');
         try {
-            await digitStrategyEngine.start(reconcile ? state.settings : { ...draft, strategy: undefined }, reconcile);
+            await digitStrategyEngine.start(
+                reconcile ? state.settings : { ...draft, strategy: undefined, hitRecovery: undefined },
+                reconcile
+            );
         } catch (reason) {
             setError(reason instanceof Error ? reason.message : 'Unable to start strategy.');
         }
@@ -281,8 +284,8 @@ export default function AnalysisTool() {
                                 {state.streak ? 'Recovery active' : 'Normal entries'}
                             </div>
                             <p>
-                                {state.settings.strategy === 'over2-under7'
-                                    ? 'Wait for another matching entry, then use the martingale multiplier until a win or risk limit.'
+                                {state.settings.strategy === 'over2-under7' && state.settings.hitRecovery !== 'analysis'
+                                    ? 'Same-contract martingale recovery'
                                     : RECOVERY_MODES[state.settings.recoveryMode]}
                             </p>
                             <p>

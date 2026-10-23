@@ -15,6 +15,7 @@ export const RECOVERY_MODES = {
 export type RecoveryMode = keyof typeof RECOVERY_MODES;
 export type Settings = {
     strategy?: 'over2-under7';
+    hitRecovery?: 'same_contract' | 'analysis';
     stake: number;
     maxLosses: number;
     multiplier: number;
@@ -48,6 +49,8 @@ export function cents(value: unknown) {
     return Math.round(amount * 100);
 }
 export function validateSettings(s: Settings) {
+    if (s.hitRecovery !== undefined && !['same_contract', 'analysis'].includes(s.hitRecovery))
+        throw new Error('Invalid recovery method.');
     if (s.strategy !== undefined && s.strategy !== 'over2-under7') throw new Error('Invalid trading strategy.');
     for (const key of ['stake', 'maxStake', 'stopLoss', 'takeProfit'] as const) {
         const v = s[key];
@@ -164,6 +167,8 @@ export type Signal = {
 };
 export type RecoveryState = {
     streak: number;
+    batchMarket?: string;
+    batchDirection?: Direction;
     previous?: Direction;
     lockedSymbol?: string;
     lockedDirection?: Direction;
@@ -251,6 +256,8 @@ export function chooseSignal(
     random = Math.random
 ): Signal | undefined {
     if (config.strategy === 'over2-under7') {
+        if (config.hitRecovery === 'analysis' && state.streak)
+            return chooseSignal(markets, state, { ...config, strategy: undefined }, now, random);
         if (state.lockedSymbol) {
             const selected = markets.find(m => m.symbol === state.lockedSymbol);
             return selected ? cycleSignal(selected, state, now) : undefined;
