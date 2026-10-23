@@ -45,7 +45,7 @@ export default function AnalysisTool() {
     const run = async (reconcile?: number) => {
         setError('');
         try {
-            await digitStrategyEngine.start(reconcile ? state.settings : draft, reconcile);
+            await digitStrategyEngine.start(reconcile ? state.settings : { ...draft, strategy: undefined }, reconcile);
         } catch (reason) {
             setError(reason instanceof Error ? reason.message : 'Unable to start strategy.');
         }
@@ -118,6 +118,12 @@ export default function AnalysisTool() {
                     <span aria-hidden='true'>›_</span> Execution terminal
                 </button>
             </header>
+            {state.settings.strategy === 'over2-under7' && (
+                <p className='analysis-tool__hint'>
+                    This account’s session belongs to the HIT AND RUN STRATEGY in Digit Analysis. Stop and reset the
+                    stopped session before switching strategies.
+                </p>
+            )}
             {!session.authenticated && (
                 <div className='analysis-tool__notice'>
                     Log in with Deriv to run the strategy on your selected USD account.
@@ -274,7 +280,11 @@ export default function AnalysisTool() {
                             <div className='analysis-tool__recovery-value'>
                                 {state.streak ? 'Recovery active' : 'Normal entries'}
                             </div>
-                            <p>{RECOVERY_MODES[state.settings.recoveryMode]}</p>
+                            <p>
+                                {state.settings.strategy === 'over2-under7'
+                                    ? 'Wait for another matching entry, then use the martingale multiplier until a win or risk limit.'
+                                    : RECOVERY_MODES[state.settings.recoveryMode]}
+                            </p>
                             <p>
                                 {state.recovery.lockedSymbol
                                     ? `Locked index: ${state.recovery.lockedSymbol}`

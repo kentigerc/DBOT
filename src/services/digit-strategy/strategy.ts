@@ -14,6 +14,7 @@ export const RECOVERY_MODES = {
 } as const;
 export type RecoveryMode = keyof typeof RECOVERY_MODES;
 export type Settings = {
+    strategy?: 'over2-under7';
     stake: number;
     maxLosses: number;
     multiplier: number;
@@ -47,6 +48,7 @@ export function cents(value: unknown) {
     return Math.round(amount * 100);
 }
 export function validateSettings(s: Settings) {
+    if (s.strategy !== undefined && s.strategy !== 'over2-under7') throw new Error('Invalid trading strategy.');
     for (const key of ['stake', 'maxStake', 'stopLoss', 'takeProfit'] as const) {
         const v = s[key];
         if (
@@ -214,6 +216,33 @@ export function recoverySignal(m: DigitMarket, s: RecoveryState, config: Setting
     if (needsFormation && !m.highRun(config.triggerCount, s.countAfter)) return;
     return signalOn(m, 'DIGITUNDER', barrier, true, needsFormation);
 }
+// Frequency marks only: the live last-digit outline is not a frequency mark.
+export function cycleDirections(digits: Frequency[], latest: number | undefined): Direction[] {
+    const eligible = (targets: number[]) =>
+        targets.every(digit => {
+            const row = digits.find(item => item.digit === digit);
+            return row && row.percentage < 10 && !row.most && !row.least;
+        });
+    const result: Direction[] = [];
+    if ((latest === 1 || latest === 2) && eligible([0, 1, 2])) result.push('DIGITOVER');
+    if ((latest === 7 || latest === 8) && eligible([7, 8, 9])) result.push('DIGITUNDER');
+    return result;
+}
+export function cycleSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
+    if (
+        !m.ready(now) ||
+        now < state.pauseUntil ||
+        m.received <= state.countAfter ||
+        (state.lockedSymbol && m.symbol !== state.lockedSymbol)
+    )
+        return;
+    const direction = cycleDirections(m.frequencies(), m.digits[m.digits.length - 1]).find(
+        value => !state.lockedDirection || value === state.lockedDirection
+    );
+    return direction
+        ? signalOn(m, direction, direction === 'DIGITOVER' ? '2' : '7', state.streak > 0, true)
+        : undefined;
+}
 export function chooseSignal(
     markets: DigitMarket[],
     state: RecoveryState,
@@ -221,6 +250,15 @@ export function chooseSignal(
     now: number,
     random = Math.random
 ): Signal | undefined {
+    if (config.strategy === 'over2-under7')
+        return markets
+            .map(m => cycleSignal(m, state, now))
+            .filter((signal): signal is Signal => !!signal)
+            .sort(
+                (a, b) =>
+                    markets.find(m => m.symbol === b.symbol)!.received -
+                    markets.find(m => m.symbol === a.symbol)!.received
+            )[0];
     const pick = <T>(rows: T[]) => rows[Math.min(rows.length - 1, Math.floor(random() * rows.length))];
     if (state.streak) {
         const signals = markets.map(m => recoverySignal(m, state, config, now)).filter((s): s is Signal => !!s);

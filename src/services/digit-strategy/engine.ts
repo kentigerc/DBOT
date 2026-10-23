@@ -2,6 +2,7 @@ import { type DerivAccount } from '@/utils/deriv-session';
 import {
     cents,
     chooseSignal,
+    cycleSignal,
     DEFAULT_SETTINGS,
     DigitMarket,
     type Direction,
@@ -324,7 +325,7 @@ export class DigitStrategyEngine {
                     const required = [
                         'DIGITOVER',
                         'DIGITUNDER',
-                        'DIGITDIFF',
+                        ...(settings.strategy === 'over2-under7' ? [] : ['DIGITDIFF']),
                         ...(settings.recoveryMode.startsWith('parity') ? ['DIGITEVEN', 'DIGITODD'] : []),
                     ];
                     if (
@@ -477,6 +478,14 @@ export class DigitStrategyEngine {
     private current(signal: Signal) {
         const market = this.markets.get(signal.symbol);
         if (!market?.ready(this.now())) return false;
+        if (this.state.settings.strategy === 'over2-under7') {
+            const fresh = cycleSignal(market, this.state.recovery, this.now());
+            return (
+                fresh?.direction === signal.direction &&
+                fresh.barrier === signal.barrier &&
+                fresh.epoch === signal.epoch
+            );
+        }
         if (signal.recovery) {
             const s = recoverySignal(market, this.state.recovery, this.state.settings, this.now());
             return (
@@ -705,8 +714,19 @@ export class DigitStrategyEngine {
             }
         }
         if (!p.signal.recovery) recovery.previous = p.signal.direction;
-        const batch = this.state.batch + 1,
-            pause = batch >= 3 && streak === 0;
+        const batch = this.state.batch + 1;
+        let pause = batch >= 3 && streak === 0;
+        if (this.state.settings.strategy === 'over2-under7') {
+            pause = streak === 0 && (batch >= 3 || (p.signal.recovery && profit > 0));
+            recovery = {
+                streak,
+                countAfter: this.now() + (pause ? 5000 : 0),
+                pauseUntil: pause ? this.now() + 5000 : 0,
+                ...(pause ? {} : { lockedSymbol: p.signal.symbol, lockedDirection: p.signal.direction }),
+            };
+            recoveryLosses = 0;
+            if (pause) this.log('Sequence complete. Returning to fresh market analysis after five seconds.');
+        }
         const pnl = this.state.pnl + profit,
             peak = Math.max(this.state.peak, pnl);
         this.update({

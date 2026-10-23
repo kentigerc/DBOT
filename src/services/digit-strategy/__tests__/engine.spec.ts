@@ -1,4 +1,4 @@
-import { DigitStrategyEngine, type Broker } from '../engine';
+import { type Broker, DigitStrategyEngine } from '../engine';
 import { DEFAULT_SETTINGS } from '../strategy';
 jest.mock('@/external/bot-skeleton/services/api/appId', () => ({ generateDerivApiInstance: jest.fn() }));
 jest.mock('@/external/bot-skeleton', () => ({ api_base: { is_running: false } }));
@@ -258,4 +258,109 @@ describe('strategy execution and exposure controls', () => {
         });
         await expect(nonUsd.start(DEFAULT_SETTINGS)).rejects.toThrow(/USD/);
     });
+});
+
+async function setupCycle(options: Partial<typeof DEFAULT_SETTINGS> = {}, under = false) {
+    const broker = new FakeBroker();
+    const send = broker.send;
+    const counts = [90, 90, 90, 80, 100, 100, 110, 110, 110, 120];
+    const digits = (under ? [...counts].reverse() : counts).flatMap((count, digit) => Array<number>(count).fill(digit));
+    broker.send = jest.fn(async body =>
+        body.ticks_history
+            ? { pip_size: 2, history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) } }
+            : send(body)
+    );
+    const engine = new DigitStrategyEngine({
+        createApi: async () => broker,
+        account: () => account,
+        builderRunning: () => false,
+        now: () => Date.now(),
+        storage: localStorage,
+    });
+    const settings = { ...DEFAULT_SETTINGS, strategy: 'over2-under7' as const, takeProfit: 0, ...options };
+    const starting = engine.start(settings);
+    await jest.advanceTimersByTimeAsync(150);
+    await starting;
+    let epoch = 1000;
+    const tick = async (digit = under ? 7 : 1) => {
+        await jest.advanceTimersByTimeAsync(1000);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
+        await jest.advanceTimersByTimeAsync(150);
+    };
+    await tick();
+    await tick(under ? 8 : 2);
+    await tick();
+    return { broker, engine, tick };
+}
+describe('HIT AND RUN execution', () => {
+    it('places at most three sequence trades, pauses, and requires a fresh entry after reanalysis', async () => {
+        const { broker, engine, tick } = await setupCycle();
+        expect(broker.buys).toHaveLength(1);
+        expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', duration: 2 });
+        broker.settle(0.32);
+        await tick();
+        expect(broker.buys).toHaveLength(2);
+        broker.settle(0.32);
+        await tick(2);
+        expect(broker.buys).toHaveLength(3);
+        broker.settle(0.32);
+        expect(engine.getSnapshot()).toMatchObject({
+            active: true,
+            batch: 0,
+            recovery: { countAfter: expect.any(Number) },
+        });
+        await jest.advanceTimersByTimeAsync(5000);
+        expect(broker.buys).toHaveLength(3);
+        await tick();
+        expect(broker.buys).toHaveLength(4);
+        engine.stop();
+    });
+    it('waits for a qualifying recovery entry, multiplies stake and ends the sequence after recovery wins', async () => {
+        const { broker, engine, tick } = await setupCycle({ multiplier: 3 });
+        broker.settle(-0.35);
+        expect(engine.getSnapshot()).toMatchObject({
+            streak: 1,
+            stake: 105,
+            recovery: { lockedSymbol: 'R_100', lockedDirection: 'DIGITOVER' },
+        });
+        await tick(5);
+        expect(broker.buys).toHaveLength(1);
+        await tick(2);
+        expect(broker.buys).toHaveLength(2);
+        expect(broker.buys[1].price).toBe(1.05);
+        expect(engine.getSnapshot().pending?.signal.recovery).toBe(true);
+        broker.settle(0.95);
+        expect(engine.getSnapshot()).toMatchObject({ streak: 0, stake: 35, batch: 0 });
+        await tick();
+        expect(broker.buys).toHaveLength(2);
+        engine.stop();
+    });
+    it('halts at a risk limit instead of attempting recovery', async () => {
+        const { broker, engine, tick } = await setupCycle({ maxLosses: 1 });
+        broker.settle(-0.35);
+        expect(engine.getSnapshot().active).toBe(false);
+        expect(engine.getSnapshot().phase).toMatch(/Consecutive-loss/);
+        await tick(2);
+        expect(broker.buys).toHaveLength(1);
+    });
+    it('does not buy when the triggering digit changes while quoting', async () => {
+        const { broker, engine, tick } = await setupCycle();
+        broker.settle(0.32);
+        broker.holdQuote = true;
+        await tick(2);
+        await tick(5);
+        broker.quoteResolve!({ proposal: { ask_price: 0.35, payout: 0.67 } });
+        await jest.advanceTimersByTimeAsync(150);
+        expect(broker.buys).toHaveLength(1);
+        engine.stop();
+    });
+});
+
+it('executes Under 7 with the same HIT AND RUN safeguards', async () => {
+    const { broker, engine } = await setupCycle({}, true);
+    expect(broker.buys).toHaveLength(1);
+    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '7', duration: 2 });
+    engine.stop();
+    broker.settle(0.32);
+    expect(engine.getSnapshot().active).toBe(false);
 });

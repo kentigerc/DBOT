@@ -266,3 +266,16 @@ test('real-account preview can reconcile a prior purchase without placing new re
     assert.ok(calls.length > 0);
     assert.ok(calls.every(body => body.proposal_open_contract));
 });
+test('HIT AND RUN shares the account runner and keeps Builder locked while active', async t => {
+    const { request, service } = await fixture(t);
+    const settings = { ...DEFAULT_SETTINGS, strategy: 'over2-under7' };
+    assert.equal((await request('phone', { action: 'start', settings })).status, 200);
+    await service.sessions.get('demo').task;
+    const state = (await request('laptop')).data;
+    assert.equal(state.settings.strategy, 'over2-under7');
+    assert.equal(state.settings.duration, 2);
+    assert.equal(state.active, true);
+    assert.throws(() => service.beforeBuilder('demo', { buy: 1, req_id: 1 }), /Stop and settle/);
+    await request('laptop', { action: 'stop' });
+    assert.equal((await request('phone')).data.active, false);
+});

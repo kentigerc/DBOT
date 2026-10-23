@@ -85,6 +85,7 @@ const config: Config = {
         '@deriv-com/ui': '<rootDir>/node_modules/@deriv-com/ui',
         '@deriv-com/auth-client': '<rootDir>/node_modules/@deriv-com/auth-client',
         '^@/external/(.*)$': '<rootDir>/src/external/$1',
+        '^@/services/(.*)$': '<rootDir>/src/services/$1',
         '^@/utils/(.*)$': '<rootDir>/src/utils/$1',
         '^@/components/(.*)$': '<rootDir>/src/components/$1',
         '^@/constants/(.*)$': '<rootDir>/src/constants/$1',

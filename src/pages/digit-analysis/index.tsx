@@ -4,6 +4,7 @@ import { DBOT_TABS } from '@/constants/bot-contents';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
 import { getDerivSession } from '@/utils/deriv-session';
+import DigitCycle from './digit-cycle';
 import { digitFrequencies } from './digits';
 import { DigitMarket, subscribeLiveDigits } from './live-digits';
 import MarketScanner from './market-scanner';
@@ -167,6 +168,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                     return true;
                 }}
             />
+            <DigitCycle />
             <p className='digit-analysis__note'>
                 Percentages describe the selected rolling sample of past ticks. They do not predict the next digit or
                 guarantee a trading outcome.
