@@ -26,7 +26,7 @@ export default function DerivCharts({ active = true }: { active?: boolean }) {
     return (
         <div className={`deriv-charts-page${expanded ? ' deriv-charts-page--expanded' : ''}`} ref={panel}>
             <div className='deriv-charts-page__toolbar'>
-                <span>Deriv Charts</span>
+                <span>Tradingview</span>
                 <span className='deriv-charts-page__status' role='status'>
                     {loading ? 'Loading chart…' : ''}
                 </span>
@@ -45,7 +45,7 @@ export default function DerivCharts({ active = true }: { active?: boolean }) {
             </div>
             <iframe
                 key={version}
-                title='Deriv Charts market analysis'
+                title='Tradingview market analysis'
                 src='https://charts.deriv.com/deriv'
                 sandbox='allow-scripts allow-same-origin allow-forms allow-downloads'
                 referrerPolicy='strict-origin-when-cross-origin'

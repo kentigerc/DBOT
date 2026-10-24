@@ -325,13 +325,13 @@ const AppWrapper = observer(() => {
                                             fill='var(--text-general)'
                                             className='icon-general-fill-g-path'
                                         />
-                                        <Localize i18n_default_text='Deriv Charts' />
+                                        <Localize i18n_default_text='Tradingview' />
                                     </>
                                 }
                                 id='id-tutorials'
                             >
                                 <div className='deriv-charts-wrapper'>
-                                    <Suspense fallback={<ChunkLoader message={localize('Loading Deriv Charts...')} />}>
+                                    <Suspense fallback={<ChunkLoader message={localize('Loading Tradingview...')} />}>
                                         <DerivCharts active={active_tab === DBOT_TABS.DERIV_CHARTS} />
                                     </Suspense>
                                 </div>
