@@ -190,13 +190,19 @@ export default function DigitCycle() {
                             })}
                     </div>
                     {state.trades.length > 0 && (
-                        <div className='digit-cycle__table'>
+                        <div
+                            className='digit-cycle__table'
+                            tabIndex={0}
+                            aria-label='Trade journal, scroll horizontally for all columns'
+                        >
                             <table>
-                                <caption>Recent trades</caption>
+                                <caption>Trade journal</caption>
                                 <thead>
                                     <tr>
-                                        <th>Market</th>
+                                        <th>Time</th>
                                         <th>Contract</th>
+                                        <th>Market</th>
+                                        <th>Type</th>
                                         <th>Stake</th>
                                         <th>Entry</th>
                                         <th>Exit</th>
@@ -205,18 +211,30 @@ export default function DigitCycle() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {state.trades.slice(0, 20).map(trade => (
+                                    {[...state.trades].reverse().map(trade => (
                                         <tr key={trade.id}>
+                                            <td>{new Date(trade.at).toLocaleTimeString()}</td>
+                                            <td>{trade.contractId ?? 'Confirming…'}</td>
                                             <td>{trade.market}</td>
                                             <td>
                                                 {trade.direction} {trade.barrier}
-                                                {trade.recovery ? ' · Recovery' : ''}
+                                                {trade.recovery && <small>Recovery</small>}
                                             </td>
                                             <td>{money(trade.stake)}</td>
-                                            <td>{trade.entry || '—'}</td>
-                                            <td>{trade.exit || '—'}</td>
+                                            <td>{trade.entry ?? 'Pending'}</td>
+                                            <td>{trade.exit ?? 'Pending'}</td>
                                             <td>{trade.status}</td>
-                                            <td>{trade.profit === undefined ? '—' : money(trade.profit)}</td>
+                                            <td
+                                                className={
+                                                    trade.profit === undefined || trade.profit === 0
+                                                        ? undefined
+                                                        : trade.profit < 0
+                                                          ? 'is-loss'
+                                                          : 'is-profit'
+                                                }
+                                            >
+                                                {trade.profit === undefined ? '—' : money(trade.profit)}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

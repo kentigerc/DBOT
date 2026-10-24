@@ -105,14 +105,41 @@
         margin-top: 16px;
         table {
             width: 100%;
+            font-size: 12px;
             white-space: nowrap;
             border-collapse: collapse;
         }
         th,
         td {
             text-align: left;
-            padding: 8px;
+            padding: 12px;
             border-bottom: 1px solid var(--border-normal);
+        }
+    }
+    &__table {
+        th {
+            color: var(--text-less-prominent);
+            font-weight: 500;
+        }
+        small {
+            display: block;
+            color: var(--text-less-prominent);
+        }
+        caption {
+            text-align: start;
+            font-size: 15px;
+            font-weight: 600;
+            padding-bottom: 12px;
+        }
+        .is-profit {
+            color: #35c98b;
+        }
+        .is-loss {
+            color: #f36976;
+        }
+        &:focus-visible {
+            outline: 2px solid var(--brand-red-coral);
+            outline-offset: 2px;
         }
     }
     details {

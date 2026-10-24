@@ -128,3 +128,33 @@ it('labels a live recovery market with its chosen policy rather than the normal 
     render(<DigitCycle />);
     expect(screen.getByText(/Recovery · Under 6 · count once, filtered/)).toBeTruthy();
 });
+it('shows the full journal newest first with contract details and coloured net results', () => {
+    const snapshot = client.getSnapshot();
+    client.getSnapshot.mockReturnValue({
+        ...snapshot,
+        trades: Array.from({ length: 22 }, (_, i) => ({
+            id: `trade-${i}`,
+            contractId: 1000 + i,
+            market: 'R_100',
+            direction: 'DIGITUNDER',
+            barrier: '5',
+            stake: 74,
+            status: i === 21 ? 'Lost' : 'Won',
+            at: 1700000000000 + i * 1000,
+            entry: '100.05',
+            exit: '100.09',
+            recovery: true,
+            profit: i === 21 ? -74 : 67,
+        })),
+    });
+    render(<DigitCycle />);
+    const table = screen.getByRole('table', { name: 'Trade journal' });
+    const rows = table.querySelectorAll('tbody tr');
+    expect(rows).toHaveLength(22);
+    expect(rows[0].textContent).toContain('1021');
+    expect(rows[0].textContent).toContain('DIGITUNDER 5');
+    expect(rows[0].textContent).toContain('Recovery');
+    expect(rows[0].querySelector('.is-loss')).toHaveTextContent('$-0.74');
+    expect(rows[1].querySelector('.is-profit')).toHaveTextContent('$0.67');
+    expect(table.querySelectorAll('th')).toHaveLength(9);
+});
