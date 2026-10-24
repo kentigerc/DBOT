@@ -5,6 +5,8 @@ const AUTH_ORIGIN = 'https://auth.deriv.com';
 const API_ORIGIN = 'https://api.derivws.com';
 const SESSION_COOKIE = 'neto_session';
 const FLOW_COOKIE = 'neto_oauth';
+const REFRESH_COOKIE = 'neto_refresh';
+const REFRESH_SECONDS = 7 * 24 * 60 * 60;
 
 class HttpError extends Error {
     constructor(status, message) {
@@ -29,6 +31,8 @@ function createAuthHandler({
         throw new Error('NETO_SESSION_SECRET must contain at least 32 bytes. Set it securely on the server.');
     }
     const key = createHash('sha256').update(secret).digest();
+    const renewed = new Map();
+    const renewing = new Map();
     const redirectUri = publicOrigin + configuration.callbackPath;
     // One-time flow consumption is shared across instances using an encrypted cookie
     // cleared before exchange. Deriv also enforces single-use authorization codes.
@@ -82,7 +86,7 @@ function createAuthHandler({
             throw new HttpError(400, 'Invalid JSON.');
         }
     }
-    async function requestJson(url, options) {
+    async function requestJson(url, options, refresh = false) {
         let response;
         try {
             response = await fetchImpl(url, { ...options, signal: AbortSignal.timeout(15000), redirect: 'error' });
@@ -91,6 +95,11 @@ function createAuthHandler({
         }
         // Do not forward upstream bodies: they can contain credentials or authorization codes.
         if (!response.ok) {
+            if (refresh && response.status === 400) {
+                const body = await response.json().catch(() => ({}));
+                if (['invalid_grant', 'invalid_token'].includes(body.error))
+                    throw new HttpError(401, 'Your Deriv session expired. Please log in again.');
+            }
             if (response.status === 401) throw new HttpError(401, 'Your Deriv session expired. Please log in again.');
             throw new HttpError(
                 502,
@@ -115,9 +124,99 @@ function createAuthHandler({
             .filter(account => typeof account.account_id === 'string');
     }
     function session(req) {
-        const value = readCookie(req, SESSION_COOKIE);
-        if (!value?.access_token) throw new HttpError(401, 'Please log in to Deriv.');
+        const cookie = readCookie(req, SESSION_COOKIE);
+        const refresh = readCookie(req, REFRESH_COOKIE);
+        const cached = renewed.get(cookie?.sid || refresh?.sid);
+        if (cached?.revoked) throw new HttpError(401, 'Please log in to Deriv.');
+        const value = cached?.session || cookie;
+        if (!value?.access_token || value.expires <= now()) throw new HttpError(401, 'Please log in to Deriv.');
         return value;
+    }
+    function tokenSeconds(tokens) {
+        if (
+            typeof tokens.access_token !== 'string' ||
+            !tokens.access_token ||
+            tokens.access_token.length > 2000 ||
+            !Number.isFinite(Number(tokens.expires_in)) ||
+            Number(tokens.expires_in) < 1
+        )
+            throw new HttpError(502, 'Deriv returned an invalid session.');
+        return Math.min(Math.floor(Number(tokens.expires_in)), REFRESH_SECONDS);
+    }
+    function accessSession(tokens, sid, seconds) {
+        return {
+            sid,
+            access_token: tokens.access_token,
+            expires: now() + seconds * 1000,
+            renewAt: now() + (seconds - Math.min(120, seconds / 3)) * 1000,
+        };
+    }
+    function refreshData(tokens, sid, previous) {
+        const token = tokens.refresh_token ?? previous?.refresh_token;
+        if (token === undefined) return undefined;
+        if (typeof token !== 'string' || !token || token.length > 2000)
+            throw new HttpError(502, 'Deriv returned an invalid renewal credential.');
+        // An absolute seven-day bound; renewal never rolls this deadline forward.
+        return { sid, refresh_token: token, expires: previous?.expires || now() + REFRESH_SECONDS * 1000 };
+    }
+    function writeSession(res, saved, refresh) {
+        setCookie(res, SESSION_COOKIE, saved, Math.max(1, Math.floor((saved.expires - now()) / 1000)));
+        if (refresh) setCookie(res, REFRESH_COOKIE, refresh, Math.max(1, Math.floor((refresh.expires - now()) / 1000)));
+    }
+    async function browserSession(req, res) {
+        const refreshCookie = readCookie(req, REFRESH_COOKIE);
+        const cookie = readCookie(req, SESSION_COOKIE);
+        const sid = cookie?.sid || refreshCookie?.sid;
+        let cached = renewed.get(sid);
+        if (cached?.revoked) throw new HttpError(401, 'Please log in to Deriv.');
+        let saved = cached?.session || cookie;
+        const refresh = cached?.refresh || (refreshCookie?.sid === sid ? refreshCookie : undefined);
+        if (refresh && refresh.expires > now() && (!saved || now() >= (saved.renewAt ?? saved.expires - 120000))) {
+            if (!renewing.has(sid)) {
+                const task = (async () => {
+                    for (const [id, value] of renewed) if (value.until <= now()) renewed.delete(id);
+                    if (!renewed.has(sid) && renewed.size >= 2000)
+                        throw new HttpError(503, 'Session renewal is busy. Please try again.');
+                    const tokens = await requestJson(
+                        `${AUTH_ORIGIN}/oauth2/token`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: new URLSearchParams({
+                                grant_type: 'refresh_token',
+                                client_id: configuration.appId,
+                                refresh_token: refresh.refresh_token,
+                            }).toString(),
+                        },
+                        true
+                    );
+                    const seconds = Math.min(tokenSeconds(tokens), Math.floor((refresh.expires - now()) / 1000));
+                    if (seconds < 1) throw new HttpError(401, 'Please log in to Deriv.');
+                    const result = {
+                        session: accessSession(tokens, sid, seconds),
+                        refresh: refreshData(tokens, sid, refresh),
+                        until: refresh.expires,
+                    };
+                    if (renewed.get(sid)?.revoked) throw new HttpError(401, 'Please log in to Deriv.');
+                    renewed.set(sid, result);
+                    return result;
+                })();
+                renewing.set(sid, task);
+            }
+            try {
+                cached = await renewing.get(sid);
+            } finally {
+                renewing.delete(sid);
+            }
+            // Logout while an upstream renewal was in flight must not restore login.
+            if (renewed.get(sid)?.revoked) throw new HttpError(401, 'Please log in to Deriv.');
+            saved = cached.session;
+            writeSession(res, saved, cached.refresh);
+        } else if (cached?.session && cookie?.access_token !== cached.session.access_token) {
+            saved = cached.session;
+            writeSession(res, saved, cached.refresh);
+        }
+        return saved?.access_token && saved.expires > now() ? saved : null;
     }
     async function connectionUrl(req, account_id) {
         const saved = session(req);
@@ -205,34 +304,31 @@ function createAuthHandler({
                         redirect_uri: redirectUri,
                     }).toString(),
                 });
-                if (
-                    typeof tokens.access_token !== 'string' ||
-                    !tokens.access_token ||
-                    tokens.access_token.length > 2000 ||
-                    !Number.isFinite(Number(tokens.expires_in)) ||
-                    Number(tokens.expires_in) <= 0
-                ) {
-                    throw new HttpError(502, 'Deriv returned an invalid session.');
-                }
-                const seconds = Math.min(Number(tokens.expires_in), 3600);
-                setCookie(
-                    res,
-                    SESSION_COOKIE,
-                    { access_token: tokens.access_token, expires: now() + seconds * 1000 },
-                    seconds
-                );
+                const seconds = tokenSeconds(tokens);
+                const sid = randomBytes(24).toString('base64url');
+                const refresh = refreshData(tokens, sid);
+                setCookie(res, REFRESH_COOKIE, null, 0);
+                writeSession(res, accessSession(tokens, sid, seconds), refresh);
                 return json(res, 200, { authenticated: true });
             }
             if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+                const value = readCookie(req, SESSION_COOKIE) || readCookie(req, REFRESH_COOKIE);
+                if (value?.sid) renewed.set(value.sid, { revoked: true, until: now() + REFRESH_SECONDS * 1000 });
+                setCookie(res, REFRESH_COOKIE, null, 0);
                 setCookie(res, SESSION_COOKIE, null, 0);
                 setCookie(res, FLOW_COOKIE, null, 0);
                 return json(res, 200, { authenticated: false });
             }
             if (url.pathname === '/api/session' && req.method === 'GET') {
-                const saved = readCookie(req, SESSION_COOKIE);
+                const saved = await browserSession(req, res);
                 if (!saved?.access_token) return json(res, 200, { authenticated: false, accounts: [] });
                 const accounts = await getAccounts(saved.access_token);
-                return json(res, 200, { authenticated: true, accounts });
+                return json(res, 200, {
+                    authenticated: true,
+                    accounts,
+                    expiresAt: saved.expires,
+                    renewable: !!readCookie(req, REFRESH_COOKIE),
+                });
             }
             if (url.pathname === '/api/connection' && req.method === 'POST') {
                 const { account_id } = await readBody(req);
@@ -240,7 +336,10 @@ function createAuthHandler({
             }
             return json(res, 404, { error: 'API route not found.' });
         } catch (error) {
-            if (error.status === 401) setCookie(res, SESSION_COOKIE, null, 0);
+            if (error.status === 401) {
+                setCookie(res, SESSION_COOKIE, null, 0);
+                setCookie(res, REFRESH_COOKIE, null, 0);
+            }
             return json(res, error.status || 500, {
                 error: error.status ? error.message : 'Unable to complete the request.',
             });

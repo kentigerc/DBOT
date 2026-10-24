@@ -1,3 +1,4 @@
+const { watchSessionExpiry } = require('./session-expiry.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -223,15 +224,14 @@ function createAnalysisService(
                     value.cancelled = false;
                     value.account = account;
                     value.request = req;
-                    clearTimeout(value.expiry);
-                    value.expiry = setTimeout(
+                    value.expiry?.();
+                    value.expiry = watchSessionExpiry(
+                        () => auth.sessionExpires(req),
                         () => {
                             value.cancelled = true;
                             value.engine.stop('Deriv login expired. No new entries.');
-                        },
-                        Math.max(1, auth.sessionExpires(req) - Date.now())
+                        }
                     );
-                    value.expiry.unref?.();
                     // Respond before market discovery completes; every device observes its progress.
                     value.task = (async () => {
                         let check;
@@ -309,7 +309,7 @@ function createAnalysisService(
         stopAll() {
             for (const value of sessions.values()) {
                 value.cancelled = true;
-                clearTimeout(value.expiry);
+                value.expiry?.();
                 value.engine.stop('Server shutting down; no new entries.');
             }
         },

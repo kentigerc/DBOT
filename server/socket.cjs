@@ -1,3 +1,4 @@
+const { watchSessionExpiry } = require('./session-expiry.cjs');
 const { randomUUID } = require('node:crypto');
 const { WebSocketServer } = require('ws');
 const { WebSocket } = require('undici');
@@ -56,12 +57,12 @@ function attachSockets(
                     }
                     sockets.handleUpgrade(req, socket, head, client => {
                         const clientKey = randomUUID();
-                        const expiry = expires
-                            ? setTimeout(
-                                  () => client.close(1008, 'Session expired. Log in again.'),
-                                  Math.max(1, expires - Date.now())
+                        const stopExpiry = account
+                            ? watchSessionExpiry(
+                                  () => auth.sessionExpires(req),
+                                  () => client.close(1008, 'Session expired. Log in again.')
                               )
-                            : null;
+                            : () => {};
                         const heartbeat = setInterval(() => {
                             if (!client.isAlive) return client.terminate();
                             client.isAlive = false;
@@ -114,12 +115,12 @@ function attachSockets(
                         upstream.addEventListener('error', () => client.close(1011, 'Deriv connection failed.'));
                         client.on('close', () => {
                             clearInterval(heartbeat);
-                            if (expiry) clearTimeout(expiry);
+                            stopExpiry();
                             upstream.close();
                         });
                         client.on('error', () => {
                             clearInterval(heartbeat);
-                            if (expiry) clearTimeout(expiry);
+                            stopExpiry();
                             upstream.close();
                         });
                     });

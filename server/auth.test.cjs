@@ -186,3 +186,175 @@ test('production needs a strong secret and HTTPS', () => {
     assert.throws(() => createAuthHandler({ secret: 'short' }), /32 bytes/);
     assert.throws(() => createAuthHandler({ origin: 'http://netoacademy.com', secret: 'x'.repeat(32) }), /HTTPS/);
 });
+
+function renewalUpstream(tokenResponse, refreshResponse, observed = []) {
+    return async (url, init) => {
+        if (url.endsWith('/oauth2/token')) {
+            const body = new URLSearchParams(init.body);
+            observed.push(body);
+            if (body.get('grant_type') === 'refresh_token') return refreshResponse(body);
+            return Response.json(tokenResponse);
+        }
+        return Response.json({
+            data: [{ account_id: 'DOT100', account_type: 'demo', currency: 'USD', balance: 10000, status: 'active' }],
+        });
+    };
+}
+
+test('honours a longer provider token lifetime instead of forcing logout at one hour', async t => {
+    let clock = 100000;
+    const app = await fixture(t, {
+        handler: { now: () => clock },
+        upstream: renewalUpstream({ access_token: 'long-token', expires_in: 7200 }, () => {
+            throw new Error('No refresh token was issued');
+        }),
+    });
+    await app.authenticated();
+    clock += 3600001;
+    const response = await app.request('/api/session');
+    assert.equal((await response.json()).authenticated, true);
+    clock += 3600000;
+    assert.equal((await (await app.request('/api/session')).json()).authenticated, false);
+});
+
+test('renews near expiry, rotates credentials privately and updates existing request authorization', async t => {
+    let clock = 100000;
+    const observed = [];
+    let sequence = 0;
+    const app = await fixture(t, {
+        handler: { now: () => clock },
+        upstream: renewalUpstream(
+            { access_token: 'initial-private-token', refresh_token: 'initial-private-refresh', expires_in: 3600 },
+            body => {
+                assert.equal(
+                    body.get('refresh_token'),
+                    sequence ? 'rotated-private-refresh' : 'initial-private-refresh'
+                );
+                assert.equal(body.get('client_id'), configuration.appId);
+                sequence++;
+                return Response.json({
+                    access_token: `renewed-private-token-${sequence}`,
+                    refresh_token: 'rotated-private-refresh',
+                    expires_in: 3600,
+                });
+            },
+            observed
+        ),
+    });
+    await app.authenticated();
+    const originalCookies = [...app.cookies].map(([key, value]) => `${key}=${value}`).join('; ');
+    clock += 3500000;
+    const response = await app.request('/api/session');
+    const result = await response.json();
+    assert.equal(result.authenticated, true);
+    assert.equal(result.expiresAt, clock + 3600000);
+    assert.equal(sequence, 1);
+    assert.ok(!JSON.stringify(result).includes('private'));
+    for (const header of response.headers.getSetCookie()) {
+        assert.ok(header.includes('HttpOnly') && header.includes('SameSite=Lax'));
+        assert.ok(!header.includes('private'));
+    }
+    // The cookie retained by a running connection resolves to its renewed session.
+    clock += 200000;
+    assert.equal(
+        (await (await app.request('/api/session', undefined, { cookie: originalCookies })).json()).authenticated,
+        true
+    );
+    assert.equal(sequence, 1);
+    clock += 3300000;
+    assert.equal((await (await app.request('/api/session')).json()).authenticated, true);
+    assert.equal(sequence, 2);
+});
+
+test('concurrent checks share one refresh request and retain a non-rotated refresh token', async t => {
+    let clock = 100000;
+    let count = 0;
+    const app = await fixture(t, {
+        handler: { now: () => clock },
+        upstream: renewalUpstream({ access_token: 'initial', refresh_token: 'refresh', expires_in: 3600 }, async () => {
+            count++;
+            await new Promise(resolve => setTimeout(resolve, 20));
+            return Response.json({ access_token: 'next', expires_in: 3600 });
+        }),
+    });
+    await app.authenticated();
+    clock += 3500000;
+    const responses = await Promise.all(Array.from({ length: 4 }, () => app.request('/api/session')));
+    assert.equal(count, 1);
+    for (const response of responses) assert.equal((await response.json()).authenticated, true);
+    clock += 3500000;
+    assert.equal((await (await app.request('/api/session')).json()).authenticated, true);
+    assert.equal(count, 2);
+});
+
+test('temporary refresh failures preserve cookies while revoked refresh grants require login', async t => {
+    let clock = 100000;
+    let revoked = false;
+    const app = await fixture(t, {
+        handler: { now: () => clock },
+        upstream: renewalUpstream({ access_token: 'initial', refresh_token: 'refresh', expires_in: 3600 }, () =>
+            revoked
+                ? Response.json({ error: 'invalid_grant' }, { status: 400 })
+                : Promise.reject(new Error('temporary outage'))
+        ),
+    });
+    await app.authenticated();
+    const original = app.cookies.get('neto_refresh');
+    clock += 3500000;
+    const temporary = await app.request('/api/session');
+    assert.equal(temporary.status, 502);
+    assert.equal(app.cookies.get('neto_refresh'), original);
+    revoked = true;
+    assert.equal((await app.request('/api/session')).status, 401);
+    assert.equal(app.cookies.get('neto_refresh'), '');
+    assert.equal(app.cookies.get('neto_session'), '');
+});
+
+test('logout rejects a refresh that was already in flight', async t => {
+    let clock = 100000;
+    let finish;
+    const app = await fixture(t, {
+        handler: { now: () => clock },
+        upstream: renewalUpstream(
+            { access_token: 'initial', refresh_token: 'refresh', expires_in: 3600 },
+            () =>
+                new Promise(resolve => {
+                    finish = () => resolve(Response.json({ access_token: 'next', expires_in: 3600 }));
+                })
+        ),
+    });
+    await app.authenticated();
+    clock += 3500000;
+    const pending = app.request('/api/session');
+    while (!finish) await new Promise(resolve => setImmediate(resolve));
+    await app.request('/api/auth/logout', {});
+    finish();
+    assert.equal((await pending).status, 401);
+    assert.equal((await (await app.request('/api/session')).json()).authenticated, false);
+});
+
+test('renewal respects the absolute session limit and never loops on short-lived tokens', async t => {
+    let clock = 100000;
+    let count = 0;
+    const app = await fixture(t, {
+        handler: { now: () => clock },
+        upstream: renewalUpstream({ access_token: 'initial', refresh_token: 'refresh', expires_in: 60 }, () => {
+            count++;
+            return Response.json({ access_token: `next-${count}`, expires_in: 60 });
+        }),
+    });
+    await app.authenticated();
+    await app.request('/api/session');
+    assert.equal(count, 0);
+    clock += 41000;
+    await app.request('/api/session');
+    assert.equal(count, 1);
+    await app.request('/api/session');
+    assert.equal(count, 1);
+    clock = 100000 + 6 * 24 * 60 * 60 * 1000;
+    assert.equal((await (await app.request('/api/session')).json()).authenticated, true);
+    assert.equal(count, 2);
+    clock = 100000 + 7 * 24 * 60 * 60 * 1000 + 1;
+    assert.equal((await (await app.request('/api/session')).json()).authenticated, false);
+    assert.equal(count, 2);
+});

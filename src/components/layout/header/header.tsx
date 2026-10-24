@@ -58,9 +58,28 @@ const AppHeader = observer(() => {
     }, []);
     useEffect(() => {
         const update = () => setSession(getDerivSession());
+        const refresh = () => {
+            if (!navigator.onLine) return;
+            refreshDerivSession()
+                .then(() => setError(''))
+                .catch(reason => setError(reason.message));
+        };
+        const resume = () => {
+            if (document.visibilityState === 'visible') refresh();
+        };
         window.addEventListener('neto-session', update);
-        refreshDerivSession().catch(reason => setError(reason.message));
-        return () => window.removeEventListener('neto-session', update);
+        window.addEventListener('online', refresh);
+        window.addEventListener('focus', refresh);
+        document.addEventListener('visibilitychange', resume);
+        const interval = window.setInterval(refresh, 60000);
+        refresh();
+        return () => {
+            window.clearInterval(interval);
+            window.removeEventListener('neto-session', update);
+            window.removeEventListener('online', refresh);
+            window.removeEventListener('focus', refresh);
+            document.removeEventListener('visibilitychange', resume);
+        };
     }, []);
     const accounts = session.accounts.filter(account => account.status === 'active');
     const activeAccount =
