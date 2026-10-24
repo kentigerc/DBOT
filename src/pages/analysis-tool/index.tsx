@@ -296,7 +296,7 @@ export default function AnalysisTool() {
                             </p>
                             <p>
                                 {state.settings.recoveryMode === 'parity_percentage'
-                                    ? 'Even/Odd recovery: selected side above 53%, opposite below 46% · 1 tick'
+                                    ? 'Even/Odd recovery: selected side above 52%, opposite below 47% · 1 tick'
                                     : state.settings.recoveryMode === 'under5_filtered_once'
                                       ? 'Entry after last digit 5, 7 or 9; frequency filters apply on every recovery trade'
                                       : state.settings.recoveryMode === 'under5_plain'

@@ -208,9 +208,9 @@ export function recoverySignal(m: DigitMarket, s: RecoveryState, config: Setting
         const even = counts.filter(d => d.digit % 2 === 0).reduce((total, d) => total + d.count, 0);
         const odd = m.digits.length - even;
         const total = m.digits.length;
-        // Integer comparisons keep exact 53/46 boundaries strict.
-        if (even * 100 > 53 * total && odd * 100 < 46 * total) return signalOn(m, 'DIGITEVEN', undefined, true);
-        if (odd * 100 > 53 * total && even * 100 < 46 * total) return signalOn(m, 'DIGITODD', undefined, true);
+        // Integer comparisons keep exact 52/47 boundaries strict.
+        if (even * 100 > 52 * total && odd * 100 < 47 * total) return signalOn(m, 'DIGITEVEN', undefined, true);
+        if (odd * 100 > 52 * total && even * 100 < 47 * total) return signalOn(m, 'DIGITODD', undefined, true);
         return;
     }
     if (mode === 'parity' || mode === 'parity_pair') {

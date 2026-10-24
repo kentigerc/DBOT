@@ -176,11 +176,13 @@ describe('percentage-based Even/Odd recovery', () => {
     it.each([
         [550, 'DIGITEVEN'],
         [450, 'DIGITODD'],
-        [541, 'DIGITEVEN'],
-        [459, 'DIGITODD'],
-        [540, undefined],
-        [460, undefined],
+        [531, 'DIGITEVEN'],
+        [469, 'DIGITODD'],
+        [540, 'DIGITEVEN'],
+        [460, 'DIGITODD'],
         [530, undefined],
+        [520, undefined],
+        [480, undefined],
         [470, undefined],
         [500, undefined],
     ])('evaluates %i even digits with strict thresholds', (count, expected) => {
