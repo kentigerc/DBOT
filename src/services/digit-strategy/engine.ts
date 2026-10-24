@@ -38,7 +38,15 @@ export type Trade = {
     exit?: string;
     at: number;
 };
-type Pending = { nonce: string; signal: Signal; stake: number; payout: number; sentAt: number; contractId?: number };
+type Pending = {
+    duration?: number;
+    nonce: string;
+    signal: Signal;
+    stake: number;
+    payout: number;
+    sentAt: number;
+    contractId?: number;
+};
 export type MarketView = {
     symbol: string;
     name: string;
@@ -338,8 +346,16 @@ export class DigitStrategyEngine {
                                     r.expiry_type === 'tick' &&
                                     lo &&
                                     hi &&
-                                    +lo[1] <= settings.duration &&
-                                    +hi[1] >= settings.duration
+                                    +lo[1] <=
+                                        (settings.recoveryMode === 'parity_percentage' &&
+                                        ['DIGITEVEN', 'DIGITODD'].includes(type)
+                                            ? 1
+                                            : settings.duration) &&
+                                    +hi[1] >=
+                                        (settings.recoveryMode === 'parity_percentage' &&
+                                        ['DIGITEVEN', 'DIGITODD'].includes(type)
+                                            ? 1
+                                            : settings.duration)
                                 );
                             })
                         )
@@ -480,7 +496,9 @@ export class DigitStrategyEngine {
                     !(this.state.settings.hitRecovery === 'analysis' && this.state.streak)
                         ? 'Waiting for fresh data on selected market'
                         : this.state.streak
-                          ? 'Waiting for recovery formation / filters'
+                          ? this.state.settings.recoveryMode === 'parity_percentage'
+                              ? 'Scanning Even/Odd recovery percentages'
+                              : 'Waiting for recovery formation / filters'
                           : 'Waiting for eligible digit entry',
             });
             return;
@@ -524,7 +542,12 @@ export class DigitStrategyEngine {
                 basis: 'stake',
                 contract_type: signal.direction,
                 currency: 'USD',
-                duration: this.state.settings.duration,
+                duration:
+                    signal.recovery &&
+                    this.state.settings.recoveryMode === 'parity_percentage' &&
+                    (this.state.settings.strategy !== 'over2-under7' || this.state.settings.hitRecovery === 'analysis')
+                        ? 1
+                        : this.state.settings.duration,
                 duration_unit: 't',
                 symbol: signal.symbol,
                 ...(signal.barrier !== undefined ? { barrier: signal.barrier } : {}),
@@ -563,7 +586,14 @@ export class DigitStrategyEngine {
             }
             const nonce = `${this.owner}-${this.now()}-${Math.random().toString(36).slice(2)}`;
             this.update({
-                pending: { nonce, signal, stake: this.state.stake, payout: cents(quote.payout), sentAt: this.now() },
+                pending: {
+                    nonce,
+                    signal,
+                    duration: parameters.duration,
+                    stake: this.state.stake,
+                    payout: cents(quote.payout),
+                    sentAt: this.now(),
+                },
                 phase: 'Purchasing',
             });
             try {
@@ -641,7 +671,13 @@ export class DigitStrategyEngine {
             this.update({
                 recovery: {
                     ...this.state.recovery,
-                    lockedSymbol: this.state.settings.recoveryMode === 'parity' ? undefined : p.signal.symbol,
+                    lockedSymbol:
+                        this.state.settings.recoveryMode === 'parity' ||
+                        (this.state.settings.recoveryMode === 'parity_percentage' &&
+                            (this.state.settings.strategy !== 'over2-under7' ||
+                                this.state.settings.hitRecovery === 'analysis'))
+                            ? undefined
+                            : p.signal.symbol,
                     lockedDirection: p.signal.direction,
                     countAfter: 0,
                 },
@@ -669,7 +705,7 @@ export class DigitStrategyEngine {
             c.contract_type !== p.signal.direction ||
             c.currency !== 'USD' ||
             cents(c.buy_price) !== p.stake ||
-            c.tick_count !== this.state.settings.duration
+            c.tick_count !== (p.duration ?? this.state.settings.duration)
         )
             throw new Error('Contract does not match the saved purchase.');
         if (p.signal.barrier !== undefined && String(Number(c.barrier)) !== p.signal.barrier)

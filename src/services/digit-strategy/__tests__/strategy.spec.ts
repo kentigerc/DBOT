@@ -65,7 +65,7 @@ describe('uploaded digit strategy rules', () => {
                         pauseUntil: 0,
                         ...(locked ? { lockedSymbol: symbol } : {}),
                     },
-                    DEFAULT_SETTINGS,
+                    { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' },
                     10000
                 );
                 if ([5, 7, 9].includes(digit))
@@ -82,12 +82,30 @@ describe('uploaded digit strategy rules', () => {
     it('retains frequency filters, freshness, market locking and pauses for last-digit recovery', () => {
         const m = market();
         const s = { streak: 1, countAfter: 0, pauseUntil: 0 };
-        expect(recoverySignal(m, { ...s, lockedSymbol: 'R_50' }, DEFAULT_SETTINGS, 10000)).toBeUndefined();
-        expect(recoverySignal(m, { ...s, pauseUntil: 11000 }, DEFAULT_SETTINGS, 10000)).toBeUndefined();
-        expect(recoverySignal(m, s, DEFAULT_SETTINGS, 14000)).toBeUndefined();
+        expect(
+            recoverySignal(
+                m,
+                { ...s, lockedSymbol: 'R_50' },
+                { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' },
+                10000
+            )
+        ).toBeUndefined();
+        expect(
+            recoverySignal(
+                m,
+                { ...s, pauseUntil: 11000 },
+                { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' },
+                10000
+            )
+        ).toBeUndefined();
+        expect(
+            recoverySignal(m, s, { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' }, 14000)
+        ).toBeUndefined();
         m.symbol = '1HZ100V';
         m.digits = Array(1000).fill(9);
-        expect(recoverySignal(m, s, DEFAULT_SETTINGS, 10000)).toBeUndefined();
+        expect(
+            recoverySignal(m, s, { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' }, 10000)
+        ).toBeUndefined();
     });
     it('uses Under 4/6 barriers and opposite ten-digit parity formations', () => {
         const m = market();
@@ -144,5 +162,48 @@ describe('uploaded digit strategy rules', () => {
             { multiplier: 2.111 },
         ])
             expect(() => validateSettings({ ...DEFAULT_SETTINGS, ...s } as Settings)).toThrow();
+    });
+});
+
+describe('percentage-based Even/Odd recovery', () => {
+    const recovery = { streak: 1, countAfter: 0, pauseUntil: 0 };
+    const parityMarket = (evenCount: number, symbol = 'R_100') => {
+        const m = market();
+        m.symbol = symbol;
+        m.digits = [...Array<number>(evenCount).fill(0), ...Array<number>(1000 - evenCount).fill(1)];
+        return m;
+    };
+    it.each([
+        [550, 'DIGITEVEN'],
+        [450, 'DIGITODD'],
+        [541, 'DIGITEVEN'],
+        [459, 'DIGITODD'],
+        [540, undefined],
+        [460, undefined],
+        [530, undefined],
+        [470, undefined],
+        [500, undefined],
+    ])('evaluates %i even digits with strict thresholds', (count, expected) => {
+        expect(recoverySignal(parityMarket(count as number), recovery, DEFAULT_SETTINGS, 10000)?.direction).toBe(
+            expected
+        );
+    });
+    it('compares both sides on every market, includes 1s, ignores old locks and selects the strongest eligible share', () => {
+        const even = parityMarket(550),
+            odd = parityMarket(400, '1HZ100V');
+        expect(
+            chooseSignal(
+                [even, odd],
+                { ...recovery, lockedSymbol: even.symbol, lockedDirection: 'DIGITEVEN' },
+                DEFAULT_SETTINGS,
+                10000
+            )
+        ).toMatchObject({ symbol: odd.symbol, direction: 'DIGITODD', recovery: true, formation: false });
+        odd.digits = [...Array<number>(650).fill(0), ...Array<number>(350).fill(1)];
+        expect(chooseSignal([even, odd], recovery, DEFAULT_SETTINGS, 10000)).toMatchObject({
+            symbol: odd.symbol,
+            direction: 'DIGITEVEN',
+        });
+        expect(chooseSignal([even, odd], recovery, DEFAULT_SETTINGS, 14000)).toBeUndefined();
     });
 });

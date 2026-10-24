@@ -1,6 +1,7 @@
 // Ported from the uploaded fastbot/digits.py, recovery_filters.py and storage.py.
 export type Direction = 'DIGITOVER' | 'DIGITUNDER' | 'DIGITDIFF' | 'DIGITEVEN' | 'DIGITODD';
 export const RECOVERY_MODES = {
+    parity_percentage: 'Even / Odd · percentage recovery · 1 tick',
     under5_filtered_once: 'Under 5 · last digit 5/7/9, filtered',
     under4_filtered_once: 'Under 4 · count once, filtered',
     under6_filtered_once: 'Under 6 · count once, filtered',
@@ -33,7 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
     maxStake: 100,
     stopLoss: 100,
     takeProfit: 5,
-    recoveryMode: 'under5_filtered_once',
+    recoveryMode: 'parity_percentage',
     triggerCount: 3,
     duration: 2,
 };
@@ -195,8 +196,23 @@ export function signalOn(
     return { symbol: m.symbol, direction, barrier, epoch: m.epoch, recovery, formation };
 }
 export function recoverySignal(m: DigitMarket, s: RecoveryState, config: Settings, now: number): Signal | undefined {
-    if (!m.ready(now) || now < s.pauseUntil || (s.lockedSymbol && m.symbol !== s.lockedSymbol)) return;
     const mode = config.recoveryMode;
+    if (
+        !m.ready(now) ||
+        now < s.pauseUntil ||
+        (mode !== 'parity_percentage' && s.lockedSymbol && m.symbol !== s.lockedSymbol)
+    )
+        return;
+    if (mode === 'parity_percentage') {
+        const counts = m.frequencies();
+        const even = counts.filter(d => d.digit % 2 === 0).reduce((total, d) => total + d.count, 0);
+        const odd = m.digits.length - even;
+        const total = m.digits.length;
+        // Integer comparisons keep exact 53/46 boundaries strict.
+        if (even * 100 > 53 * total && odd * 100 < 46 * total) return signalOn(m, 'DIGITEVEN', undefined, true);
+        if (odd * 100 > 53 * total && even * 100 < 46 * total) return signalOn(m, 'DIGITODD', undefined, true);
+        return;
+    }
     if (mode === 'parity' || mode === 'parity_pair') {
         if (s.lockedDirection) return signalOn(m, s.lockedDirection, undefined, true);
         if (mode === 'parity_pair') {
@@ -279,6 +295,15 @@ export function chooseSignal(
     if (state.streak) {
         const signals = markets.map(m => recoverySignal(m, state, config, now)).filter((s): s is Signal => !!s);
         if (!signals.length) return;
+        if (config.recoveryMode === 'parity_percentage') {
+            const share = (signal: Signal) =>
+                markets
+                    .find(m => m.symbol === signal.symbol)!
+                    .frequencies()
+                    .filter(d => d.digit % 2 === (signal.direction === 'DIGITEVEN' ? 0 : 1))
+                    .reduce((total, d) => total + d.count, 0);
+            return signals.sort((a, b) => share(b) - share(a))[0];
+        }
         if (config.recoveryMode === 'under5' || config.recoveryMode === 'parity') return pick(signals);
         return signals.sort(
             (a, b) =>

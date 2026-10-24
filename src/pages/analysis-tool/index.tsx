@@ -168,7 +168,7 @@ export default function AnalysisTool() {
                                 ))}
                             </select>
                         </label>
-                        {draft.recoveryMode !== 'under5_filtered_once' &&
+                        {!['under5_filtered_once', 'parity_percentage'].includes(draft.recoveryMode) &&
                             field('High-digit formation count', 'triggerCount', 1, 1)}
                         <label>
                             Contract duration
@@ -295,11 +295,13 @@ export default function AnalysisTool() {
                                     : 'Scanning eligible indices'}
                             </p>
                             <p>
-                                {state.settings.recoveryMode === 'under5_filtered_once'
-                                    ? 'Entry after last digit 5, 7 or 9; frequency filters apply on every recovery trade'
-                                    : state.settings.recoveryMode === 'under5_plain'
-                                      ? 'No formation required'
-                                      : `${state.settings.triggerCount} high digits to form the initial recovery entry`}
+                                {state.settings.recoveryMode === 'parity_percentage'
+                                    ? 'Even/Odd recovery: selected side above 53%, opposite below 46% · 1 tick'
+                                    : state.settings.recoveryMode === 'under5_filtered_once'
+                                      ? 'Entry after last digit 5, 7 or 9; frequency filters apply on every recovery trade'
+                                      : state.settings.recoveryMode === 'under5_plain'
+                                        ? 'No formation required'
+                                        : `${state.settings.triggerCount} high digits to form the initial recovery entry`}
                             </p>
                         </section>
                         <section className='analysis-tool__panel'>
@@ -351,6 +353,19 @@ export default function AnalysisTool() {
                                                 {m.count}/1,000 ticks · run {m.highRun}
                                             </span>
                                         </div>
+                                        <p>
+                                            Even{' '}
+                                            {m.digits
+                                                .filter(d => d.digit % 2 === 0)
+                                                .reduce((total, d) => total + d.percentage, 0)
+                                                .toFixed(1)}
+                                            %{' · '}Odd{' '}
+                                            {m.digits
+                                                .filter(d => d.digit % 2 !== 0)
+                                                .reduce((total, d) => total + d.percentage, 0)
+                                                .toFixed(1)}
+                                            %
+                                        </p>
                                         <div className='analysis-tool__digits'>
                                             {m.digits.map(d => (
                                                 <div

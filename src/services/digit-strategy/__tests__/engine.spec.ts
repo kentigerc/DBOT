@@ -542,3 +542,60 @@ it('rechecks last-digit Under 5 triggers after every recovery loss', async () =>
     expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 1.55 });
     engine.stop();
 });
+
+it('executes percentage recovery immediately at one tick and returns to normal two-tick trades after a win', async () => {
+    const broker = new FakeBroker();
+    const send = broker.send;
+    broker.send = jest.fn(async body => {
+        if (body.ticks_history) {
+            const digits = [...Array<number>(550).fill(0), ...Array<number>(450).fill(1)];
+            return {
+                pip_size: 2,
+                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
+            };
+        }
+        return send(body);
+    });
+    const { engine } = await setup({ recoveryMode: 'parity_percentage' }, broker);
+    expect(broker.buys).toHaveLength(1);
+    expect(broker.buys[0].parameters.duration).toBe(2);
+    // A fresh tick during the open normal contract; no formation follows the loss.
+    await jest.advanceTimersByTimeAsync(1000);
+    broker.emit({ tick: { symbol: 'R_100', quote: 100.02, epoch: 1004, pip_size: 2 } });
+    broker.settle(-0.35);
+    await jest.advanceTimersByTimeAsync(150);
+    expect(broker.buys).toHaveLength(2);
+    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.74 });
+    expect(broker.buys[1].parameters.barrier).toBeUndefined();
+    expect(engine.getSnapshot().pending?.duration).toBe(1);
+    broker.settle(0.67);
+    expect(engine.getSnapshot()).toMatchObject({ streak: 0, wins: 1, losses: 1, stake: 35 });
+    await jest.advanceTimersByTimeAsync(1000);
+    broker.emit({ tick: { symbol: 'R_100', quote: 100.03, epoch: 1005, pip_size: 2 } });
+    await jest.advanceTimersByTimeAsync(150);
+    expect(broker.buys[2].parameters.duration).toBe(2);
+    engine.stop();
+});
+
+it('excludes markets that do not offer one-tick Even/Odd recovery contracts', async () => {
+    const broker = new FakeBroker();
+    const send = broker.send;
+    broker.send = jest.fn(async body => {
+        const response = await send(body);
+        if (body.contracts_for) {
+            response.contracts_for.available = response.contracts_for.available.map(
+                (contract: Record<string, unknown>) => ({
+                    ...contract,
+                    min_contract_duration: ['DIGITEVEN', 'DIGITODD'].includes(String(contract.contract_type))
+                        ? '2t'
+                        : '1t',
+                })
+            );
+        }
+        return response;
+    });
+    const { engine } = await setup({ recoveryMode: 'parity_percentage' }, broker);
+    expect(engine.getSnapshot().active).toBe(false);
+    expect(engine.getSnapshot().error).toMatch(/No supported/);
+    expect(broker.buys).toHaveLength(0);
+});

@@ -83,7 +83,7 @@ it('hides recovery dropdowns and unused formation count while retaining the defa
     fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
     await waitFor(() =>
         expect(client.start).toHaveBeenCalledWith(
-            expect.objectContaining({ hitRecovery: 'analysis', recoveryMode: 'under5_filtered_once', triggerCount: 3 }),
+            expect.objectContaining({ hitRecovery: 'analysis', recoveryMode: 'parity_percentage', triggerCount: 3 }),
             undefined
         )
     );

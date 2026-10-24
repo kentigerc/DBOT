@@ -80,7 +80,7 @@ export default function DigitCycle() {
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
                 {draft.hitRecovery === 'analysis' &&
-                    draft.recoveryMode !== 'under5_filtered_once' &&
+                    !['under5_filtered_once', 'parity_percentage'].includes(draft.recoveryMode) &&
                     field('High-digit formation count', 'triggerCount', 1, 1)}
                 {field('Maximum consecutive losses', 'maxLosses', 1, 1)}
                 {field('Maximum stake per trade (USD)', 'maxStake', 0.35)}
@@ -173,6 +173,19 @@ export default function DigitCycle() {
                                                           )
                                                           .join(', ')
                                                     : 'Waiting for entry conditions'}
+                                        </p>
+                                        <p>
+                                            Even{' '}
+                                            {market.digits
+                                                .filter(d => d.digit % 2 === 0)
+                                                .reduce((total, d) => total + d.percentage, 0)
+                                                .toFixed(1)}
+                                            %{' · '}Odd{' '}
+                                            {market.digits
+                                                .filter(d => d.digit % 2 !== 0)
+                                                .reduce((total, d) => total + d.percentage, 0)
+                                                .toFixed(1)}
+                                            %
                                         </p>
                                         <div className='digit-cycle__circles'>
                                             {market.digits.map(digit => (
