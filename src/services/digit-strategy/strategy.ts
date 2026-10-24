@@ -28,7 +28,7 @@ export type Settings = {
 };
 export const DEFAULT_SETTINGS: Settings = {
     stake: 0.35,
-    maxLosses: 5,
+    maxLosses: 10,
     multiplier: 2.1,
     maxStake: 100,
     stopLoss: 100,

@@ -41,7 +41,7 @@ it('exposes the requested settings and starts the named strategy only on RUN', a
                 duration: 2,
                 multiplier: 3,
                 stake: 0.35,
-                maxLosses: 5,
+                maxLosses: 10,
                 maxStake: 100,
                 stopLoss: 100,
             }),

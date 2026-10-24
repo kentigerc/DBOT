@@ -107,7 +107,9 @@ describe('uploaded digit strategy rules', () => {
         expect(nextRecoveryStake(74)).toBe(155);
         expect(nextRecoveryStake(35, 3)).toBe(105);
         expect(nextRecoveryStake(35, 1.5)).toBe(53);
-        expect(riskReason(DEFAULT_SETTINGS, -200, 5, 100)).toMatch(/Consecutive/);
+        expect(DEFAULT_SETTINGS.maxLosses).toBe(10);
+        expect(riskReason(DEFAULT_SETTINGS, -200, 9, 100)).toBeUndefined();
+        expect(riskReason(DEFAULT_SETTINGS, -200, 10, 100)).toMatch(/Consecutive/);
         expect(riskReason(DEFAULT_SETTINGS, 0, 1, 10001)).toMatch(/Maximum stake/);
         expect(riskReason(DEFAULT_SETTINGS, -9990, 1, 35)).toMatch(/Stop-loss/);
         expect(riskReason(DEFAULT_SETTINGS, 500, 0, 35)).toMatch(/Take-profit/);
