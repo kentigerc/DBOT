@@ -79,7 +79,9 @@ export default function DigitCycle() {
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
-                {draft.hitRecovery === 'analysis' && field('High-digit formation count', 'triggerCount', 1, 1)}
+                {draft.hitRecovery === 'analysis' &&
+                    draft.recoveryMode !== 'under5_filtered_once' &&
+                    field('High-digit formation count', 'triggerCount', 1, 1)}
                 {field('Maximum consecutive losses', 'maxLosses', 1, 1)}
                 {field('Maximum stake per trade (USD)', 'maxStake', 0.35)}
                 {field('Session stop-loss (USD)', 'stopLoss', 0.35)}

@@ -51,28 +51,43 @@ describe('uploaded digit strategy rules', () => {
         expect(m.frequencies()[Number(s.barrier)].most).toBe(false);
         expect(m.frequencies()[Number(s.barrier)].least).toBe(false);
     });
-    it('counts the first recovery formation once and locks subsequent entries to that index', () => {
-        const m = market(),
-            s = { streak: 1, countAfter: 0, pauseUntil: 0 };
-        expect(recoverySignal(m, s, DEFAULT_SETTINGS, 10000)).toMatchObject({
-            direction: 'DIGITUNDER',
-            barrier: '5',
-            formation: true,
-        });
-        m.digits[m.digits.length - 1] = 2;
-        expect(recoverySignal(m, s, DEFAULT_SETTINGS, 10000)).toBeUndefined();
-        expect(
-            recoverySignal(m, { ...s, lockedSymbol: 'R_100', lockedDirection: 'DIGITUNDER' }, DEFAULT_SETTINGS, 10000)
-        ).toMatchObject({ formation: false });
-        expect(recoverySignal(m, { ...s, lockedSymbol: 'R_50' }, DEFAULT_SETTINGS, 10000)).toBeUndefined();
+    it.each(['R_100', '1HZ100V'])('uses last digit 5/7/9 on every filtered Under 5 entry on %s', symbol => {
+        for (let digit = 0; digit <= 9; digit++) {
+            const m = market();
+            m.symbol = symbol;
+            m.digits.splice(-3, 3, 1, 2, digit);
+            for (const locked of [false, true]) {
+                const signal = recoverySignal(
+                    m,
+                    {
+                        streak: locked ? 2 : 1,
+                        countAfter: 0,
+                        pauseUntil: 0,
+                        ...(locked ? { lockedSymbol: symbol } : {}),
+                    },
+                    DEFAULT_SETTINGS,
+                    10000
+                );
+                if ([5, 7, 9].includes(digit))
+                    expect(signal).toMatchObject({
+                        direction: 'DIGITUNDER',
+                        barrier: '5',
+                        epoch: m.epoch,
+                        formation: true,
+                    });
+                else expect(signal).toBeUndefined();
+            }
+        }
     });
-    it('excludes 1s indices and marked high digits from filtered recovery', () => {
+    it('retains frequency filters, freshness, market locking and pauses for last-digit recovery', () => {
         const m = market();
+        const s = { streak: 1, countAfter: 0, pauseUntil: 0 };
+        expect(recoverySignal(m, { ...s, lockedSymbol: 'R_50' }, DEFAULT_SETTINGS, 10000)).toBeUndefined();
+        expect(recoverySignal(m, { ...s, pauseUntil: 11000 }, DEFAULT_SETTINGS, 10000)).toBeUndefined();
+        expect(recoverySignal(m, s, DEFAULT_SETTINGS, 14000)).toBeUndefined();
         m.symbol = '1HZ100V';
-        expect(recoverySignal(m, { streak: 1, countAfter: 0, pauseUntil: 0 }, DEFAULT_SETTINGS, 10000)).toBeUndefined();
-        m.symbol = 'R_100';
         m.digits = Array(1000).fill(9);
-        expect(recoverySignal(m, { streak: 1, countAfter: 0, pauseUntil: 0 }, DEFAULT_SETTINGS, 10000)).toBeUndefined();
+        expect(recoverySignal(m, s, DEFAULT_SETTINGS, 10000)).toBeUndefined();
     });
     it('uses Under 4/6 barriers and opposite ten-digit parity formations', () => {
         const m = market();

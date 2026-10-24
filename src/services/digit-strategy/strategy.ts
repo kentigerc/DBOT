@@ -1,7 +1,7 @@
 // Ported from the uploaded fastbot/digits.py, recovery_filters.py and storage.py.
 export type Direction = 'DIGITOVER' | 'DIGITUNDER' | 'DIGITDIFF' | 'DIGITEVEN' | 'DIGITODD';
 export const RECOVERY_MODES = {
-    under5_filtered_once: 'Under 5 · count once, filtered',
+    under5_filtered_once: 'Under 5 · last digit 5/7/9, filtered',
     under4_filtered_once: 'Under 4 · count once, filtered',
     under6_filtered_once: 'Under 6 · count once, filtered',
     under5_filtered_pairs: 'Under 5 · filtered pairs',
@@ -207,16 +207,22 @@ export function recoverySignal(m: DigitMarket, s: RecoveryState, config: Setting
         return;
     }
     const barrier = mode === 'under4_filtered_once' ? '4' : mode === 'under6_filtered_once' ? '6' : '5';
+    const lastDigitEntry = mode === 'under5_filtered_once';
     const filtered = mode.includes('filtered') || mode === 'under5_plain';
     if (
         filtered &&
-        (!m.standard ||
+        ((!lastDigitEntry && !m.standard) ||
             m
                 .frequencies()
                 .slice(Number(barrier))
                 .some(d => d.most || d.least))
     )
         return;
+    if (lastDigitEntry) {
+        if (![5, 7, 9].includes(m.digits[m.digits.length - 1])) return;
+        // Pin the entry tick so an in-flight quote cannot buy after the trigger changes.
+        return signalOn(m, 'DIGITUNDER', '5', true, true);
+    }
     const needsFormation = mode !== 'under5' && mode !== 'under5_plain' && (!s.lockedSymbol || s.countAfter > 0);
     if (needsFormation && !m.highRun(config.triggerCount, s.countAfter)) return;
     return signalOn(m, 'DIGITUNDER', barrier, true, needsFormation);

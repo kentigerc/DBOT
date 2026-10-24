@@ -168,7 +168,8 @@ export default function AnalysisTool() {
                                 ))}
                             </select>
                         </label>
-                        {field('High-digit formation count', 'triggerCount', 1, 1)}
+                        {draft.recoveryMode !== 'under5_filtered_once' &&
+                            field('High-digit formation count', 'triggerCount', 1, 1)}
                         <label>
                             Contract duration
                             <select
@@ -294,9 +295,11 @@ export default function AnalysisTool() {
                                     : 'Scanning eligible indices'}
                             </p>
                             <p>
-                                {state.settings.recoveryMode === 'under5_plain'
-                                    ? 'No formation required'
-                                    : `${state.settings.triggerCount} high digits to form the initial recovery entry`}
+                                {state.settings.recoveryMode === 'under5_filtered_once'
+                                    ? 'Entry after last digit 5, 7 or 9; frequency filters apply on every recovery trade'
+                                    : state.settings.recoveryMode === 'under5_plain'
+                                      ? 'No formation required'
+                                      : `${state.settings.triggerCount} high digits to form the initial recovery entry`}
                             </p>
                         </section>
                         <section className='analysis-tool__panel'>

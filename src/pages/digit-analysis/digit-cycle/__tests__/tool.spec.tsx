@@ -75,15 +75,15 @@ it('shows command failures without pretending trading started', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Risk settings invalid');
 });
-it('hides recovery dropdowns while retaining the default policy and formation count', async () => {
+it('hides recovery dropdowns and unused formation count while retaining the default policy', async () => {
     render(<DigitCycle />);
     expect(screen.queryByLabelText('Recovery method')).toBeNull();
     expect(screen.queryByLabelText('Recovery policy')).toBeNull();
-    fireEvent.change(screen.getByLabelText('High-digit formation count'), { target: { value: '4' } });
+    expect(screen.queryByLabelText('High-digit formation count')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
     await waitFor(() =>
         expect(client.start).toHaveBeenCalledWith(
-            expect.objectContaining({ hitRecovery: 'analysis', recoveryMode: 'under5_filtered_once', triggerCount: 4 }),
+            expect.objectContaining({ hitRecovery: 'analysis', recoveryMode: 'under5_filtered_once', triggerCount: 3 }),
             undefined
         )
     );

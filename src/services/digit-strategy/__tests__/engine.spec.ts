@@ -504,3 +504,41 @@ describe('HIT AND RUN Analysis Tool recovery policies', () => {
         engine.stop();
     });
 });
+
+it('rechecks last-digit Under 5 triggers after every recovery loss', async () => {
+    const broker = new FakeBroker();
+    const send = broker.send;
+    broker.send = jest.fn(async body => {
+        if (body.ticks_history) {
+            const digits = [180, 70, 100, 100, 100, 90, 90, 90, 90, 90].flatMap((count, digit) =>
+                Array<number>(count).fill(digit)
+            );
+            return {
+                pip_size: 2,
+                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
+            };
+        }
+        return send(body);
+    });
+    const { engine } = await setup({ recoveryMode: 'under5_filtered_once' }, broker);
+    expect(broker.buys).toHaveLength(1);
+    broker.settle(-0.35);
+    let epoch = 1003;
+    const tick = async (digit: number) => {
+        await jest.advanceTimersByTimeAsync(1000);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
+        await jest.advanceTimersByTimeAsync(150);
+    };
+    await tick(2);
+    expect(broker.buys).toHaveLength(1);
+    await tick(5);
+    expect(broker.buys).toHaveLength(2);
+    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 0.74 });
+    broker.settle(-0.74);
+    await tick(6);
+    expect(broker.buys).toHaveLength(2);
+    await tick(9);
+    expect(broker.buys).toHaveLength(3);
+    expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 1.55 });
+    engine.stop();
+});
