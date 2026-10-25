@@ -12,6 +12,8 @@ async function fixture(t, options = {}) {
         secret: 'test-only-session-key-that-is-at-least-32-bytes',
         fetchImpl: async (url, init) => {
             calls.push({ url, ...init });
+            if (url.startsWith('https://api.derivws.com/trading/'))
+                assert.equal(init.headers['Deriv-App-ID'], configuration.appId);
             if (options.upstream) return options.upstream(url, init);
             if (url.endsWith('/oauth2/token'))
                 return Response.json({ access_token: 'test-only-bearer', expires_in: 3600 });
@@ -357,4 +359,22 @@ test('renewal respects the absolute session limit and never loops on short-lived
     clock = 100000 + 7 * 24 * 60 * 60 * 1000 + 1;
     assert.equal((await (await app.request('/api/session')).json()).authenticated, false);
     assert.equal(count, 2);
+});
+
+test('account lookup and OTP requests explicitly attribute trading connections to the configured app', async t => {
+    const app = await fixture(t);
+    await app.authenticated();
+    await app.request('/api/session');
+    const response = await app.request('/api/connection', { account_id: 'DOT100' });
+    assert.equal(response.status, 200);
+    const tradingCalls = app.calls.filter(call => call.url.startsWith('https://api.derivws.com/trading/'));
+    assert.ok(tradingCalls.some(call => call.url.endsWith('/accounts')));
+    assert.ok(tradingCalls.some(call => call.url.endsWith('/accounts/DOT100/otp')));
+    for (const call of tradingCalls) {
+        assert.equal(call.headers['Deriv-App-ID'], configuration.appId);
+        assert.equal(call.headers.Authorization, 'Bearer test-only-bearer');
+    }
+    // App attribution belongs to OTP creation, not invented markup fields on purchases.
+    const body = await response.json();
+    assert.equal(new URL(body.url).searchParams.get('otp'), 'test-one-time');
 });

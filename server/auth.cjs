@@ -110,7 +110,7 @@ function createAuthHandler({
     }
     async function getAccounts(token) {
         const result = await requestJson(`${API_ORIGIN}/trading/v1/options/accounts`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: `Bearer ${token}`, 'Deriv-App-ID': configuration.appId },
         });
         if (!Array.isArray(result.data)) throw new HttpError(502, 'Deriv returned an unexpected accounts response.');
         return result.data
@@ -228,7 +228,7 @@ function createAuthHandler({
             `${API_ORIGIN}/trading/v1/options/accounts/${encodeURIComponent(account_id)}/otp`,
             {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${saved.access_token}` },
+                headers: { Authorization: `Bearer ${saved.access_token}`, 'Deriv-App-ID': configuration.appId },
             }
         );
         let socket;
