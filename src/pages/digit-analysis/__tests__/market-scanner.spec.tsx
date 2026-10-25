@@ -40,7 +40,7 @@ it('automatically scans, shows circles and suggests Over Punisher without starti
     fireEvent.click(screen.getByRole('button', { name: 'View digits' }));
     expect(select).toHaveBeenCalledWith('R_100');
     fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
-    expect(load).toHaveBeenCalledWith('over', 'R_100', 'random_index');
+    expect(load).toHaveBeenCalledWith('over', 'R_100', 'random_index', [8, 9, 9, 9, 0, 0, 0, 0, 0, 0]);
     expect(screen.getByRole('button', { name: 'PAUSE' })).toBeTruthy();
     expect(api.send.mock.calls.every(([request]) => request.active_symbols || request.ticks_history)).toBe(true);
 });
@@ -54,7 +54,7 @@ it('finds Over and Under in the same pass without a selector and loads the right
     expect(screen.queryByRole('combobox')).toBeNull();
     const underCard = screen.getByText('Under Punisher').closest('article')!;
     fireEvent.click(within(underCard).getByRole('button', { name: 'Load Bot' }));
-    expect(load).toHaveBeenCalledWith('under', '1HZ10V', 'random_index');
+    expect(load).toHaveBeenCalledWith('under', '1HZ10V', 'random_index', [0, 0, 0, 0, 0, 0, 9, 9, 9, 8]);
     expect(
         api.send.mock.calls.some(
             ([request]) => request.ticks_history === 'CRASH500' || request.ticks_history === 'R_50'
@@ -160,5 +160,5 @@ it('replaces an Over match with Under when the same market changes direction', a
     expect(screen.getByText('Under Punisher')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Load Bot' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
-    expect(load).toHaveBeenCalledWith('under', 'R_100', 'random_index');
+    expect(load).toHaveBeenCalledWith('under', 'R_100', 'random_index', [0, 0, 0, 0, 0, 0, 9, 9, 9, 8]);
 });

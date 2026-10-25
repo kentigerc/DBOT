@@ -99,10 +99,11 @@ export function fromNewApiResponse(data, original, accountId) {
     return response;
 }
 export class NewApiTransport extends EventTarget {
-    constructor(url, accountId) {
+    constructor(url, accountId, purchaseGuard) {
         super();
         this.socket = new WebSocket(url);
         this.accountId = accountId;
+        this.purchaseGuard = purchaseGuard;
         this.requests = new Map();
         this.streams = new Map();
         for (const type of ['open', 'close', 'error'])
@@ -124,11 +125,14 @@ export class NewApiTransport extends EventTarget {
             const original = this.requests.get(data.req_id) || this.streams.get(data.subscription?.id);
             if (data.subscription?.id && original) this.streams.set(data.subscription.id, original);
             this.requests.delete(data.req_id);
+            if (data.buy?.contract_id) this.purchaseGuard?.purchased(data.buy.contract_id);
+            if (original?.buy && data.error) this.purchaseGuard?.purchaseFailed();
             const forwarded = new MessageEvent('message', {
                 data: JSON.stringify(fromNewApiResponse(data, original, accountId)),
             });
             this.dispatchEvent(forwarded);
             this.onmessage?.(forwarded);
+            if (data.proposal_open_contract) this.purchaseGuard?.contract(data.proposal_open_contract);
         });
     }
     get readyState() {
@@ -139,6 +143,21 @@ export class NewApiTransport extends EventTarget {
     }
     send(value) {
         const original = JSON.parse(value);
+        if (original.buy && this.purchaseGuard && !this.purchaseGuard.purchase()) {
+            queueMicrotask(() => {
+                const event = new MessageEvent('message', {
+                    data: JSON.stringify({
+                        msg_type: 'buy',
+                        req_id: original.req_id,
+                        echo_req: original,
+                        error: { code: 'ScannerProtection', message: 'Market protection stopped new purchases.' },
+                    }),
+                });
+                this.dispatchEvent(event);
+                this.onmessage?.(event);
+            });
+            return;
+        }
         if (original.req_id !== undefined) this.requests.set(original.req_id, original);
         if (original.forget) this.streams.delete(original.forget);
         if (original.forget_all) this.streams.clear();

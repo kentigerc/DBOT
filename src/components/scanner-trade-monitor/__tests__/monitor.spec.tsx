@@ -1,3 +1,4 @@
+import { scannerExitGuard } from '@/utils/scanner-exit-guard';
 import { observable, runInAction } from 'mobx';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import { useStore } from '@/hooks/useStore';
@@ -49,6 +50,8 @@ beforeEach(() => {
 });
 afterEach(() => {
     cleanup();
+    scannerExitGuard.begin(() => {});
+    scannerExitGuard.cancel();
     setScannerWatch(null);
     jest.useRealTimers();
 });
@@ -267,4 +270,26 @@ it('warns immediately on a market subscription error', async () => {
     act(() => emit({ data: { error: { code: 'SubscriptionError' } } }));
     expect(screen.getByRole('alert').textContent).toContain('monitoring is unavailable');
     expect(screen.getByRole('alert')).toHaveStyle({ zIndex: 12000 });
+});
+
+it('automatically stops against the saved scanner-match baseline, not a new run baseline', async () => {
+    setScannerWatch({
+        symbol: 'R_100',
+        side: 'over',
+        sampleSize: 100,
+        name: 'Over Punisher',
+        baselineCounts: [8, 9, 9, 9, 0, 0, 0, 0, 0, 0],
+    });
+    store.run_panel.onStopButtonClick.mockImplementation(() => {
+        scannerExitGuard.cancel();
+        runInAction(() => {
+            store.run_panel.is_running = false;
+        });
+    });
+    scannerExitGuard.begin(store.run_panel.onStopButtonClick);
+    (generateDerivApiInstance as jest.Mock).mockResolvedValue(createApi([10, 11, 9, 9, 9, 9, 10, 11, 11, 11]));
+    render(<ScannerTradeMonitor />);
+    await waitFor(() => expect(store.run_panel.onStopButtonClick).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('alert')).toHaveTextContent('Market protection stopped the bot');
+    expect(screen.getByText('Stopped')).toBeTruthy();
 });

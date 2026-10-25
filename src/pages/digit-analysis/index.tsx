@@ -148,7 +148,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                 sampleSize={sampleSize}
                 onSelect={setSymbol}
                 active={active}
-                onLoad={(side, matchedSymbol, submarket) => {
+                onLoad={(side, matchedSymbol, submarket, baselineCounts) => {
                     if (!getDerivSession().authenticated)
                         throw new Error('Log in with Deriv to load a NetoAcademy bot.');
                     if (run_panel.is_running) throw new Error('Stop your running bot before loading another bot.');
@@ -160,6 +160,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                             symbol: matchedSymbol,
                             submarket,
                             scannerSide: side,
+                            baselineCounts,
                             sampleSize,
                         })
                     );

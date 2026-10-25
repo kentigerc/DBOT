@@ -17,3 +17,8 @@ it('rejects corrupt or unsupported stored monitor settings', () => {
         expect(readScannerWatch()).toBeNull();
     }
 });
+it('retains the scanner-match counts used by automatic protection', () => {
+    const baselineCounts = [80, 90, 90, 90, 0, 0, 0, 0, 0, 0];
+    setScannerWatch({ symbol: 'R_100', side: 'over', sampleSize: 1000, name: 'Over Punisher', baselineCounts });
+    expect(readScannerWatch()?.baselineCounts).toEqual(baselineCounts);
+});

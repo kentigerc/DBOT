@@ -29,7 +29,7 @@ export default function MarketScanner({
 }: {
     sampleSize: number;
     onSelect: (symbol: string) => void;
-    onLoad: (side: ScanSide, symbol: string, submarket: string) => boolean;
+    onLoad: (side: ScanSide, symbol: string, submarket: string, baselineCounts: number[]) => boolean;
     active?: boolean;
 }) {
     const [enabled, setEnabled] = useState(true);
@@ -219,7 +219,18 @@ export default function MarketScanner({
                             <button
                                 onClick={() => {
                                     try {
-                                        if (onLoad(result.side, result.symbol, result.submarket || 'random_index')) {
+                                        if (
+                                            onLoad(
+                                                result.side,
+                                                result.symbol,
+                                                result.submarket || 'random_index',
+                                                Array.from(
+                                                    { length: 10 },
+                                                    (_, digit) =>
+                                                        result.selected.find(item => item.digit === digit)?.count || 0
+                                                )
+                                            )
+                                        ) {
                                             setLoadError('');
                                         }
                                     } catch (error) {

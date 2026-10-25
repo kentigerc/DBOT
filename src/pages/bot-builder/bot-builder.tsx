@@ -85,6 +85,15 @@ const BotBuilder = observer(() => {
                               side: monitorSide,
                               sampleSize: [100, 500, 1000].includes(bot.sampleSize) ? bot.sampleSize : 1000,
                               name: bot.name,
+                              baselineCounts:
+                                  Array.isArray(bot.baselineCounts) &&
+                                  bot.baselineCounts.length === 10 &&
+                                  bot.baselineCounts.every(
+                                      (count: number) =>
+                                          Number.isInteger(count) && count >= 0 && count <= bot.sampleSize
+                                  )
+                                      ? bot.baselineCounts
+                                      : undefined,
                           }
                         : null
                 );

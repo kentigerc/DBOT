@@ -8,6 +8,7 @@ import { run_panel } from '@/constants/run-panel';
 import { ErrorTypes, MessageTypes, observer, unrecoverable_errors } from '@/external/bot-skeleton';
 import { getSelectedTradeType } from '@/external/bot-skeleton/scratch/utils';
 import GTM from '@/utils/gtm';
+import { scannerExitGuard } from '@/utils/scanner-exit-guard';
 import { helpers } from '@/utils/store-helpers';
 // import { journalError, switch_account_notification } from '@/utils/bot-notifications';
 import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
@@ -234,6 +235,7 @@ export default class RunPanelStore {
             )
         );
         runInAction(() => {
+            scannerExitGuard.begin(() => this.onStopButtonClick());
             this.setIsRunning(true);
             ui.setPromptHandler(true);
             this.toggleDrawer(true);
@@ -247,6 +249,7 @@ export default class RunPanelStore {
     };
 
     onStopButtonClick = () => {
+        scannerExitGuard.cancel();
         this.is_contracy_buying_in_progress = false;
         const { is_multiplier } = this.root_store.summary_card;
 
@@ -258,6 +261,7 @@ export default class RunPanelStore {
     };
 
     onStopBotClick = () => {
+        scannerExitGuard.cancel();
         const { is_multiplier } = this.root_store.summary_card;
         const { summary_card } = this.root_store;
 
@@ -559,6 +563,7 @@ export default class RunPanelStore {
         const { self_exclusion, summary_card } = this.root_store;
         const { ui } = this.core;
         const indicateBotStopped = () => {
+            scannerExitGuard.cancel();
             this.error_type = undefined;
             this.setContractStage(contract_stages.NOT_RUNNING);
             ui.setAccountSwitcherDisabledMessage();
@@ -605,6 +610,7 @@ export default class RunPanelStore {
     };
 
     onBotReadyEvent = () => {
+        scannerExitGuard.cancel();
         this.setIsRunning(false);
         observer.unregisterAll('bot.bot_ready');
     };

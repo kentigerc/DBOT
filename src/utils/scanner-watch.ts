@@ -3,6 +3,7 @@ export type ScannerWatch = {
     side: 'over' | 'under';
     sampleSize: number;
     name: string;
+    baselineCounts?: number[];
 };
 const storageKey = 'neto.scanner-watch';
 export function readScannerWatch(): ScannerWatch | null {
@@ -13,7 +14,13 @@ export function readScannerWatch(): ScannerWatch | null {
             ['over', 'under'].includes(value.side) &&
             [100, 500, 1000].includes(value.sampleSize) &&
             typeof value.name === 'string' &&
-            value.name.length <= 120
+            value.name.length <= 120 &&
+            (value.baselineCounts === undefined ||
+                (Array.isArray(value.baselineCounts) &&
+                    value.baselineCounts.length === 10 &&
+                    value.baselineCounts.every(
+                        (count: number) => Number.isInteger(count) && count >= 0 && count <= value.sampleSize
+                    )))
             ? value
             : null;
     } catch {
