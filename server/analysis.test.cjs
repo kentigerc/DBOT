@@ -273,7 +273,7 @@ test('HIT AND RUN shares the account runner and keeps Builder locked while activ
     await service.sessions.get('demo').task;
     const state = (await request('laptop')).data;
     assert.equal(state.settings.strategy, 'over2-under7');
-    assert.equal(state.settings.duration, 2);
+    assert.equal(state.settings.duration, 1);
     assert.equal(state.active, true);
     assert.throws(() => service.beforeBuilder('demo', { buy: 1, req_id: 1 }), /Stop and settle/);
     await request('laptop', { action: 'stop' });

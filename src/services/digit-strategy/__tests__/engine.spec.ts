@@ -297,7 +297,7 @@ describe('HIT AND RUN execution', () => {
     it('finishes a three-win batch and waits for fresh analysis before another entry', async () => {
         const { broker, engine, tick } = await setupCycle();
         expect(broker.buys).toHaveLength(1);
-        expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', duration: 2 });
+        expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', duration: 1 });
         broker.settle(0.32);
         await tick();
         expect(broker.buys).toHaveLength(2);
@@ -395,7 +395,7 @@ describe('HIT AND RUN execution', () => {
 it('executes Under 7 with the same HIT AND RUN safeguards', async () => {
     const { broker, engine } = await setupCycle({}, true);
     expect(broker.buys).toHaveLength(1);
-    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '7', duration: 2 });
+    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '7', duration: 1 });
     engine.stop();
     broker.settle(0.32);
     expect(engine.getSnapshot().active).toBe(false);
@@ -556,7 +556,7 @@ it('executes percentage recovery immediately at one tick and returns to normal t
         }
         return send(body);
     });
-    const { engine } = await setup({ recoveryMode: 'parity_percentage' }, broker);
+    const { engine } = await setup({ recoveryMode: 'parity_percentage', duration: 2 }, broker);
     expect(broker.buys).toHaveLength(1);
     expect(broker.buys[0].parameters.duration).toBe(2);
     // A fresh tick during the open normal contract; no formation follows the loss.

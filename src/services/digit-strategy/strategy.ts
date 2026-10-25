@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
     takeProfit: 5,
     recoveryMode: 'parity_percentage',
     triggerCount: 3,
-    duration: 2,
+    duration: 1,
 };
 export function cents(value: unknown) {
     const amount = Number(value);
