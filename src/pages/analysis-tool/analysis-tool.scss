@@ -161,12 +161,36 @@
         gap: 12px;
         margin-bottom: 18px;
         > div {
-            border: 1px solid var(--border-normal);
-            border-radius: 10px;
-            padding: 14px;
-            background: var(--general-main-2);
+            --stat-accent: #35c98b;
+            min-width: 0;
             display: grid;
+            align-content: start;
             gap: 8px;
+            padding: 14px;
+            border: 1px solid var(--border-normal);
+            border-top: 3px solid var(--stat-accent);
+            border-radius: 10px;
+            background:
+                linear-gradient(135deg, color-mix(in srgb, var(--stat-accent) 10%, transparent), transparent),
+                var(--general-main-1);
+            &:nth-child(2) {
+                --stat-accent: #579cf5;
+            }
+            &:nth-child(3) {
+                --stat-accent: #f36976;
+            }
+            &:nth-child(4) {
+                --stat-accent: #d9a441;
+            }
+            &:nth-child(5) {
+                --stat-accent: #ad87ee;
+            }
+            &:nth-child(6) {
+                --stat-accent: #36b7b0;
+            }
+            &.analysis-tool__stat--loss {
+                --stat-accent: #f36976;
+            }
         }
         span {
             font-size: 11px;
@@ -175,6 +199,8 @@
         strong {
             font-size: 20px;
             font-variant-numeric: tabular-nums;
+            color: var(--text-general);
+            overflow-wrap: anywhere;
         }
     }
     &__two-column {

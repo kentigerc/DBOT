@@ -266,11 +266,22 @@ export default function AnalysisTool() {
                             ['Largest drawdown', money(state.maxDrawdown)],
                             ['Highest stake', money(state.highestStake)],
                         ].map(([label, value]) => (
-                            <div key={label}>
+                            <div
+                                key={label}
+                                className={
+                                    label === 'Session P/L' && state.pnl < 0 ? 'analysis-tool__stat--loss' : undefined
+                                }
+                            >
                                 <span>{label}</span>
                                 <strong
                                     className={
-                                        label === 'Session P/L' ? (state.pnl < 0 ? 'is-loss' : 'is-profit') : undefined
+                                        label === 'Session P/L'
+                                            ? state.pnl < 0
+                                                ? 'is-loss'
+                                                : state.pnl > 0
+                                                  ? 'is-profit'
+                                                  : undefined
+                                            : undefined
                                     }
                                 >
                                     {value}
