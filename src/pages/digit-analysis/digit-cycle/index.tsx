@@ -133,17 +133,36 @@ export default function DigitCycle() {
                         {state.error ? ` · ${state.error}` : ''}
                     </p>
                     <div className='digit-cycle__stats'>
-                        <span>Session P/L: {money(state.pnl)}</span>
-                        <span>
-                            Wins / Losses: {state.wins} / {state.losses}
-                        </span>
-                        <span>
-                            Loss streak: {state.streak} / {state.settings.maxLosses}
-                        </span>
-                        <span>Next stake: {money(state.stake)}</span>
-                        <span>
-                            Batch wins: {state.batch} / 3{state.streak ? ' · Recovery active' : ''}
-                        </span>
+                        {[
+                            ['Session P/L', money(state.pnl)],
+                            ['Wins / Losses', `${state.wins} / ${state.losses}`],
+                            ['Loss streak', `${state.streak} / ${state.settings.maxLosses}`],
+                            ['Next stake', money(state.stake)],
+                            ['Batch wins', `${state.batch} / 3`],
+                        ].map(([label, value]) => (
+                            <div
+                                key={label}
+                                className={
+                                    label === 'Session P/L' && state.pnl < 0 ? 'digit-cycle__stat--loss' : undefined
+                                }
+                            >
+                                <span>{label}</span>
+                                <strong
+                                    className={
+                                        label === 'Session P/L'
+                                            ? state.pnl < 0
+                                                ? 'is-loss'
+                                                : state.pnl > 0
+                                                  ? 'is-profit'
+                                                  : undefined
+                                            : undefined
+                                    }
+                                >
+                                    {value}
+                                </strong>
+                                {label === 'Batch wins' && state.streak > 0 && <small>Recovery active</small>}
+                            </div>
+                        ))}
                     </div>
                     <div className='digit-cycle__markets'>
                         {state.markets
