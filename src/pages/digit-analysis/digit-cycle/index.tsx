@@ -75,7 +75,7 @@ export default function DigitCycle() {
     return (
         <section className='digit-cycle' aria-labelledby='digit-cycle-title'>
             <h2 id='digit-cycle-title'>HIT AND RUN STRATEGY</h2>
-            <p>Analysing volatility markets.</p>
+            <p>Trading Under 7 and Over 2 · Even/Odd recovery.</p>
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
