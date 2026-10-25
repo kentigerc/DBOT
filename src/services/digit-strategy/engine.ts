@@ -465,7 +465,7 @@ export class DigitStrategyEngine {
         }
         if (!this.initialized || !this.state.active || !this.state.wantsRun || this.busy || this.state.pending) return;
         if (this.now() < this.state.batchPause || this.now() < this.state.recovery.pauseUntil) {
-            this.update({ phase: 'Five-second batch / recovery pause' });
+            this.update({ phase: 'Preparing next trading cycle' });
             return;
         }
         const reason = riskReason(this.state.settings, this.state.pnl, this.state.streak, this.state.stake);
@@ -497,8 +497,8 @@ export class DigitStrategyEngine {
                         ? 'Waiting for fresh data on selected market'
                         : this.state.streak
                           ? this.state.settings.recoveryMode === 'parity_percentage'
-                              ? 'Scanning Even/Odd recovery percentages'
-                              : 'Waiting for recovery formation / filters'
+                              ? 'Scanning recovery opportunities'
+                              : 'Scanning recovery opportunities'
                           : 'Waiting for eligible digit entry',
             });
             return;

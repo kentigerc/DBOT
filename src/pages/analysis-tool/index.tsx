@@ -169,7 +169,7 @@ export default function AnalysisTool() {
                             </select>
                         </label>
                         {!['under5_filtered_once', 'parity_percentage'].includes(draft.recoveryMode) &&
-                            field('High-digit formation count', 'triggerCount', 1, 1)}
+                            field('Recovery trigger count', 'triggerCount', 1, 1)}
                         <label>
                             Contract duration
                             <select
@@ -286,22 +286,13 @@ export default function AnalysisTool() {
                             </div>
                             <p>
                                 {state.settings.strategy === 'over2-under7' && state.settings.hitRecovery !== 'analysis'
-                                    ? 'Same-contract martingale recovery'
+                                    ? 'Custom recovery'
                                     : RECOVERY_MODES[state.settings.recoveryMode]}
                             </p>
                             <p>
                                 {state.recovery.lockedSymbol
                                     ? `Locked index: ${state.recovery.lockedSymbol}`
                                     : 'Scanning eligible indices'}
-                            </p>
-                            <p>
-                                {state.settings.recoveryMode === 'parity_percentage'
-                                    ? 'Even/Odd recovery: selected side above 52%, opposite below 47% · 1 tick'
-                                    : state.settings.recoveryMode === 'under5_filtered_once'
-                                      ? 'Entry after last digit 5, 7 or 9; frequency filters apply on every recovery trade'
-                                      : state.settings.recoveryMode === 'under5_plain'
-                                        ? 'No formation required'
-                                        : `${state.settings.triggerCount} high digits to form the initial recovery entry`}
                             </p>
                         </section>
                         <section className='analysis-tool__panel'>
@@ -349,9 +340,7 @@ export default function AnalysisTool() {
                                         </header>
                                         <div className='analysis-tool__market-price'>
                                             <strong>{m.price}</strong>
-                                            <span>
-                                                {m.count}/1,000 ticks · run {m.highRun}
-                                            </span>
+                                            <span>{m.count}/1,000 ticks</span>
                                         </div>
                                         <p>
                                             Even{' '}

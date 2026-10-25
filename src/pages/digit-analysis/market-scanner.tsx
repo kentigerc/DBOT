@@ -160,17 +160,12 @@ export default function MarketScanner({
         <section className='digit-scanner' aria-labelledby='digit-scanner-title'>
             <h2 id='digit-scanner-title'>Over / Under market scanner</h2>
             <p>
-                Automatically checks both Over and Under conditions on every Volatility market using the last{' '}
-                {sampleSize.toLocaleString()} ticks. Matches are refreshed on each pass.
+                Scans Volatility markets using the latest {sampleSize.toLocaleString()} ticks. Matches are refreshed on
+                each pass.
             </p>
             <div className='digit-scanner__controls'>
                 <button onClick={() => setEnabled(value => !value)}>{enabled ? 'PAUSE' : 'RESUME'}</button>
             </div>
-            <p className='digit-scanner__rules'>
-                Over: digits 0–3 each below 10%, red (least frequent) on 0–3, green (most frequent) on 6–9. Under:
-                digits 6–9 each below 10%, red on 6–9, green on 0–3. All tied marks must stay within their required
-                group.
-            </p>
             <p role='status' aria-live='polite'>
                 {message}
             </p>

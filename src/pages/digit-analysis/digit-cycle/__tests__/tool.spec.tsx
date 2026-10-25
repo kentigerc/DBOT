@@ -79,7 +79,7 @@ it('hides recovery dropdowns and unused formation count while retaining the defa
     render(<DigitCycle />);
     expect(screen.queryByLabelText('Recovery method')).toBeNull();
     expect(screen.queryByLabelText('Recovery policy')).toBeNull();
-    expect(screen.queryByLabelText('High-digit formation count')).toBeNull();
+    expect(screen.queryByLabelText('Recovery trigger count')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
     await waitFor(() =>
         expect(client.start).toHaveBeenCalledWith(
@@ -126,7 +126,7 @@ it('labels a live recovery market with its chosen policy rather than the normal 
         ],
     });
     render(<DigitCycle />);
-    expect(screen.getByText(/Recovery · Under 6 · count once, filtered/)).toBeTruthy();
+    expect(screen.getByText(/Recovery · Recovery profile 03/)).toBeTruthy();
 });
 it('shows the full journal newest first with contract details and coloured net results', () => {
     const snapshot = client.getSnapshot();

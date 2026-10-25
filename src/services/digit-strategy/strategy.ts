@@ -1,17 +1,17 @@
 // Ported from the uploaded fastbot/digits.py, recovery_filters.py and storage.py.
 export type Direction = 'DIGITOVER' | 'DIGITUNDER' | 'DIGITDIFF' | 'DIGITEVEN' | 'DIGITODD';
 export const RECOVERY_MODES = {
-    parity_percentage: 'Even / Odd · percentage recovery · 1 tick',
-    under5_filtered_once: 'Under 5 · last digit 5/7/9, filtered',
-    under4_filtered_once: 'Under 4 · count once, filtered',
-    under6_filtered_once: 'Under 6 · count once, filtered',
-    under5_filtered_pairs: 'Under 5 · filtered pairs',
-    under5_plain: 'Under 5 · filtered, no formation',
-    under5_run: 'Under 5 · initial high-digit run',
-    under5_pairs: 'Under 5 · paired recovery',
-    parity_pair: 'Parity · opposite ten-digit run',
-    parity: 'Parity · alternate after recovery loss',
-    under5: 'Under 5 · unfiltered',
+    parity_percentage: 'Neto Recovery',
+    under5_filtered_once: 'Recovery profile 01',
+    under4_filtered_once: 'Recovery profile 02',
+    under6_filtered_once: 'Recovery profile 03',
+    under5_filtered_pairs: 'Recovery profile 04',
+    under5_plain: 'Recovery profile 05',
+    under5_run: 'Recovery profile 06',
+    under5_pairs: 'Recovery profile 07',
+    parity_pair: 'Recovery profile 08',
+    parity: 'Recovery profile 09',
+    under5: 'Recovery profile 10',
 } as const;
 export type RecoveryMode = keyof typeof RECOVERY_MODES;
 export type Settings = {
