@@ -8,7 +8,9 @@ import ScannerTradeMonitor from '..';
 
 jest.mock('@/external/bot-skeleton/services/api/appId', () => ({ generateDerivApiInstance: jest.fn() }));
 jest.mock('@/hooks/useStore', () => ({ useStore: jest.fn() }));
-let emit: (message: { data: { tick: { symbol: string; quote: number; epoch: number; pip_size: number } } }) => void;
+let emit: (message: {
+    data: { tick?: { symbol: string; quote: number; epoch: number; pip_size: number }; error?: unknown };
+}) => void;
 let store: {
     run_panel: { is_running: boolean; onStopButtonClick: jest.Mock };
     dashboard: { bot_builder_symbol: string };
@@ -185,4 +187,84 @@ it('follows the actual bot market rather than the chart selection and latches ma
         change();
     });
     expect(screen.getByRole('alert').textContent).toContain('bot market was changed');
+});
+
+it.each(['over', 'under'] as const)(
+    'automatically monitors a hosted %s Punisher loaded directly from Free Bots',
+    async side => {
+        setScannerWatch(null);
+        const workspace = {
+            getAllBlocks: () => [
+                {
+                    type: 'trade_definition_market',
+                    data: `netoacademy:hosted-bot:${side}-punisher.xml`,
+                    getFieldValue: () => 'R_100',
+                },
+            ],
+            addChangeListener: jest.fn(),
+            removeChangeListener: jest.fn(),
+        };
+        Object.defineProperty(window, 'Blockly', {
+            configurable: true,
+            value: { xmlValues: { file_name: 'My renamed bot' }, derivWorkspace: workspace },
+        });
+        const api = createApi();
+        api.send.mockResolvedValue(history((side === 'over' ? [...counts].reverse() : counts).map(n => n * 10)));
+        (generateDerivApiInstance as jest.Mock).mockResolvedValue(api);
+        render(<ScannerTradeMonitor />);
+        await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Market changed'));
+        expect(getScannerWatch()).toMatchObject({ side, symbol: 'R_100', sampleSize: 1000 });
+        expect(screen.getByRole('button', { name: 'Stop bot' })).toBeEnabled();
+    }
+);
+it('keeps monitoring a renamed hosted bot rather than silently clearing its scanner link', async () => {
+    const workspace = {
+        getAllBlocks: () => [
+            {
+                type: 'trade_definition_market',
+                data: 'netoacademy:hosted-bot:over-punisher.xml',
+                getFieldValue: () => 'R_100',
+            },
+        ],
+        addChangeListener: jest.fn(),
+        removeChangeListener: jest.fn(),
+    };
+    Object.defineProperty(window, 'Blockly', {
+        configurable: true,
+        value: { xmlValues: { file_name: 'My renamed bot' }, derivWorkspace: workspace },
+    });
+    (generateDerivApiInstance as jest.Mock).mockResolvedValue(createApi());
+    render(<ScannerTradeMonitor />);
+    await screen.findByText('Live market monitor');
+    tick(1, 100);
+    expect(screen.getByRole('alert').textContent).toContain('Market changed');
+    expect(getScannerWatch()).not.toBeNull();
+});
+it('warns on missing tick history rather than trusting a stale rolling sample', async () => {
+    (generateDerivApiInstance as jest.Mock).mockResolvedValue(createApi());
+    render(<ScannerTradeMonitor />);
+    await screen.findByText('Live market monitor');
+    tick(9, 110);
+    expect(screen.getByRole('alert').textContent).toContain('missed market ticks');
+});
+it('checks freshness immediately when returning to a suspended tab', async () => {
+    (generateDerivApiInstance as jest.Mock).mockResolvedValue(createApi());
+    render(<ScannerTradeMonitor />);
+    await screen.findByText('Live market monitor');
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 11000);
+    try {
+        act(() => window.dispatchEvent(new Event('focus')));
+        expect(screen.getByRole('alert').textContent).toContain('data is delayed');
+    } finally {
+        clock.mockRestore();
+    }
+});
+
+it('warns immediately on a market subscription error', async () => {
+    (generateDerivApiInstance as jest.Mock).mockResolvedValue(createApi());
+    render(<ScannerTradeMonitor />);
+    await screen.findByText('Live market monitor');
+    act(() => emit({ data: { error: { code: 'SubscriptionError' } } }));
+    expect(screen.getByRole('alert').textContent).toContain('monitoring is unavailable');
+    expect(screen.getByRole('alert')).toHaveStyle({ zIndex: 12000 });
 });

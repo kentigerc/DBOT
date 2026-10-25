@@ -20,10 +20,7 @@ const ScannerTradeMonitor = observer(() => {
     const [workspaceSymbol, setWorkspaceSymbol] = useState('');
     const [checkedAt, setCheckedAt] = useState('');
     useEffect(() => {
-        if (target && running && workspaceName && workspaceName !== target.name) setScannerWatch(null);
-    }, [target, running, workspaceName]);
-    useEffect(() => {
-        if (!target || !running) {
+        if (!running) {
             setWorkspaceSymbol('');
             return;
         }
@@ -31,22 +28,42 @@ const ScannerTradeMonitor = observer(() => {
             window as unknown as {
                 Blockly?: {
                     derivWorkspace?: {
-                        getAllBlocks: () => { type: string; getFieldValue: (name: string) => string | null }[];
+                        getAllBlocks: () => {
+                            type: string;
+                            data?: string;
+                            getFieldValue: (name: string) => string | null;
+                        }[];
                         addChangeListener: (listener: () => void) => void;
                         removeChangeListener: (listener: () => void) => void;
                     };
                 };
             }
         ).Blockly?.derivWorkspace;
-        if (!workspace) return;
         const read = () => {
-            const market = workspace.getAllBlocks().find(block => block.type === 'trade_definition_market');
-            setWorkspaceSymbol(market?.getFieldValue('SYMBOL_LIST') || '');
+            const blocks = workspace?.getAllBlocks() || [];
+            const symbol =
+                blocks.find(block => block.type === 'trade_definition_market')?.getFieldValue('SYMBOL_LIST') || '';
+            setWorkspaceSymbol(symbol);
+            const sources = blocks.map(block => block.data);
+            const over = sources.includes('netoacademy:hosted-bot:over-punisher.xml');
+            const under = sources.includes('netoacademy:hosted-bot:under-punisher.xml');
+            const side = over && !under ? 'over' : under && !over ? 'under' : undefined;
+            if (side && /^(R_\d+|1HZ\d+V)$/.test(symbol)) {
+                if (!target || target.side !== side)
+                    setScannerWatch({
+                        symbol,
+                        side,
+                        sampleSize: target?.sampleSize || 1000,
+                        name: side === 'over' ? 'Over Punisher' : 'Under Punisher',
+                    });
+            } else if (!side && target && workspaceName && workspaceName !== target.name) {
+                setScannerWatch(null);
+            }
         };
         read();
-        workspace.addChangeListener(read);
-        return () => workspace.removeChangeListener(read);
-    }, [target, running]);
+        workspace?.addChangeListener(read);
+        return () => workspace?.removeChangeListener(read);
+    }, [target, running, workspaceName]);
     useEffect(() => {
         if (!target || !running) {
             setIssue('');
@@ -78,7 +95,14 @@ const ScannerTradeMonitor = observer(() => {
         const accept = (tick: Tick) => {
             if (disposed || tick.epoch <= lastEpoch) return;
             const digit = lastDigit(tick.quote, tick.pip_size);
-            if (digit === null) return;
+            if (digit === null || !Number.isFinite(tick.epoch)) {
+                warn('Live market data is invalid. Conditions cannot be verified. Stop the bot before continuing.');
+                return;
+            }
+            if (lastEpoch && tick.epoch - lastEpoch > 6)
+                warn(
+                    'Live monitoring missed market ticks. Conditions cannot be verified. Stop the bot before continuing.'
+                );
             lastEpoch = tick.epoch;
             digits = [...digits, digit].slice(-target.sampleSize);
             evaluate();
@@ -97,8 +121,13 @@ const ScannerTradeMonitor = observer(() => {
             api.connection.addEventListener('error', () =>
                 warn('Live monitoring is unavailable. Stop the bot and reconnect before continuing.')
             );
-            listener = api.onMessage().subscribe(({ data }: { data: { tick?: Tick } }) => {
-                if (disposed || !data.tick) return;
+            listener = api.onMessage().subscribe(({ data }: { data: { tick?: Tick; error?: unknown } }) => {
+                if (disposed) return;
+                if (data.error) {
+                    warn('Live monitoring is unavailable. Stop the bot and reconnect before continuing.');
+                    return;
+                }
+                if (!data.tick) return;
                 const tickSymbol = data.tick.symbol || data.tick.underlying_symbol;
                 if (tickSymbol && tickSymbol !== target.symbol) return;
                 if (!ready) queued.push(data.tick);
@@ -131,13 +160,18 @@ const ScannerTradeMonitor = observer(() => {
             listener?.unsubscribe();
             api?.disconnect();
         });
-        const freshness = setInterval(() => {
+        const checkFreshness = () => {
             if (Date.now() - lastUpdate > 10000)
                 warn('Live market data is delayed. Conditions cannot be verified. Stop the bot before continuing.');
-        }, 1000);
+        };
+        const freshness = setInterval(checkFreshness, 1000);
+        window.addEventListener('focus', checkFreshness);
+        document.addEventListener('visibilitychange', checkFreshness);
         return () => {
             disposed = true;
             clearInterval(freshness);
+            window.removeEventListener('focus', checkFreshness);
+            document.removeEventListener('visibilitychange', checkFreshness);
             listener?.unsubscribe();
             api?.disconnect();
         };
@@ -155,7 +189,7 @@ const ScannerTradeMonitor = observer(() => {
     return (
         <aside
             ref={movable.ref}
-            style={movable.style}
+            style={issue ? { ...movable.style, zIndex: 12000 } : movable.style}
             className={`scanner-trade-monitor${warning ? ' scanner-trade-monitor--warning' : ''}`}
             role={warning ? 'alert' : 'status'}
             aria-live={warning ? 'assertive' : 'polite'}

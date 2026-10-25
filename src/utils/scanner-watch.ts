@@ -4,7 +4,23 @@ export type ScannerWatch = {
     sampleSize: number;
     name: string;
 };
-let watch: ScannerWatch | null = null;
+const storageKey = 'neto.scanner-watch';
+export function readScannerWatch(): ScannerWatch | null {
+    try {
+        const value = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+        return value &&
+            /^(R_\d+|1HZ\d+V)$/.test(value.symbol) &&
+            ['over', 'under'].includes(value.side) &&
+            [100, 500, 1000].includes(value.sampleSize) &&
+            typeof value.name === 'string' &&
+            value.name.length <= 120
+            ? value
+            : null;
+    } catch {
+        return null;
+    }
+}
+let watch: ScannerWatch | null = readScannerWatch();
 const listeners = new Set<() => void>();
 export const getScannerWatch = () => watch;
 export const subscribeScannerWatch = (listener: () => void) => {
@@ -15,5 +31,11 @@ export const subscribeScannerWatch = (listener: () => void) => {
 };
 export function setScannerWatch(next: ScannerWatch | null) {
     watch = next;
+    try {
+        if (next) sessionStorage.setItem(storageKey, JSON.stringify(next));
+        else sessionStorage.removeItem(storageKey);
+    } catch {
+        /* Monitoring still works when browser storage is unavailable. */
+    }
     listeners.forEach(listener => listener());
 }

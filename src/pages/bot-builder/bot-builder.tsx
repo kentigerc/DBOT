@@ -64,11 +64,28 @@ const BotBuilder = observer(() => {
                     showIncompatibleStrategyDialog: null,
                 });
                 if (result?.error) throw new Error(result.error);
+                const hostedSide =
+                    bot.fileName === 'over-punisher.xml'
+                        ? 'over'
+                        : bot.fileName === 'under-punisher.xml'
+                          ? 'under'
+                          : undefined;
+                const monitorSide =
+                    bot.scannerSide === 'over' || bot.scannerSide === 'under' ? bot.scannerSide : hostedSide;
+                const monitorSymbol =
+                    bot.symbol ||
+                    workspace
+                        .getAllBlocks()
+                        .find(block => block.type === 'trade_definition_market')
+                        ?.getFieldValue('SYMBOL_LIST');
                 setScannerWatch(
-                    bot.symbol &&
-                        (bot.scannerSide === 'over' || bot.scannerSide === 'under') &&
-                        [100, 500, 1000].includes(bot.sampleSize)
-                        ? { symbol: bot.symbol, side: bot.scannerSide, sampleSize: bot.sampleSize, name: bot.name }
+                    monitorSide && typeof monitorSymbol === 'string' && /^(R_\d+|1HZ\d+V)$/.test(monitorSymbol)
+                        ? {
+                              symbol: monitorSymbol,
+                              side: monitorSide,
+                              sampleSize: [100, 500, 1000].includes(bot.sampleSize) ? bot.sampleSize : 1000,
+                              name: bot.name,
+                          }
                         : null
                 );
                 sessionStorage.removeItem('neto.pendingBot');
