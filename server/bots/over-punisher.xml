@@ -93,7 +93,7 @@
                             <field name="VAR" id=":Fbza.{0*q*jalJ+tc#.">Expected Profit</field>
                             <value name="VALUE">
                               <block type="math_number" id="~HdY~*Oe[)^aX;~]0D^;">
-                                <field name="NUM">2.5</field>
+                                <field name="NUM">10</field>
                               <data>netoacademy:hosted-bot:over-punisher.xml</data></block>
                             </value>
                             <next>
