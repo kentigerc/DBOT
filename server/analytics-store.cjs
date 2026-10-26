@@ -104,10 +104,36 @@ function createAnalyticsStore({
                 throw Object.assign(new Error('Choose a shorter date range for this report.'), { status: 400 });
             return rows;
         },
+        async tradingVisibility() {
+            await ensureReady();
+            // This query intentionally ignores the dashboard's date range: switching
+            // to real trading must also hide demo trades in older report periods.
+            const rows = pool
+                ? (
+                      await pool.query(`
+                    SELECT data FROM neto_analytics_events WHERE kind IN ('account_group', 'real_account')
+                    UNION ALL
+                    SELECT jsonb_build_object('kind', 'real_account', 'account', data->>'account')
+                    FROM neto_analytics_events
+                    WHERE kind = 'trade' AND data->>'accountType' = 'real'
+                    GROUP BY data->>'account'
+                    LIMIT 100001
+                `)
+                  ).rows.map(row => row.data)
+                : [...records.values()].filter(
+                      row =>
+                          ['account_group', 'real_account'].includes(row.kind) ||
+                          (row.kind === 'trade' && row.accountType === 'real')
+                  );
+            if (rows.length > 100000) throw new Error('Account visibility history exceeds the reporting limit.');
+            return rows;
+        },
         async prune() {
             if (pool) {
                 await ensureReady();
-                await pool.query("DELETE FROM neto_analytics_events WHERE occurred_at < NOW() - INTERVAL '366 days'");
+                await pool.query(
+                    "DELETE FROM neto_analytics_events WHERE occurred_at < NOW() - INTERVAL '366 days' AND kind NOT IN ('account_group', 'real_account')"
+                );
             }
         },
         async close() {

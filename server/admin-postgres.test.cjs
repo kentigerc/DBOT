@@ -30,3 +30,50 @@ test(
         }
     }
 );
+
+test(
+    'PostgreSQL retains verified account links and real-trading switches across pruning and reconnects',
+    { skip: !databaseUrl },
+    async () => {
+        const url = new URL(databaseUrl);
+        assert.ok(['localhost', '127.0.0.1'].includes(url.hostname));
+        assert.equal(url.pathname, '/neto_analytics');
+        const { hiddenDemoAccounts } = require('./admin.cjs');
+        const suffix = `visibility-${Date.now()}`;
+        const demo = `demo-${suffix}`,
+            real = `real-${suffix}`;
+        const at = Date.parse('2020-01-01');
+        let store = createAnalyticsStore({ databaseUrl });
+        try {
+            await store.put({
+                id: `group-${suffix}`,
+                kind: 'account_group',
+                at,
+                members: [
+                    { account: demo, accountType: 'demo' },
+                    { account: real, accountType: 'real' },
+                ],
+            });
+            // Old real trade records (before the new switch marker) are discovered too.
+            await store.put({
+                id: `legacy-real-${suffix}`,
+                kind: 'trade',
+                at: Date.now(),
+                account: real,
+                accountType: 'real',
+            });
+            assert.equal(hiddenDemoAccounts(await store.tradingVisibility()).has(demo), true);
+            await store.put({ id: `switch-${suffix}`, kind: 'real_account', at, account: real });
+            await store.prune();
+            await store.close();
+            store = createAnalyticsStore({ databaseUrl });
+            assert.equal(hiddenDemoAccounts(await store.tradingVisibility()).has(demo), true);
+            assert.equal(
+                (await store.list(at, at + 1)).some(row => row.id === `switch-${suffix}`),
+                true
+            );
+        } finally {
+            await store.close();
+        }
+    }
+);

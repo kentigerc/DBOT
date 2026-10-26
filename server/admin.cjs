@@ -106,6 +106,35 @@ function aggregate(events) {
         ),
     };
 }
+function hiddenDemoAccounts(history) {
+    const parents = new Map();
+    const root = account => {
+        if (!parents.has(account)) parents.set(account, account);
+        let current = account;
+        while (parents.get(current) !== current) current = parents.get(current);
+        while (account !== current) {
+            const next = parents.get(account);
+            parents.set(account, current);
+            account = next;
+        }
+        return current;
+    };
+    const demos = new Set(),
+        realTraders = new Set();
+    for (const event of history) {
+        if (event.kind === 'account_group') {
+            const first = event.members[0]?.account;
+            for (const member of event.members) {
+                parents.set(root(member.account), root(first));
+                if (member.accountType === 'demo') demos.add(member.account);
+            }
+        } else if (event.kind === 'real_account' || (event.kind === 'trade' && event.accountType === 'real')) {
+            realTraders.add(event.account);
+        }
+    }
+    const realOwners = new Set([...realTraders].map(root));
+    return new Set([...demos].filter(account => realOwners.has(root(account))));
+}
 function commissionRow(result) {
     const rows = result.data?.breakdown;
     if (!Array.isArray(rows)) throw new Error('Invalid reporting response');
@@ -201,6 +230,19 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
     }, 86400000);
     cleanup.unref?.();
     function accounts(values) {
+        // Only the server-verified account list from one Deriv authorization may
+        // link accounts. Browser identifiers, balances and shared devices cannot.
+        const members = values
+            .filter(value => value.status === 'active' && ['real', 'demo'].includes(value.account_type))
+            .map(value => ({ account: hash(value.account_id), accountType: value.account_type }))
+            .sort((a, b) => a.account.localeCompare(b.account));
+        if (members.length > 1)
+            enqueue({
+                id: `group:${hash(JSON.stringify(members))}`,
+                kind: 'account_group',
+                at: now(),
+                members,
+            });
         for (const account of values.filter(value => value.status === 'active')) {
             accountInfo.set(account.account_id, {
                 accountType: ['real', 'demo'].includes(account.account_type) ? account.account_type : 'unknown',
@@ -222,6 +264,8 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
         const account = hash(accountId),
             contract = hash(`${accountId}:${id}`),
             settled = profit !== undefined;
+        if (accountInfo.get(accountId)?.accountType === 'real')
+            enqueue({ id: `real-account:${account}`, kind: 'real_account', at: now(), account });
         const previous = tradeInfo.get(contract);
         const sourceTool = settled ? previous?.tool || tool : tool;
         const at =
@@ -345,9 +389,34 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
             if (url.pathname !== '/api/admin/overview') throw Object.assign(new Error('Not found.'), { status: 404 });
             await flush();
             pruneOnline();
-            const data = aggregate(await store.list(range.from, range.to));
+            const [events, visibility] = await Promise.all([
+                store.list(range.from, range.to),
+                store.tradingVisibility(),
+            ]);
+            // Persist a switch discovered in pre-upgrade real trade history too.
+            for (const event of visibility)
+                if (event.kind === 'real_account')
+                    enqueue({
+                        id: `real-account:${event.account}`,
+                        kind: 'real_account',
+                        at: now(),
+                        account: event.account,
+                    });
+            const hidden = hiddenDemoAccounts(visibility);
+            const visible = events.filter(
+                event => event.kind !== 'trade' || event.accountType !== 'demo' || !hidden.has(event.account)
+            );
+            const hiddenDemoTrades = new Set(
+                events
+                    .filter(
+                        event => event.kind === 'trade' && event.accountType === 'demo' && hidden.has(event.account)
+                    )
+                    .map(event => event.contract)
+            ).size;
+            const data = aggregate(visible);
             return json(res, 200, {
                 ...data,
+                hiddenDemoTrades,
                 from: range.start,
                 to: range.end,
                 liveDerivConnections: connections.size,
@@ -384,4 +453,4 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
         },
     };
 }
-module.exports = { createAdminAnalytics, aggregate, reportRange };
+module.exports = { createAdminAnalytics, aggregate, reportRange, hiddenDemoAccounts };

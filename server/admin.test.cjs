@@ -89,10 +89,9 @@ test('signed browser heartbeat counts visits once, keeps online counts distinct 
 });
 test('confirmed trades deduplicate buy and settlement messages and keep demo separate from real money', async t => {
     const { analytics, request } = await fixture(t);
-    analytics.accounts([
-        { account_id: 'REAL', account_type: 'real', currency: 'USD', status: 'active' },
-        { account_id: 'DEMO', account_type: 'demo', currency: 'USD', status: 'active' },
-    ]);
+    // Distinct verified users: one user's real trading must not hide another's demo.
+    analytics.accounts([{ account_id: 'REAL', account_type: 'real', currency: 'USD', status: 'active' }]);
+    analytics.accounts([{ account_id: 'DEMO', account_type: 'demo', currency: 'USD', status: 'active' }]);
     for (let i = 0; i < 3; i++) {
         analytics.trade('REAL', 'bot_builder', { contract_id: 123, buy_price: 0.35 });
         analytics.trade('REAL', 'bot_builder', { contract_id: 123, buy_price: 0.35, is_sold: 1, profit: -0.35 });
@@ -274,4 +273,85 @@ test('live settlement attribution follows the confirmed purchase rather than its
     assert.equal(result.trades, 1);
     const events = await store.list(0, Date.now() + 1000);
     assert.equal(events.find(event => event.profit !== undefined).tool, 'hit_and_run');
+});
+
+test('real trading hides only that verified user’s demo trades across all dashboard totals', async t => {
+    const { analytics, request, store } = await fixture(t);
+    analytics.accounts([
+        { account_id: 'SAME-DEMO', account_type: 'demo', currency: 'USD', status: 'active' },
+        { account_id: 'SAME-REAL', account_type: 'real', currency: 'USD', status: 'active' },
+    ]);
+    analytics.accounts([{ account_id: 'OTHER-DEMO', account_type: 'demo', currency: 'USD', status: 'active' }]);
+    analytics.trade('SAME-DEMO', 'hit_and_run', { contractId: 801, stake: 35, profit: 12 });
+    analytics.trade('OTHER-DEMO', 'bot_builder', { contractId: 802, stake: 35, profit: -35 });
+    await analytics.flush();
+    let result = await (await request('/api/admin/overview', { owner: true })).json();
+    assert.equal(result.trades, 2); // Merely owning or selecting a real account does not switch reporting.
+    assert.equal(result.hiddenDemoTrades, 0);
+    analytics.trade('SAME-REAL', 'analysis_tool', { contractId: 803, stake: 74 });
+    await analytics.flush();
+    result = await (await request('/api/admin/overview', { owner: true })).json();
+    assert.equal(result.trades, 2);
+    assert.equal(result.hiddenDemoTrades, 1);
+    assert.equal(result.tradingAccounts, 2);
+    assert.equal(result.tradingUsers.length, 2);
+    assert.equal(
+        result.tradingTools.some(row => row.tool === 'hit_and_run'),
+        false
+    );
+    assert.equal(
+        result.daily.reduce((n, row) => n + row.trades, 0),
+        2
+    );
+    assert.equal(result.money.find(row => row.accountType === 'demo').net, -35);
+    assert.equal(result.money.find(row => row.accountType === 'real').open, 1);
+    // Switching back to demo does not restore it in the owner dashboard.
+    analytics.trade('SAME-DEMO', 'hit_and_run', { contractId: 804, stake: 35, profit: 12 });
+    await analytics.flush();
+    result = await (await request('/api/admin/overview', { owner: true })).json();
+    assert.equal(result.hiddenDemoTrades, 2);
+    assert.equal(result.trades, 2);
+    const records = await store.list(0, Date.now() + 1000);
+    assert.equal(records.filter(row => row.kind === 'trade').length, 4); // History is retained.
+    assert.equal(JSON.stringify(records).includes('SAME-DEMO'), false);
+});
+
+test('real trading outside the date filter still hides linked demo history after restart', async t => {
+    const { analytics, request, store, directory } = await fixture(t);
+    analytics.accounts([
+        { account_id: 'PAST-REAL', account_type: 'real', currency: 'USD', status: 'active' },
+        { account_id: 'CURRENT-DEMO', account_type: 'demo', currency: 'USD', status: 'active' },
+    ]);
+    analytics.trade('PAST-REAL', 'bot_builder', {
+        contractId: 901,
+        stake: 35,
+        profit: 12,
+        at: Date.now() - 40 * 86400000,
+    });
+    analytics.trade('CURRENT-DEMO', 'hit_and_run', { contractId: 902, stake: 35, profit: 12 });
+    await analytics.flush();
+    const result = await (await request('/api/admin/overview', { owner: true })).json();
+    assert.equal(result.trades, 0);
+    assert.equal(result.hiddenDemoTrades, 1);
+    const { hiddenDemoAccounts } = require('./admin.cjs');
+    const reopened = createAnalyticsStore({ databaseUrl: '', directory });
+    t.after(() => reopened.close());
+    assert.equal(hiddenDemoAccounts(await reopened.tradingVisibility()).size, 1);
+    assert.equal((await store.list(0, Date.now() + 1000)).filter(row => row.kind === 'trade').length, 2);
+});
+
+test('verified account links join transitively without matching unrelated users', () => {
+    const { hiddenDemoAccounts } = require('./admin.cjs');
+    const group = members => ({ kind: 'account_group', members });
+    const demo = account => ({ account, accountType: 'demo' });
+    const real = account => ({ account, accountType: 'real' });
+    const history = [
+        group([demo('demo-one'), real('real-usd')]),
+        group([demo('demo-two'), real('real-eur')]),
+        group([real('real-usd'), real('real-eur')]),
+        group([demo('unrelated'), real('not-trading')]),
+        { kind: 'real_account', account: 'real-eur' },
+    ];
+    assert.deepEqual([...hiddenDemoAccounts(history)].sort(), ['demo-one', 'demo-two']);
+    assert.deepEqual([...hiddenDemoAccounts([...history].reverse())].sort(), ['demo-one', 'demo-two']);
 });

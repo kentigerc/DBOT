@@ -26,7 +26,7 @@ For durable analytics, connect a PostgreSQL database and set its private connect
 
 Without `DATABASE_URL`, file preview mode works for testing. The dashboard labels it clearly: a process restart keeps the file, but Render's ephemeral filesystem can erase it on redeployment or replacement. Preview capacity is limited to 100,000 events. Do not treat it as permanent history. `NETO_ANALYTICS_DIR` changes the local directory (default `.analytics-state`, ignored by git). Adding a database starts an independent store; existing preview history is not automatically migrated.
 
-Keep `NETO_SESSION_SECRET` stable: it protects sessions and pseudonymizes analytics identifiers. Rotating it requires planning a history migration because identity keys change. PostgreSQL records have 366-day retention, pruned daily. Visitor cookies last 90 days. Preview files are capacity-limited, not a permanent retention system.
+Keep `NETO_SESSION_SECRET` stable: it protects sessions and pseudonymizes analytics identifiers. Rotating it requires planning a history migration because identity keys change. PostgreSQL activity records have 366-day retention, pruned daily; pseudonymous account links and real-trading switch markers are retained to preserve reporting preferences. Visitor cookies last 90 days. Preview files are capacity-limited, not a permanent retention system.
 
 ## What the numbers mean
 
@@ -59,3 +59,11 @@ This is activity attribution, not individual commission. Deriv's reporting endpo
 Bot Builder keeps an account-wide `proposal_open_contract` subscription open, including while server tools trade. Analytics must attribute a contract to its confirmed purchase, not whichever socket first observes settlement. Builder reporting now accepts settlements only for contract IDs with a Builder purchase receipt observed in this process (bounded 20,000-receipt registry shared across browser sockets). The admin collector also retains purchase attribution through settlement. Reconnected sockets can settle known Builder purchases; after a process restart, an unrecognized Builder settlement is not imported as a new Builder purchase.
 
 Historical reports select tool, stake and purchase-date metadata from the stored purchase event, independently of settlement row order. This corrects old cross-tool settlement labels at read time without editing PostgreSQL or changing account-wide P/L. Historical contracts lacking a recorded purchase cannot have their original tool reconstructed reliably by this correction. Period totals still include all recorded sessions/users, not just the current session shown in a tool.
+
+### Demo visibility after real trading
+
+The dashboard shows demo trades for demo-only users. Once a user has a confirmed real-account trade, their linked demo trades are hidden from all period trading counters, daily trade/CSV counts, money results, per-user rows and per-tool totals, including older date ranges. Demo history remains stored. Merely having or selecting a real account does not trigger the switch; switching back to demo does not undo it. Other users' demo activity stays visible. Visitor counts, connected-account counts and app-wide Deriv commission reporting are unchanged.
+
+Accounts are linked only when Deriv returns them together in a server-verified account list, never by cookies, IPs, account-number guesses or user input. Links and real-trading markers contain only keyed pseudonyms and persist across server restarts. Existing real trades are detected from retained history; an existing user's demo/real link becomes known when their verified account list is next fetched after this deployment. If accounts are never returned together and no verified chain links them, they cannot safely be treated as the same user.
+
+Account-link and real-trading switch markers are retained independently of the 366-day activity retention so the reporting rule survives removal of old trades. They cannot restore old trades or links lost before this feature was enabled. Keep `NETO_SESSION_SECRET` stable.

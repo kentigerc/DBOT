@@ -7,6 +7,7 @@ type Overview = {
     connectedAccounts: number;
     tradingAccounts: number;
     trades: number;
+    hiddenDemoTrades?: number;
     onlineBrowsers: number;
     onlineAuthenticatedBrowsers: number;
     liveDerivConnections: number;
@@ -269,6 +270,11 @@ export default function Admin() {
                             </article>
                         ))}
                     </section>
+                    <p className='neto-admin__hint'>
+                        Demo activity is shown until that user makes a real-account trade. Their demo history is then
+                        hidden from trading totals and tables; other demo users remain visible.
+                        {!!data?.hiddenDemoTrades && ` ${data.hiddenDemoTrades} demo trades hidden for these dates.`}
+                    </p>
                     <section className='neto-admin__panel'>
                         <div className='neto-admin__heading'>
                             <div>

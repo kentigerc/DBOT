@@ -147,3 +147,12 @@ it('shows individual account activity without claiming individual commission', a
     expect(screen.getByRole('heading', { name: 'Trading by user' })).toBeTruthy();
     expect(screen.getByText(/not commission contribution/)).toBeTruthy();
 });
+
+it('explains the real-trading visibility rule and reports hidden demo purchases', async () => {
+    (fetch as jest.Mock).mockImplementation(async url =>
+        String(url).includes('/access') ? response({ admin: true }) : response({ ...overview, hiddenDemoTrades: 48 })
+    );
+    render(<Admin />);
+    expect(await screen.findByText(/48 demo trades hidden for these dates/)).toBeTruthy();
+    expect(screen.getByText(/other demo users remain visible/)).toBeTruthy();
+});
