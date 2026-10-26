@@ -108,11 +108,12 @@ const ScannerTradeMonitor = observer(() => {
                 api.disconnect();
                 return;
             }
-            api.connection.addEventListener('close', () =>
+            api.connection.addEventListener('close', (event: CloseEvent) => {
+                const code = Number.isInteger(event.code) ? event.code : 'unknown';
                 warn(
-                    'Live monitoring disconnected. Conditions cannot be verified. Stop the bot and reconnect before continuing.'
-                )
-            );
+                    `Live monitoring disconnected (socket ${code}; market ${target.symbol}; ${document.hidden ? 'background' : 'visible'} tab). Conditions cannot be verified. Stop the bot and reconnect before continuing.`
+                );
+            });
             api.connection.addEventListener('error', () =>
                 warn('Live monitoring is unavailable. Stop the bot and reconnect before continuing.')
             );

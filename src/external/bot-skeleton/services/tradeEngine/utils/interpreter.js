@@ -160,76 +160,45 @@ const Interpreter = () => {
     }
 
     async function stop() {
-        return new Promise((resolve, reject) => {
-            try {
-                const global_timeouts = globalObserver.getState('global_timeouts') ?? [];
-                const is_timeouts_cancellable = Object.keys(global_timeouts).every(
-                    timeout => global_timeouts[timeout].is_cancellable
-                );
-
-                if (!bot.tradeEngine.contractId && is_timeouts_cancellable) {
-                    api_base.is_stopping = true;
-                    // When user is rate limited, allow them to stop the bot immediately
-                    // granted there is no active contract.
-                    global_timeouts.forEach(timeout => clearTimeout(global_timeouts[timeout]));
-                    terminateSession().then(() => {
-                        api_base.is_stopping = false;
-                        resolve();
-                    });
-                } else if (
-                    bot.tradeEngine.isSold === false &&
-                    !$scope.is_error_triggered &&
-                    isMultiplierContract(bot?.tradeEngine?.data?.contract?.contract_type ?? '')
-                ) {
-                    globalObserver.register('contract.status', async contractStatus => {
-                        if (contractStatus.id === 'contract.sold') {
-                            terminateSession().then(() => resolve());
-                        }
-                    });
-                } else {
-                    api_base.is_stopping = true;
-                    terminateSession().then(() => {
-                        api_base.is_stopping = false;
-                        resolve();
-                    });
-                }
-            } catch (e) {
-                reject(e);
-            }
-        });
+        const global_timeouts = globalObserver.getState('global_timeouts') ?? [];
+        const is_timeouts_cancellable = Object.keys(global_timeouts).every(
+            timeout => global_timeouts[timeout].is_cancellable
+        );
+        if (
+            !(!bot.tradeEngine.contractId && is_timeouts_cancellable) &&
+            bot.tradeEngine.isSold === false &&
+            !$scope.is_error_triggered &&
+            isMultiplierContract(bot?.tradeEngine?.data?.contract?.contract_type ?? '')
+        ) {
+            await new Promise((resolve, reject) => {
+                globalObserver.register('contract.status', contractStatus => {
+                    if (contractStatus.id === 'contract.sold') terminateSession().then(resolve, reject);
+                });
+            });
+            return;
+        }
+        api_base.is_stopping = true;
+        try {
+            if (!bot.tradeEngine.contractId && is_timeouts_cancellable)
+                global_timeouts.forEach(timeout => clearTimeout(global_timeouts[timeout]));
+            await terminateSession();
+        } finally {
+            api_base.is_stopping = false;
+        }
     }
 
     async function terminateSession() {
-        return new Promise((resolve, reject) => {
-            try {
-                $scope.stopped = true;
-                $scope.is_error_triggered = false;
-                globalObserver.emit('bot.stop');
-                const { ticksService } = $scope;
-                // Unsubscribe previous ticks_history subscription
-                // Unsubscribe the subscriptions from Proposal, Balance and OpenContract
-                api_base.clearSubscriptions();
-
-                ticksService.unsubscribeFromTicksService().then(() => {
-                    resolve();
-                });
-            } catch (error) {
-                reject(error);
-            }
-        });
+        $scope.stopped = true;
+        $scope.is_error_triggered = false;
+        globalObserver.emit('bot.stop');
+        api_base.clearSubscriptions();
+        // Propagate unsubscribe errors: a rejected network request must not leave
+        // the stop promise pending forever.
+        await $scope.ticksService.unsubscribeFromTicksService();
     }
 
     async function unsubscribeFromTicksService() {
-        const { ticksService } = $scope;
-        return new Promise((resolve, reject) => {
-            try {
-                ticksService.unsubscribeFromTicksService().then(() => {
-                    resolve();
-                });
-            } catch (e) {
-                reject(e);
-            }
-        });
+        await $scope.ticksService.unsubscribeFromTicksService();
     }
 
     function run(code) {

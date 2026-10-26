@@ -282,3 +282,9 @@ Validation: 59 targeted tests passed; production build passed. A fresh-profile b
 ### Hosted XML duration default
 
 Over Punisher, Under Punisher and Over 1/Over 0 now default to 1 tick, including the duration shadow value. This applies to newly loaded hosted bots and XML Auto loads. Existing workspaces must reload the hosted bot to pick up the new default. XML comparison verified that only the two duration values in each bot changed; all other strategy and recovery settings remain intact.
+
+### XML stop cleanup after monitoring disconnects
+
+A monitoring socket close still stops XML Auto. Fix interpreter teardown so rejected tick unsubscribe requests propagate to the caller and always release `api_base.is_stopping`, rather than stranding the outer stop promise. Stop cleanup no longer opens and awaits an idle tick subscription; the next run initializes its own feed. The Run panel journals cleanup failures. Disconnect diagnostics now include socket close code, monitored market and tab visibility without logging credentials. This addresses restart cleanup defects; the supplied log does not establish the external cause of the monitoring socket closure.
+
+Validation: 39 targeted tests passed, including rejected/pending unsubscribe regression tests and lifecycle/scanner/monitor tests. Production build passed. Fresh-profile simulated browser verified loss, recovery, three new normal wins, next batch and original Run restarting XML Auto. No live trades placed.

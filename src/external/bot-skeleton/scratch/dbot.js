@@ -382,7 +382,8 @@ class DBot {
             this.is_bot_running = false;
             this.interpreter = null;
             this.interpreter = Interpreter();
-            await this.interpreter.bot.tradeEngine.watchTicks(this.symbol);
+            // The next run initializes its own tick feed. Opening an idle feed
+            // here makes completed cleanup depend on a new network subscription.
             forgetAccumulatorsProposalRequest(this);
         });
     }

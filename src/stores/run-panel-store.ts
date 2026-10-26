@@ -392,7 +392,14 @@ export default class RunPanelStore {
     stopBot = () => {
         const { ui } = this.core;
 
-        this.dbot.stopBot();
+        this.dbot.stopBot().catch((error: unknown) => {
+            this.root_store.journal.onNotify({
+                message: `XML cleanup failed: ${error instanceof Error ? error.message : 'Connection unavailable'}. Reconnect before restarting.`,
+                message_type: MessageTypes.NOTIFY,
+                className: 'journal__text--warn',
+                sound: 'silent',
+            });
+        });
 
         ui.setPromptHandler(false);
 
