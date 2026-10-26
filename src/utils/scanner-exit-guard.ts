@@ -6,7 +6,7 @@ export function risingScannerDigits(baseline: number[], current: number[], side:
         digit =>
             Number.isFinite(baseline[digit]) &&
             Number.isFinite(current[digit]) &&
-            (current[digit] - baseline[digit]) * 100 >= 2 * sampleSize
+            (current[digit] - baseline[digit]) * 100 >= sampleSize
     );
 }
 

@@ -1,11 +1,11 @@
 import { risingScannerDigits, ScannerExitGuard } from '../scanner-exit-guard';
 const counts = () => Array<number>(10).fill(80);
-it.each(['over', 'under'] as const)('detects two exact two-percentage-point rises only in the %s region', side => {
+it.each(['over', 'under'] as const)('detects two exact one-percentage-point rises only in the %s region', side => {
     const before = counts(),
         after = counts();
     const region = side === 'over' ? [0, 1] : [8, 9];
-    after[region[0]] += 20;
-    after[region[1]] += 19;
+    after[region[0]] += 10;
+    after[region[1]] += 9;
     expect(risingScannerDigits(before, after, side, 1000)).toEqual([region[0]]);
     after[region[1]]++;
     expect(risingScannerDigits(before, after, side, 1000)).toEqual(region);
@@ -15,8 +15,8 @@ it('scales the percentage-point trigger with the scanner sample and ignores miss
     expect(risingScannerDigits([], counts(), 'over', 1000)).toEqual([]);
     const before = counts().map(n => n / 10),
         after = [...before];
-    after[0] += 2;
-    after[1] += 2;
+    after[0] += 1;
+    after[1] += 1;
     expect(risingScannerDigits(before, after, 'over', 100)).toEqual([0, 1]);
 });
 const settle = (guard: ScannerExitGuard, id: number, profit: number) => {
