@@ -22,3 +22,36 @@ it('retains the scanner-match counts used by automatic protection', () => {
     setScannerWatch({ symbol: 'R_100', side: 'over', sampleSize: 1000, name: 'Over Punisher', baselineCounts });
     expect(readScannerWatch()?.baselineCounts).toEqual(baselineCounts);
 });
+
+it('keeps scanner-origin Run in Auto mode, but does not take over unrelated or direct Free Bots', () => {
+    const { automaticScannerWatch } = require('../scanner-watch');
+    const watch = {
+        symbol: 'R_100',
+        side: 'over' as const,
+        sampleSize: 1000,
+        name: 'Over Punisher',
+        baselineCounts: [80, 90, 90, 90, 0, 0, 0, 0, 0, 0],
+    };
+    Object.defineProperty(window, 'Blockly', {
+        configurable: true,
+        value: {
+            derivWorkspace: {
+                getAllBlocks: () => [{ data: 'netoacademy:hosted-bot:over-punisher.xml' }],
+            },
+        },
+    });
+    setScannerWatch(watch); // Also handles existing scanner links saved before the Auto flag.
+    expect(automaticScannerWatch()).toEqual(watch);
+    setScannerWatch({ ...watch, automatic: true });
+    expect(readScannerWatch()?.automatic).toBe(true);
+    setScannerWatch({ ...watch, automatic: false });
+    expect(automaticScannerWatch()).toBeNull();
+    setScannerWatch({ symbol: 'R_100', side: 'over', sampleSize: 1000, name: 'Over Punisher' });
+    expect(automaticScannerWatch()).toBeNull();
+    setScannerWatch(watch);
+    Object.defineProperty(window, 'Blockly', {
+        configurable: true,
+        value: { derivWorkspace: { getAllBlocks: () => [] } },
+    });
+    expect(automaticScannerWatch()).toBeNull();
+});

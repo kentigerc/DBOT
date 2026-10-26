@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
@@ -17,7 +17,11 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
     const panelRef = useMarketPanelHeight<HTMLElement>({ enabled: active });
     const [markets, setMarkets] = useState<DigitMarket[]>([]);
     const [symbol, setSymbol] = useState('R_100');
-    const [sampleSize, setSampleSize] = useState(1000);
+    const automatic = useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
+    const [sampleSize, setSampleSize] = useState(() => (automatic.enabled ? automatic.sampleSize : 1000));
+    useEffect(() => {
+        if (automatic.enabled && sampleSize !== automatic.sampleSize) setSampleSize(automatic.sampleSize);
+    }, [automatic.enabled, automatic.sampleSize, sampleSize]);
     const [digits, setDigits] = useState<number[]>([]);
     const [latest, setLatest] = useState('');
     const [status, setStatus] = useState('Connecting to market…');

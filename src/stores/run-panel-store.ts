@@ -3,12 +3,15 @@ import { botNotification } from '@/components/bot-notification/bot-notification'
 import { notification_message } from '@/components/bot-notification/bot-notification-utils';
 import { isSafari, mobileOSDetect, standalone_routes } from '@/components/shared';
 import { redirectToSignUp } from '@/components/shared';
+import { DBOT_TABS } from '@/constants/bot-contents';
 import { contract_stages, TContractStage } from '@/constants/contract-stage';
 import { run_panel } from '@/constants/run-panel';
 import { ErrorTypes, MessageTypes, observer, unrecoverable_errors } from '@/external/bot-skeleton';
 import { getSelectedTradeType } from '@/external/bot-skeleton/scratch/utils';
+import { getDerivAccount } from '@/utils/deriv-session';
 import GTM from '@/utils/gtm';
 import { scannerExitGuard } from '@/utils/scanner-exit-guard';
+import { automaticScannerWatch } from '@/utils/scanner-watch';
 import { helpers } from '@/utils/store-helpers';
 // import { journalError, switch_account_notification } from '@/utils/bot-notifications';
 import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
@@ -173,9 +176,10 @@ export default class RunPanelStore {
     };
 
     onRunButtonClick = async (scannerAuto: unknown = false) => {
+        const restartScanner = scannerAuto === true ? null : automaticScannerWatch();
         if (scannerAuto === true) {
             if (!xmlScannerCycle.canRun()) return;
-        } else xmlScannerCycle.manualRun();
+        } else if (!restartScanner) xmlScannerCycle.manualRun();
         try {
             if (await checkServerAnalysis()) {
                 botNotification(localize('Stop and settle the server Analysis Tool before running a Builder bot.'));
@@ -188,6 +192,32 @@ export default class RunPanelStore {
         if (scannerAuto === true && !xmlScannerCycle.canRun()) return;
         if (isAnalysisTrading()) {
             botNotification(localize('Stop and settle the Analysis Tool strategy before running a Builder bot.'));
+            return;
+        }
+        if (restartScanner) {
+            if (this.is_running || this.has_open_contract || xmlScannerCycle.getSnapshot().enabled) return;
+            const account = getDerivAccount();
+            if (!account || account.status !== 'active' || account.currency !== 'USD') {
+                botNotification(localize('Select an active USD account before running this scanner bot.'));
+                return;
+            }
+            try {
+                xmlScannerCycle.start(
+                    account.account_id,
+                    restartScanner.sampleSize,
+                    complete => this.onStopButtonClick(complete),
+                    message =>
+                        this.root_store.journal.onNotify({
+                            message,
+                            message_type: MessageTypes.NOTIFY,
+                            className: 'journal__text--warn',
+                            sound: 'silent',
+                        })
+                );
+                this.root_store.dashboard.setActiveTab(DBOT_TABS.DIGIT_ANALYSIS);
+            } catch (error) {
+                botNotification(error instanceof Error ? error.message : 'Unable to restart XML Auto.');
+            }
             return;
         }
         let timer_counter = 1;

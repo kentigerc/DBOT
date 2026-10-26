@@ -206,3 +206,23 @@ it('records the provider rejection instead of an unexplained generic stop', () =
     cycle.purchaseFailed({ code: 'InvalidContractProposal', message: 'The proposal expired.' });
     expect(report).toHaveBeenCalledWith(expect.stringContaining('InvalidContractProposal · The proposal expired.'));
 });
+
+it('two wins then a loss recover first, then require exactly three new normal wins', async () => {
+    const { cycle, stop } = setup();
+    cycle.market('R_100', sample(), Date.now() / 1000);
+    await settle(cycle, 1, 0.12);
+    await settle(cycle, 2, 0.12);
+    expect(cycle.getSnapshot().wins).toBe(2);
+    await settle(cycle, 3, -0.35);
+    expect(cycle.getSnapshot().wins).toBe(0);
+    await settle(cycle, 4, 0.65);
+    expect(cycle.getSnapshot().wins).toBe(0); // Recovery win is not normal win one.
+    for (let id = 5; id <= 6; id++) await settle(cycle, id, 0.12);
+    expect(stop).not.toHaveBeenCalled();
+    await settle(cycle, 7, 0.12);
+    expect(cycle.purchase('TEST-DEMO')).toBe(false);
+    await Promise.resolve();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledWith(true);
+    cycle.stop();
+});

@@ -98,6 +98,7 @@ const BotBuilder = observer(() => {
                               side: monitorSide,
                               sampleSize: [100, 500, 1000].includes(bot.sampleSize) ? bot.sampleSize : 1000,
                               name: bot.name,
+                              automatic: automatic || bot.scannerSide === 'over' || bot.scannerSide === 'under',
                               baselineCounts:
                                   Array.isArray(bot.baselineCounts) &&
                                   bot.baselineCounts.length === 10 &&
