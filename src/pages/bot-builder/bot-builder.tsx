@@ -120,9 +120,11 @@ const BotBuilder = observer(() => {
                 )
                     return;
                 if (automatic && xmlScannerCycle.loaded(bot.autoGeneration, hostedBotLimits(content))) {
-                    await run_panel.onRunButtonClick(true);
-                    if (xmlScannerCycle.valid(bot.autoGeneration) && !run_panel.is_running)
-                        xmlScannerCycle.stop('The XML bot could not start. Check the Builder message before retrying.');
+                    const launch = await run_panel.onRunButtonClick(true);
+                    if (xmlScannerCycle.valid(bot.autoGeneration) && !launch?.started)
+                        xmlScannerCycle.stop(
+                            launch?.reason || 'The XML launch was not accepted. Check the Builder journal.'
+                        );
                 }
             } catch (reason) {
                 xmlScannerCycle.stop(reason instanceof Error ? reason.message : 'Unable to import this bot.');

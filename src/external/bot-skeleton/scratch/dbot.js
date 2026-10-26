@@ -1,4 +1,5 @@
 import { getProtectedBotMemory, installBotProtection, isProtectedBotWorkspace } from '@/utils/bot-protection';
+import { BotRunLifecycle } from '@/utils/bot-run-lifecycle';
 import { save_types } from '../constants';
 import { config } from '../constants/config';
 import { api_base } from '../services/api/api-base';
@@ -16,6 +17,7 @@ import { isAllRequiredBlocksEnabled, updateDisabledBlocks, validateErrorOnBlockD
 class DBot {
     constructor() {
         this.interpreter = null;
+        this.runLifecycle = new BotRunLifecycle();
         this.workspace = null;
         this.before_run_funcs = [];
         this.symbol = null;
@@ -267,7 +269,8 @@ class DBot {
      * JavaScript code that's fed to the interpreter.
      */
     runBot() {
-        if (api_base.is_stopping) return;
+        if (api_base.is_stopping || this.runLifecycle.stopping)
+            return { started: false, reason: 'The previous XML run is still stopping. Wait for cleanup to finish.' };
 
         try {
             api_base.is_stopping = false;
@@ -281,12 +284,14 @@ class DBot {
                 globalObserver.emit('Error', error);
                 this.stopBot();
             });
+            return { started: true };
         } catch (error) {
             globalObserver.emit('Error', error);
 
             if (this.interpreter) {
                 this.stopBot();
             }
+            return { started: false, reason: error?.message || 'Unable to generate or initialize the XML bot.' };
         }
     }
 
@@ -369,17 +374,21 @@ class DBot {
      * Instructs the interpreter to stop the bot. If there is an active trade
      * that trade will be completed first to reflect correct contract status in UI.
      */
-    async stopBot() {
-        if (api_base.is_stopping) return;
+    stopBot() {
+        return this.runLifecycle.stop(async () => {
+            if (api_base.is_stopping) return;
+            api_base.setIsRunning(false);
+            await this.interpreter.stop();
+            this.is_bot_running = false;
+            this.interpreter = null;
+            this.interpreter = Interpreter();
+            await this.interpreter.bot.tradeEngine.watchTicks(this.symbol);
+            forgetAccumulatorsProposalRequest(this);
+        });
+    }
 
-        api_base.setIsRunning(false);
-
-        await this.interpreter.stop();
-        this.is_bot_running = false;
-        this.interpreter = null;
-        this.interpreter = Interpreter();
-        await this.interpreter.bot.tradeEngine.watchTicks(this.symbol);
-        forgetAccumulatorsProposalRequest(this);
+    waitUntilStopped() {
+        return this.runLifecycle.waitUntilStopped();
     }
 
     /**

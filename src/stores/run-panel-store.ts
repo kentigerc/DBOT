@@ -178,21 +178,28 @@ export default class RunPanelStore {
     onRunButtonClick = async (scannerAuto: unknown = false) => {
         const restartScanner = scannerAuto === true ? null : automaticScannerWatch();
         if (scannerAuto === true) {
-            if (!xmlScannerCycle.canRun()) return;
+            if (!xmlScannerCycle.canRun()) return { started: false, reason: 'XML Auto startup was cancelled.' };
         } else if (!restartScanner) xmlScannerCycle.manualRun();
         try {
             if (await checkServerAnalysis()) {
                 botNotification(localize('Stop and settle the server Analysis Tool before running a Builder bot.'));
-                return;
+                return {
+                    started: false,
+                    reason: 'An Analysis Tool session is still active. Stop and settle it before starting XML.',
+                };
             }
         } catch {
             botNotification(localize('Unable to verify the server trading session. Try again before running a bot.'));
-            return;
+            return {
+                started: false,
+                reason: 'Unable to verify the server trading session. Try again after reconnecting.',
+            };
         }
-        if (scannerAuto === true && !xmlScannerCycle.canRun()) return;
+        if (scannerAuto === true && !xmlScannerCycle.canRun())
+            return { started: false, reason: 'XML Auto startup was cancelled.' };
         if (isAnalysisTrading()) {
             botNotification(localize('Stop and settle the Analysis Tool strategy before running a Builder bot.'));
-            return;
+            return { started: false, reason: 'The Analysis Tool strategy is still active or has an open contract.' };
         }
         if (restartScanner) {
             if (this.is_running || this.has_open_contract || xmlScannerCycle.getSnapshot().enabled) return;
@@ -220,6 +227,18 @@ export default class RunPanelStore {
             }
             return;
         }
+        if (scannerAuto === true) {
+            try {
+                await this.dbot.waitUntilStopped();
+            } catch (error) {
+                return {
+                    started: false,
+                    reason: error instanceof Error ? error.message : 'Previous XML cleanup failed.',
+                };
+            }
+            if (!xmlScannerCycle.canRun())
+                return { started: false, reason: 'XML Auto startup was cancelled while waiting for cleanup.' };
+        }
         let timer_counter = 1;
         if (window.sendRequestsStatistic) {
             performance.clearMeasures();
@@ -241,7 +260,10 @@ export default class RunPanelStore {
         this.dbot.unHighlightAllBlocks();
         if (!client.is_logged_in) {
             this.showLoginDialog();
-            return;
+            return {
+                started: false,
+                reason: 'The Deriv account session is not ready. Log in again before starting XML.',
+            };
         }
 
         /**
@@ -253,7 +275,10 @@ export default class RunPanelStore {
 
         if (!self_exclusion.should_bot_run) {
             self_exclusion.setIsRestricted(true);
-            return;
+            return {
+                started: false,
+                reason: 'Account self-exclusion or trading limits prevent this bot from starting.',
+            };
         }
         self_exclusion.setIsRestricted(false);
 
@@ -261,7 +286,25 @@ export default class RunPanelStore {
 
         if (!this.dbot.shouldRunBot()) {
             this.unregisterBotListeners();
-            return;
+            const blocks = (this.dbot.workspace?.getAllBlocks() || []) as unknown as {
+                is_error_highlighted?: boolean;
+                disabled?: boolean;
+                error_message?: string;
+            }[];
+            const details = [
+                ...new Set(
+                    blocks
+                        .filter(block => block.is_error_highlighted && !block.disabled)
+                        .map(block => block.error_message)
+                        .filter(Boolean)
+                ),
+            ].join(' · ');
+            return {
+                started: false,
+                reason: details
+                    ? `XML validation failed: ${details}`
+                    : 'The XML workspace is missing required blocks or has an invalid input. Check the highlighted block.',
+            };
         }
 
         ui?.setAccountSwitcherDisabledMessage(
@@ -269,6 +312,10 @@ export default class RunPanelStore {
                 'Account switching is disabled while your bot is running. Please stop your bot before switching accounts.'
             )
         );
+        let launchResult: { started: boolean; reason?: string } = {
+            started: false,
+            reason: 'The XML launch did not complete.',
+        };
         runInAction(() => {
             if (scannerAuto === true) xmlScannerCycle.runStarted();
             scannerExitGuard.begin(() => {
@@ -299,9 +346,19 @@ export default class RunPanelStore {
 
             summary_card.clear();
             this.setContractStage(contract_stages.STARTING);
-            this.dbot.runBot();
+            launchResult = this.dbot.runBot();
+            if (!launchResult.started) {
+                xmlScannerCycle.stop(launchResult.reason || 'The XML launch failed.', false);
+                scannerExitGuard.cancel();
+                this.setIsRunning(false);
+                this.setContractStage(contract_stages.NOT_RUNNING);
+                ui.setPromptHandler(false);
+                ui.setAccountSwitcherDisabledMessage();
+                this.unregisterBotListeners();
+            }
         });
         this.setShowBotStopMessage(false);
+        return launchResult;
     };
 
     onStopButtonClick = (batchComplete: unknown = false) => {

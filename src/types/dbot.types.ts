@@ -11,7 +11,8 @@ export type TBotSkeleton = {
     saveRecentWorkspace: () => void;
     addBeforeRunFunction: (func: () => void) => void;
     shouldRunBot: () => boolean;
-    runBot: () => void;
+    runBot: () => { started: boolean; reason?: string };
+    waitUntilStopped: () => Promise<void>;
     generateCode: (limitations?: Record<string, unknown>) => string;
     stopBot: () => void;
     terminateBot: () => void;
