@@ -61,6 +61,7 @@ export class XmlScannerCycle {
     private waiter?: (allow: boolean) => void;
     private lastDigits: number[] = [];
     private lastEpoch = 0;
+    private feedPaused = false;
     private recoveryAfterEpoch = 0;
     private nextRecoveryMarket?: XmlScannerMatch;
     private rejectedRecoveryMarkets = new Set<string>();
@@ -97,6 +98,7 @@ export class XmlScannerCycle {
         this.contractId = undefined;
         this.settled.clear();
         this.recoveryAfterEpoch = 0;
+        this.feedPaused = false;
         this.nextRecoveryMarket = undefined;
         this.rejectedRecoveryMarkets.clear();
         this.takeProfit = Number.MAX_SAFE_INTEGER;
@@ -173,11 +175,27 @@ export class XmlScannerCycle {
             if (notifyRunner) this.stopBot?.(false);
         }
     }
+    pauseMarket(symbol: string) {
+        if (!this.state.enabled || symbol !== this.state.match?.symbol) return;
+        this.feedPaused = true;
+        this.update({ message: 'Live monitoring reconnecting · New purchases paused.' });
+    }
+    private fresh(epoch = this.lastEpoch) {
+        return epoch > 0 && Date.now() / 1000 - epoch <= 6 && epoch <= Date.now() / 1000 + 2;
+    }
     market(symbol: string, digits: number[], epoch: number) {
         if (!this.state.enabled || !this.started || symbol !== this.state.match?.symbol) return;
         this.lastDigits = digits;
         this.lastEpoch = epoch;
-        if (this.waiter && this.ready()) {
+        if (digits.length === this.state.sampleSize && this.fresh(epoch) && this.feedPaused) {
+            this.feedPaused = false;
+            this.update({
+                message: this.recovery
+                    ? 'Live monitoring restored · Waiting for recovery entry.'
+                    : 'Live monitoring restored.',
+            });
+        }
+        if (this.waiter && !this.feedPaused && ((this.entered && this.fresh()) || this.ready())) {
             this.entered = true;
             const resolve = this.waiter;
             this.waiter = undefined;
@@ -209,6 +227,8 @@ export class XmlScannerCycle {
         )
             return false;
         if (match.symbol === this.state.match?.symbol) {
+            // A scanner snapshot cannot stand in for the disconnected live guard.
+            if (this.feedPaused) return false;
             this.market(match.symbol, digits, epoch);
             return true;
         }
@@ -264,8 +284,8 @@ export class XmlScannerCycle {
             this.stop('The XML market changed. Start a fresh scan.');
             return Promise.resolve(false);
         }
-        if (this.entered) return Promise.resolve(true); // A new qualifying entry is required after each loss.
-        if (this.ready()) {
+        if (this.entered && !this.feedPaused && this.fresh()) return Promise.resolve(true);
+        if (!this.feedPaused && this.ready()) {
             this.entered = true;
             this.update({
                 phase: 'running',
@@ -289,6 +309,8 @@ export class XmlScannerCycle {
                 this.started &&
                 accountId === this.state.accountId &&
                 this.state.phase === 'running' &&
+                !this.feedPaused &&
+                this.fresh() &&
                 !this.inFlight)
         );
     }

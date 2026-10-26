@@ -63,113 +63,153 @@ const ScannerTradeMonitor = observer(() => {
     useEffect(() => {
         if (!target || !running) return;
         let disposed = false;
+        let exhausted = false;
         let api: Awaited<ReturnType<typeof generateDerivApiInstance>> | undefined;
         let listener: { unsubscribe: () => void } | undefined;
+        let attempt = 0;
         let ready = false;
         let lastEpoch = 0;
         let lastUpdate = Date.now();
+        let connectingSince = Date.now();
+        let recoveryStarted: number | undefined;
+        let retry: ReturnType<typeof setTimeout> | undefined;
         let digits: number[] = [];
-        const queued: Tick[] = [];
-        const warn = (message: string) => {
-            if (!disposed) {
-                xmlScannerCycle.stop(message);
-            }
+        const fresh = (epoch: number) => Date.now() / 1000 - epoch <= 6 && epoch <= Date.now() / 1000 + 2;
+        const detach = () => {
+            attempt++;
+            listener?.unsubscribe();
+            listener = undefined;
+            api?.disconnect();
+            api = undefined;
         };
         const evaluate = () => {
-            if (disposed) return;
+            if (disposed || !fresh(lastEpoch)) return;
             lastUpdate = Date.now();
+            recoveryStarted = undefined;
             if (xmlScannerCycle.getSnapshot().phase === 'switching') return;
-            xmlScannerCycle.market(target.symbol, digits, lastEpoch);
+            // Check the saved percentage guard before releasing a paused purchase.
             if (target.baselineCounts) {
                 const counts = Array<number>(10).fill(0);
                 digits.forEach(digit => counts[digit]++);
                 if (risingScannerDigits(target.baselineCounts, counts, target.side, target.sampleSize).length >= 2)
                     scannerExitGuard.trigger();
             }
+            xmlScannerCycle.market(target.symbol, digits, lastEpoch);
         };
-        const accept = (tick: Tick) => {
-            if (disposed || tick.epoch <= lastEpoch) return;
-            const digit = lastDigit(tick.quote, tick.pip_size);
-            if (digit === null || !Number.isFinite(tick.epoch)) {
-                warn('Live market data is invalid. Conditions cannot be verified. Stop the bot before continuing.');
+        const reconnect = (reason: string) => {
+            if (disposed || exhausted || retry !== undefined) return;
+            xmlScannerCycle.pauseMarket(target.symbol);
+            recoveryStarted ??= Date.now();
+            ready = false;
+            detach();
+            if (Date.now() - recoveryStarted >= 20000) {
+                exhausted = true;
+                xmlScannerCycle.stop(
+                    `Live monitoring could not reconnect within 20 seconds (${target.symbol}; ${reason}). New purchases stopped.`
+                );
                 return;
             }
-            if (lastEpoch && tick.epoch - lastEpoch > 6)
-                warn(
-                    'Live monitoring missed market ticks. Conditions cannot be verified. Stop the bot before continuing.'
-                );
-            lastEpoch = tick.epoch;
-            digits = [...digits, digit].slice(-target.sampleSize);
-            evaluate();
+            retry = setTimeout(() => {
+                retry = undefined;
+                void connect();
+            }, 1000);
         };
         const connect = async () => {
-            api = await generateDerivApiInstance({ publicOnly: true });
-            if (disposed) {
-                api.disconnect();
-                return;
-            }
-            api.connection.addEventListener('close', (event: CloseEvent) => {
-                const code = Number.isInteger(event.code) ? event.code : 'unknown';
-                warn(
-                    `Live monitoring disconnected (socket ${code}; market ${target.symbol}; ${document.hidden ? 'background' : 'visible'} tab). Conditions cannot be verified. Stop the bot and reconnect before continuing.`
-                );
-            });
-            api.connection.addEventListener('error', () =>
-                warn('Live monitoring is unavailable. Stop the bot and reconnect before continuing.')
-            );
-            listener = api.onMessage().subscribe(({ data }: { data: { tick?: Tick; error?: unknown } }) => {
-                if (disposed) return;
-                if (data.error) {
-                    warn('Live monitoring is unavailable. Stop the bot and reconnect before continuing.');
+            connectingSince = Date.now();
+            ready = false;
+            const current = ++attempt;
+            const active = () => !disposed && !exhausted && current === attempt;
+            const queued: Tick[] = [];
+            try {
+                const connection = await generateDerivApiInstance({ publicOnly: true });
+                if (!active()) {
+                    connection.disconnect();
                     return;
                 }
-                if (!data.tick) return;
-                const tickSymbol = data.tick.symbol || data.tick.underlying_symbol;
-                if (tickSymbol && tickSymbol !== target.symbol) return;
-                if (!ready) queued.push(data.tick);
-                else accept(data.tick);
-            });
-            const history = await api.send({
-                ticks_history: target.symbol,
-                style: 'ticks',
-                end: 'latest',
-                count: target.sampleSize,
-                subscribe: 1,
-            });
-            if (disposed) return;
-            if (!Array.isArray(history.history?.prices) || !Number.isInteger(history.pip_size))
-                throw new Error('Missing market history');
-            digits = (history.history.prices as number[])
-                .map(price => lastDigit(price, history.pip_size))
-                .filter((digit): digit is number => digit !== null)
-                .slice(-target.sampleSize);
-            if (digits.length !== target.sampleSize) throw new Error('Incomplete market history');
-            const times = history.history.times as number[] | undefined;
-            lastEpoch = times?.[times.length - 1] || 0;
-            ready = true;
-            evaluate();
-            queued.forEach(accept);
-            queued.length = 0;
+                api = connection;
+                connection.connection.addEventListener('close', (event: CloseEvent) => {
+                    if (active()) reconnect(`socket ${event.code}; ${document.hidden ? 'background' : 'visible'} tab`);
+                });
+                connection.connection.addEventListener('error', () => {
+                    if (active()) reconnect('connection error');
+                });
+                const accept = (tick: Tick) => {
+                    if (!active() || tick.epoch <= lastEpoch) return;
+                    const digit = lastDigit(tick.quote, tick.pip_size);
+                    if (digit === null || !Number.isFinite(tick.epoch) || !fresh(tick.epoch)) {
+                        reconnect('invalid or stale market tick');
+                        return;
+                    }
+                    if (lastEpoch && tick.epoch - lastEpoch > 6) {
+                        reconnect('missed market ticks');
+                        return;
+                    }
+                    lastEpoch = tick.epoch;
+                    digits = [...digits, digit].slice(-target.sampleSize);
+                    evaluate();
+                };
+                listener = connection.onMessage().subscribe(({ data }: { data: { tick?: Tick; error?: unknown } }) => {
+                    if (!active()) return;
+                    if (data.error) {
+                        reconnect('subscription error');
+                        return;
+                    }
+                    if (!data.tick) return;
+                    const symbol = data.tick.symbol || data.tick.underlying_symbol;
+                    if (symbol && symbol !== target.symbol) return;
+                    if (!ready) queued.push(data.tick);
+                    else accept(data.tick);
+                });
+                const history = await connection.send({
+                    ticks_history: target.symbol,
+                    style: 'ticks',
+                    end: 'latest',
+                    count: target.sampleSize,
+                    subscribe: 1,
+                });
+                if (!active()) return;
+                if (!Array.isArray(history.history?.prices) || !Number.isInteger(history.pip_size))
+                    throw new Error('Missing history');
+                digits = (history.history.prices as number[])
+                    .map(price => lastDigit(price, history.pip_size))
+                    .filter((digit): digit is number => digit !== null)
+                    .slice(-target.sampleSize);
+                const times = history.history.times as number[] | undefined;
+                lastEpoch = times?.[times.length - 1] || 0;
+                if (digits.length !== target.sampleSize || !Number.isFinite(lastEpoch) || !fresh(lastEpoch))
+                    throw new Error('Incomplete or stale history');
+                ready = true;
+                evaluate();
+                queued.forEach(accept);
+            } catch {
+                if (active()) reconnect('market history unavailable');
+            }
         };
-        void connect().catch(() => {
-            warn('Live monitoring is unavailable. Stop the bot and reconnect before continuing.');
-            listener?.unsubscribe();
-            api?.disconnect();
-        });
         const checkFreshness = () => {
-            if (Date.now() - lastUpdate > 10000)
-                warn('Live market data is delayed. Conditions cannot be verified. Stop the bot before continuing.');
+            if (disposed || exhausted) return;
+            if (recoveryStarted !== undefined && Date.now() - recoveryStarted >= 20000) {
+                exhausted = true;
+                clearTimeout(retry);
+                retry = undefined;
+                detach();
+                xmlScannerCycle.stop(
+                    `Live monitoring could not reconnect within 20 seconds (${target.symbol}). New purchases stopped.`
+                );
+                return;
+            }
+            if (Date.now() - (ready ? lastUpdate : connectingSince) > 5000) reconnect('market data delayed');
         };
+        void connect();
         const freshness = setInterval(checkFreshness, 1000);
         window.addEventListener('focus', checkFreshness);
         document.addEventListener('visibilitychange', checkFreshness);
         return () => {
             disposed = true;
             clearInterval(freshness);
+            clearTimeout(retry);
             window.removeEventListener('focus', checkFreshness);
             document.removeEventListener('visibilitychange', checkFreshness);
-            listener?.unsubscribe();
-            api?.disconnect();
+            detach();
         };
     }, [target, running]);
     useEffect(() => {

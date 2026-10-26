@@ -334,3 +334,47 @@ it('STOP cancels a pending multi-market recovery selection', async () => {
     expect(cycle.offerRecoveryMarket({ ...match, symbol: 'R_50' }, sample(), Date.now() / 1000 + 0.1)).toBe(false);
     expect(cycle.recoveryTarget()).toBeUndefined();
 });
+it('pauses purchases during a feed reconnect, preserving wins, losses and session P/L', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, 0.12);
+    cycle.pauseMarket('R_100');
+    expect(cycle.canPurchase('TEST-DEMO')).toBe(false);
+    let released = false;
+    const pending = cycle.beforePurchase('R_100').then(value => {
+        released = true;
+        return value;
+    });
+    cycle.market('R_50', sample(), Date.now() / 1000);
+    cycle.market('R_100', sample(), Date.now() / 1000 - 30);
+    await Promise.resolve();
+    expect(released).toBe(false);
+    cycle.market('R_100', sample(9), Date.now() / 1000);
+    expect(await pending).toBe(true);
+    expect(cycle.getSnapshot()).toMatchObject({ wins: 1, losses: 0, pnl: 12 });
+    expect(cycle.canPurchase('TEST-DEMO')).toBe(true);
+    cycle.stop();
+});
+it('STOP cancels a purchase waiting for live monitoring to reconnect', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, -0.35);
+    cycle.pauseMarket('R_100');
+    const pending = cycle.beforePurchase('R_100');
+    cycle.stop();
+    expect(await pending).toBe(false);
+    cycle.market('R_100', sample(), Date.now() / 1000);
+    expect(cycle.canPurchase('TEST-DEMO')).toBe(false);
+});
+it('requires the restored live guard before releasing same-market recovery after a feed stall', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, -0.35);
+    cycle.pauseMarket('R_100');
+    const pending = cycle.beforePurchase('R_100');
+    expect(cycle.offerRecoveryMarket(match, sample(), Date.now() / 1000 + 0.1)).toBe(false);
+    cycle.market('R_100', sample(9), Date.now() / 1000 + 0.1);
+    expect(cycle.canPurchase('TEST-DEMO')).toBe(false);
+    expect(cycle.getSnapshot().losses).toBe(1);
+    cycle.market('R_100', sample(), Date.now() / 1000 + 0.2);
+    expect(await pending).toBe(true);
+    expect(cycle.getSnapshot()).toMatchObject({ losses: 1, wins: 0, pnl: -35 });
+    cycle.stop();
+});
