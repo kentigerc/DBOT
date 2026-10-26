@@ -186,3 +186,48 @@ test('daily commission requests use exact inclusive UTC buckets and monthly repo
         ]
     );
 });
+
+test('per-account activity separates users, currencies and demo; settlements count once', () => {
+    const { aggregate } = require('./admin.cjs');
+    const base = {
+        kind: 'trade',
+        at: Date.now(),
+        tool: 'bot_builder',
+        accountType: 'real',
+        currency: 'USD',
+        stake: 35,
+    };
+    const events = [
+        { ...base, account: 'user-a', contract: 'one' },
+        { ...base, account: 'user-a', contract: 'one', profit: 12 },
+        { ...base, account: 'user-a', contract: 'one', profit: 12 },
+        { ...base, account: 'user-b', contract: 'two', profit: -35 },
+        { ...base, account: 'user-a', contract: 'three', accountType: 'demo' },
+        { ...base, account: 'user-a', contract: 'four', currency: 'EUR', stake: 50 },
+    ];
+    const result = aggregate(events);
+    assert.equal(result.tradingUsers.length, 4);
+    const userA = result.tradingUsers.find(
+        row => row.account === 'user-a' && row.accountType === 'real' && row.currency === 'USD'
+    );
+    assert.deepEqual(userA, {
+        account: 'user-a',
+        accountType: 'real',
+        currency: 'USD',
+        trades: 1,
+        volume: 35,
+        net: 12,
+        settled: 1,
+        wins: 1,
+        losses: 0,
+        open: 0,
+    });
+    assert.equal(result.tradingUsers.find(row => row.account === 'user-b').losses, 1);
+    assert.equal(result.tradingUsers.find(row => row.accountType === 'demo').open, 1);
+    assert.equal(
+        result.tradingUsers.reduce((sum, row) => sum + row.trades, 0),
+        result.trades
+    );
+    assert.deepEqual(aggregate([]).tradingUsers, []);
+    assert.equal(JSON.stringify(result.tradingUsers).includes('commission'), false);
+});

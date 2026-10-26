@@ -32,6 +32,7 @@ function aggregate(events) {
         tools = new Map(),
         money = new Map(),
         tradingTools = new Map(),
+        tradingUsers = new Map(),
         contracts = new Map();
     const bucket = at => {
         const date = day(at);
@@ -53,11 +54,12 @@ function aggregate(events) {
     for (const event of contracts.values()) {
         traders.add(event.account);
         bucket(event.at).trades++;
-        for (const groups of [money, tradingTools]) {
-            const key = `${groups === tradingTools ? event.tool + ':' : ''}${event.accountType}:${event.currency}`;
+        for (const groups of [money, tradingTools, tradingUsers]) {
+            const key = `${groups === tradingTools ? event.tool + ':' : groups === tradingUsers ? event.account + ':' : ''}${event.accountType}:${event.currency}`;
             if (!groups.has(key))
                 groups.set(key, {
                     ...(groups === tradingTools ? { tool: event.tool } : {}),
+                    ...(groups === tradingUsers ? { account: event.account } : {}),
                     accountType: event.accountType,
                     currency: event.currency,
                     trades: 0,
@@ -88,6 +90,9 @@ function aggregate(events) {
         tools: [...tools].map(([tool, sessions]) => ({ tool, sessions })).sort((a, b) => b.sessions - a.sessions),
         money: [...money.values()],
         tradingTools: [...tradingTools.values()],
+        tradingUsers: [...tradingUsers.values()].sort(
+            (a, b) => b.volume - a.volume || a.account.localeCompare(b.account)
+        ),
     };
 }
 function commissionRow(result) {

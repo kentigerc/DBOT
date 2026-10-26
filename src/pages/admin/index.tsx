@@ -27,6 +27,7 @@ type Overview = {
         volume: number;
         net: number;
     }[];
+    tradingUsers?: (Overview['money'][number] & { account: string })[];
     money: {
         accountType: string;
         currency: string;
@@ -443,6 +444,65 @@ export default function Admin() {
                             </table>
                         </div>
                         {data?.money.length === 0 && <p>No confirmed trading activity recorded for these dates.</p>}
+                    </section>
+                    <section className='neto-admin__panel'>
+                        <h2>Trading by user</h2>
+                        <p className='neto-admin__hint'>
+                            Each reference identifies one Deriv account, not a person. References stay consistent across
+                            devices. Demo and real accounts are separate. Volume is confirmed trading activity, not
+                            commission contribution; Deriv reports commission for the whole app.
+                        </p>
+                        <div
+                            className='neto-admin__table'
+                            tabIndex={0}
+                            aria-label='Trading by user, scroll horizontally'
+                        >
+                            <table>
+                                <thead>
+                                    <tr>
+                                        {[
+                                            'Account reference',
+                                            'Account',
+                                            'Currency',
+                                            'Purchases',
+                                            'Settled',
+                                            'Wins',
+                                            'Losses',
+                                            'Open',
+                                            'Volume',
+                                            'Trader net P/L',
+                                        ].map(label => (
+                                            <th key={label}>{label}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data?.tradingUsers?.map(row => (
+                                        <tr key={row.account + row.accountType + row.currency}>
+                                            <td title={row.account}>User {row.account.slice(0, 16)}</td>
+                                            <td>
+                                                <span
+                                                    className={`neto-admin__badge neto-admin__badge--${row.accountType}`}
+                                                >
+                                                    {row.accountType}
+                                                </span>
+                                            </td>
+                                            <td>{row.currency}</td>
+                                            <td>{row.trades}</td>
+                                            <td>{row.settled}</td>
+                                            <td>{row.wins}</td>
+                                            <td>{row.losses}</td>
+                                            <td>{row.open}</td>
+                                            <td>{(row.volume / 100).toFixed(2)}</td>
+                                            <td className={row.net < 0 ? 'neto-admin__loss' : 'neto-admin__profit'}>
+                                                {(row.net / 100).toFixed(2)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {!data?.tradingUsers?.length && <p>No confirmed trading activity recorded for these dates.</p>}
                     </section>
                     <section className='neto-admin__panel'>
                         <h2>Trading by tool</h2>

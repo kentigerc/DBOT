@@ -132,3 +132,18 @@ it('requests real daily commission buckets only after the owner selects daily de
     expect(screen.getByText('$2.22')).toBeTruthy();
     expect((fetch as jest.Mock).mock.calls.some(([url]) => String(url).includes('breakdown=daily'))).toBe(true);
 });
+
+it('shows individual account activity without claiming individual commission', async () => {
+    (fetch as jest.Mock).mockImplementation(async url =>
+        String(url).includes('/access')
+            ? response({ admin: true })
+            : response({
+                  ...overview,
+                  tradingUsers: [{ ...overview.money[0], account: 'abcdef0123456789abcdef0123456789' }],
+              })
+    );
+    render(<Admin />);
+    expect(await screen.findByText('User abcdef0123456789')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Trading by user' })).toBeTruthy();
+    expect(screen.getByText(/not commission contribution/)).toBeTruthy();
+});

@@ -6,8 +6,8 @@ Open `/admin` on your NetoAcademy site. Admin API responses require a valid Deri
 
 In the **netoacademy web service → Environment**, add:
 
-| Variable | Value |
-| --- | --- |
+| Variable                 | Value                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
 | `NETO_ADMIN_ACCOUNT_IDS` | Your exact Deriv account ID from NetoAcademy's account menu. Multiple owners may be comma-separated. |
 
 Save the environment change and let Render restart the service. Log in with the Deriv user that owns that account, then open `/admin` (or use the Admin header link). No new domain or workspace upgrade is required to test. The owner ID is server configuration and is deliberately absent from the public repository. Local development can put this variable in the ignored `.env` file.
@@ -47,3 +47,9 @@ No names, emails, raw account IDs, IP addresses, URL queries or credentials are 
 The server suite includes owner denial/verification, separate reporting credentials, same-origin heartbeats, duplicate events, date validation, configured-app commission filtering, missing commission authorization, persistent preview data and provider socket capture. The optional PostgreSQL integration test uses `NETO_TEST_DATABASE_URL`, requires a localhost database named `neto_analytics`, and verifies idempotence, reconnect persistence and retention. Never point it at a production database.
 
 A local PostgreSQL 16 container and simulated browser owner dashboard were used for validation; no real trades or live developer-report tokens were used. Real Deriv reporting still requires the owner's grant and app permissions.
+
+### Activity by user
+
+The owner dashboard includes **Trading by user**, grouped by the existing HMAC account reference, account type and currency for the selected UTC dates. It shows confirmed purchases, settled/open contracts, wins, losses, volume and trader net P/L, sorted by volume. References identify accounts, not people: one person can have separate real/demo or currency accounts. References persist across devices and restarts provided `NETO_SESSION_SECRET` stays unchanged. Raw account IDs are not stored or exposed by this table. Existing tracked trade records are included without a schema migration. Non-trading accounts do not appear in this table.
+
+This is activity attribution, not individual commission. Deriv's reporting endpoint provides app-level commission only. No per-user commission is estimated or allocated from those totals. The table uses the same server-enforced owner authorization as all dashboard data.
