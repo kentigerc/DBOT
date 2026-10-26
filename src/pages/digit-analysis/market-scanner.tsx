@@ -46,7 +46,9 @@ export default function MarketScanner({
     const auto = useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
     const loadRef = useRef(onLoad);
     loadRef.current = onLoad;
-    const scanning = auto.enabled ? auto.phase === 'scanning' : active;
+    const scanning = auto.enabled
+        ? auto.phase === 'scanning' || (auto.phase === 'waiting' && auto.recoverySearch)
+        : active;
     const [enabled, setEnabled] = useState(true);
     const [message, setMessage] = useState('Connecting to market data…');
     const [results, setResults] = useState<Result[]>([]);
@@ -140,6 +142,32 @@ export default function MarketScanner({
                             const matches = evaluations.filter(result => result.matches);
                             setPreview({ ...evaluations[0], matchedSides: matches.map(result => result.side) });
                             const automatic = xmlScannerCycle.getSnapshot();
+                            if (automatic.enabled && automatic.recoverySearch && automatic.match) {
+                                const recovery = evaluations.find(
+                                    result => result.side === automatic.match?.side && result.entryReady
+                                );
+                                const times = history.history.times;
+                                const epoch = Array.isArray(times) ? Number(times[times.length - 1]) : NaN;
+                                if (
+                                    recovery &&
+                                    Number.isFinite(epoch) &&
+                                    xmlScannerCycle.offerRecoveryMarket(
+                                        {
+                                            symbol: recovery.symbol,
+                                            side: recovery.side,
+                                            name: automatic.match.name,
+                                            submarket: recovery.submarket || 'random_index',
+                                            sampleSize,
+                                            baselineCounts: digitFrequencies(digits).map(item => item.count),
+                                        },
+                                        digits,
+                                        epoch
+                                    )
+                                ) {
+                                    setResults([recovery]);
+                                    return;
+                                }
+                            }
                             if (automatic.enabled && automatic.phase === 'scanning' && matches.length) {
                                 const selected = matches.find(result => result.entryReady) || matches[0];
                                 const baselineCounts = digitFrequencies(digits).map(item => item.count);

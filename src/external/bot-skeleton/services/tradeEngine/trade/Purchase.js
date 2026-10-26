@@ -1,3 +1,6 @@
+import { retargetXmlRecovery } from '@/utils/xml-recovery-market';
+import { setScannerWatch } from '@/utils/scanner-watch';
+import ApiHelpers from '../../api/api-helpers';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { LogTypes } from '../../../constants/messages';
 import { api_base } from '../../api/api-base';
@@ -18,6 +21,21 @@ export default Engine =>
             }
 
             if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol))) return;
+            let recoveryTarget = xmlScannerCycle.recoveryTarget();
+            while (recoveryTarget) {
+                const target = recoveryTarget;
+                const valid = () =>
+                    xmlScannerCycle.recoveryTarget() === target && this.store.getState().scope === BEFORE_PURCHASE;
+                const changed = await retargetXmlRecovery(this, target, contract_type, {
+                    contracts: symbol => ApiHelpers.instance.contracts_for.getContractsFor(symbol),
+                    workspace: window.Blockly.derivWorkspace,
+                    valid,
+                });
+                if (!changed) xmlScannerCycle.rejectRecoveryMarket(target);
+                else if (xmlScannerCycle.confirmRecoveryMarket(target)) setScannerWatch({ ...target, automatic: true });
+                if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol))) return;
+                recoveryTarget = xmlScannerCycle.recoveryTarget();
+            }
             if (this.store.getState().scope !== BEFORE_PURCHASE) return;
             const onSuccess = response => {
                 // Don't unnecessarily send a forget request for a purchased contract.

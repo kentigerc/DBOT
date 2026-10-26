@@ -8,7 +8,16 @@ export type XmlScannerMatch = {
     sampleSize: number;
     baselineCounts: number[];
 };
-type Phase = 'idle' | 'scanning' | 'loading' | 'waiting' | 'running' | 'finishing' | 'cooldown' | 'stopped';
+type Phase =
+    | 'idle'
+    | 'scanning'
+    | 'loading'
+    | 'waiting'
+    | 'running'
+    | 'switching'
+    | 'finishing'
+    | 'cooldown'
+    | 'stopped';
 type State = {
     enabled: boolean;
     phase: Phase;
@@ -21,6 +30,7 @@ type State = {
     batches: number;
     pnl: number;
     message: string;
+    recoverySearch: boolean;
 };
 
 // In-memory only: reloading a page never authorizes another automated run.
@@ -36,6 +46,7 @@ export class XmlScannerCycle {
         batches: 0,
         pnl: 0,
         message: '',
+        recoverySearch: false,
     };
     private listeners = new Set<() => void>();
     private stopBot?: (batchComplete: boolean) => void;
@@ -51,6 +62,8 @@ export class XmlScannerCycle {
     private lastDigits: number[] = [];
     private lastEpoch = 0;
     private recoveryAfterEpoch = 0;
+    private nextRecoveryMarket?: XmlScannerMatch;
+    private rejectedRecoveryMarkets = new Set<string>();
     private timer?: ReturnType<typeof setTimeout>;
     private takeProfit = Number.MAX_SAFE_INTEGER;
     private stopLoss = Number.MAX_SAFE_INTEGER;
@@ -84,11 +97,14 @@ export class XmlScannerCycle {
         this.contractId = undefined;
         this.settled.clear();
         this.recoveryAfterEpoch = 0;
+        this.nextRecoveryMarket = undefined;
+        this.rejectedRecoveryMarkets.clear();
         this.takeProfit = Number.MAX_SAFE_INTEGER;
         this.stopLoss = Number.MAX_SAFE_INTEGER;
         this.update({
             enabled: true,
             phase: 'scanning',
+            recoverySearch: false,
             generation: this.state.generation + 1,
             accountId,
             sampleSize,
@@ -145,7 +161,8 @@ export class XmlScannerCycle {
         clearTimeout(this.timer);
         this.waiter?.(false);
         this.waiter = undefined;
-        this.update({ enabled: false, phase: 'stopped', message });
+        this.nextRecoveryMarket = undefined;
+        this.update({ enabled: false, phase: 'stopped', recoverySearch: false, message });
         try {
             this.reportStop?.(`XML Auto stopped: ${message}`);
         } catch {
@@ -164,9 +181,70 @@ export class XmlScannerCycle {
             this.entered = true;
             const resolve = this.waiter;
             this.waiter = undefined;
-            this.update({ phase: 'running', message: this.recovery ? 'Trading XML recovery.' : 'Trading XML batch.' });
+            this.update({
+                phase: 'running',
+                recoverySearch: false,
+                message: this.recovery ? 'Trading XML recovery.' : 'Trading XML batch.',
+            });
             resolve(true);
         }
+    }
+    recoveryTarget() {
+        return this.state.enabled ? this.nextRecoveryMarket : undefined;
+    }
+    offerRecoveryMarket(match: XmlScannerMatch, digits: number[], epoch: number) {
+        if (
+            !this.state.enabled ||
+            !this.recovery ||
+            !this.state.recoverySearch ||
+            this.state.phase !== 'waiting' ||
+            !this.waiter ||
+            match.side !== this.state.match?.side ||
+            match.sampleSize !== this.state.sampleSize ||
+            this.rejectedRecoveryMarkets.has(match.symbol) ||
+            epoch <= this.recoveryAfterEpoch ||
+            Date.now() / 1000 - epoch > 6 ||
+            epoch > Date.now() / 1000 + 2 ||
+            !evaluateScan(digits, match.side, match.sampleSize).entryReady
+        )
+            return false;
+        if (match.symbol === this.state.match?.symbol) {
+            this.market(match.symbol, digits, epoch);
+            return true;
+        }
+        this.nextRecoveryMarket = match;
+        const resolve = this.waiter;
+        this.waiter = undefined;
+        this.update({
+            phase: 'switching',
+            recoverySearch: false,
+            message: `Recovery market found · ${match.symbol} · Updating the running XML`,
+        });
+        resolve(true);
+        return true;
+    }
+    confirmRecoveryMarket(match: XmlScannerMatch) {
+        if (this.nextRecoveryMarket !== match || !this.state.enabled || this.inFlight) return false;
+        this.nextRecoveryMarket = undefined;
+        this.lastDigits = [];
+        this.lastEpoch = 0;
+        this.update({
+            match,
+            phase: 'waiting',
+            recoverySearch: true,
+            message: `Verifying a fresh recovery entry on ${match.symbol}.`,
+        });
+        return true;
+    }
+    rejectRecoveryMarket(match: XmlScannerMatch) {
+        if (this.nextRecoveryMarket !== match || !this.state.enabled) return;
+        this.rejectedRecoveryMarkets.add(match.symbol);
+        this.nextRecoveryMarket = undefined;
+        this.update({
+            phase: 'waiting',
+            recoverySearch: true,
+            message: 'Recovery candidate unavailable for this XML contract. Scanning other markets.',
+        });
     }
     private ready() {
         const match = this.state.match;
@@ -189,7 +267,11 @@ export class XmlScannerCycle {
         if (this.entered) return Promise.resolve(true); // A new qualifying entry is required after each loss.
         if (this.ready()) {
             this.entered = true;
-            this.update({ phase: 'running', message: this.recovery ? 'Trading XML recovery.' : 'Trading XML batch.' });
+            this.update({
+                phase: 'running',
+                recoverySearch: false,
+                message: this.recovery ? 'Trading XML recovery.' : 'Trading XML batch.',
+            });
             return Promise.resolve(true);
         }
         if (this.waiter) {
@@ -258,6 +340,8 @@ export class XmlScannerCycle {
         if (profit < 0) {
             this.recovery = true;
             this.entered = false;
+            this.nextRecoveryMarket = undefined;
+            this.rejectedRecoveryMarkets.clear();
             const lossEpoch = Number(value.exit_tick_time ?? value.exit_spot_time ?? value.sell_time);
             this.recoveryAfterEpoch = Math.max(this.lastEpoch, Number.isFinite(lossEpoch) ? lossEpoch : 0);
         } else if (profit > 0) this.recovery = false;
@@ -265,11 +349,11 @@ export class XmlScannerCycle {
             pnl,
             losses,
             wins,
-            ...(active && profit < 0 ? { phase: 'waiting' as const } : {}),
+            ...(active && profit < 0 ? { phase: 'waiting' as const, recoverySearch: true } : {}),
             message: !active
                 ? this.state.message
                 : this.recovery
-                  ? `Waiting for a qualified recovery entry on ${this.state.match?.symbol}.`
+                  ? 'Scanning Volatility markets for a qualified recovery entry.'
                   : 'Trading XML batch.',
         });
         if (!active) return;

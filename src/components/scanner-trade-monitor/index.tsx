@@ -78,6 +78,7 @@ const ScannerTradeMonitor = observer(() => {
         const evaluate = () => {
             if (disposed) return;
             lastUpdate = Date.now();
+            if (xmlScannerCycle.getSnapshot().phase === 'switching') return;
             xmlScannerCycle.market(target.symbol, digits, lastEpoch);
             if (target.baselineCounts) {
                 const counts = Array<number>(10).fill(0);
@@ -171,7 +172,15 @@ const ScannerTradeMonitor = observer(() => {
         };
     }, [target, running]);
     useEffect(() => {
-        if (target && running && workspaceSymbol && workspaceSymbol !== target.symbol)
+        // Auto changes the live engine market without restarting XML. Its own
+        // purchase gate and scanner link are authoritative during that handoff.
+        if (
+            !xmlScannerCycle.getSnapshot().enabled &&
+            target &&
+            running &&
+            workspaceSymbol &&
+            workspaceSymbol !== target.symbol
+        )
             xmlScannerCycle.stop('The bot market was changed after the scanner match. Start a fresh scan.');
     }, [target, running, workspaceSymbol]);
     // Monitoring and automatic protection continue without any floating warning UI.

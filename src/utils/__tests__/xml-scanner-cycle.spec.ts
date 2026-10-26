@@ -304,3 +304,33 @@ it('does not reuse the loss contract’s exit tick when the market stream arrive
     expect(await pending).toBe(true);
     cycle.stop();
 });
+it('scans another market after a loss, preserves the loss streak and requires fresh entry before recovery', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, -0.35);
+    const pending = cycle.beforePurchase('R_100');
+    const target = { ...match, symbol: '1HZ50V' };
+    expect(cycle.offerRecoveryMarket({ ...target, side: 'under' }, sample(), Date.now() / 1000 + 0.1)).toBe(false);
+    expect(cycle.offerRecoveryMarket(target, sample(9), Date.now() / 1000 + 0.1)).toBe(false);
+    expect(cycle.offerRecoveryMarket(target, sample(), Date.now() / 1000 + 0.1)).toBe(true);
+    expect(await pending).toBe(true);
+    expect(cycle.canPurchase('TEST-DEMO')).toBe(false);
+    expect(cycle.confirmRecoveryMarket(target)).toBe(true);
+    expect(cycle.getSnapshot()).toMatchObject({ losses: 1, wins: 0, phase: 'waiting', match: target });
+    const entry = cycle.beforePurchase(target.symbol);
+    cycle.market(target.symbol, sample(), Date.now() / 1000 + 0.2);
+    expect(await entry).toBe(true);
+    expect(cycle.purchase('TEST-DEMO')).toBe(true);
+    cycle.purchased(2);
+    cycle.contract({ contract_id: 2, is_sold: 1, profit: 0.65 });
+    expect(cycle.getSnapshot()).toMatchObject({ losses: 0, wins: 0, phase: 'running' });
+    cycle.stop();
+});
+it('STOP cancels a pending multi-market recovery selection', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, -0.35);
+    const pending = cycle.beforePurchase('R_100');
+    cycle.stop();
+    expect(await pending).toBe(false);
+    expect(cycle.offerRecoveryMarket({ ...match, symbol: 'R_50' }, sample(), Date.now() / 1000 + 0.1)).toBe(false);
+    expect(cycle.recoveryTarget()).toBeUndefined();
+});

@@ -2,6 +2,10 @@ import Purchase from '../Purchase';
 import { BEFORE_PURCHASE } from '../state/constants';
 import { api_base } from '../../../api/api-base';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
+jest.mock('../../../api/api-helpers', () => ({
+    __esModule: true,
+    default: { instance: { contracts_for: { getContractsFor: jest.fn() } } },
+}));
 jest.mock('../../../api/api-base', () => ({ api_base: { api: { send: jest.fn() } } }));
 jest.mock('../../utils/broadcast', () => ({ contractStatus: jest.fn(), info: jest.fn(), log: jest.fn() }));
 jest.mock('../../../../constants/messages', () => ({ LogTypes: { PURCHASE: 'purchase' } }));
