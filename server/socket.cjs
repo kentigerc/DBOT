@@ -140,7 +140,18 @@ function attachSockets(
                                 client.send(event.data);
                             }
                         });
-                        upstream.addEventListener('close', () => client.close(1000, 'Deriv connection closed.'));
+                        upstream.addEventListener('close', event => {
+                            const code = Number(event.code);
+                            const validCode =
+                                Number.isInteger(code) &&
+                                ((code >= 1000 && code <= 1014 && ![1004, 1005, 1006].includes(code)) ||
+                                    (code >= 3000 && code <= 4999));
+                            // Preserve provider diagnostics without forwarding URLs or tokens.
+                            client.close(
+                                validCode ? code : 1011,
+                                `Deriv connection closed (upstream ${Number.isInteger(code) ? code : 'unknown'}).`
+                            );
+                        });
                         upstream.addEventListener('error', () => client.close(1011, 'Deriv connection failed.'));
                         client.on('close', () => {
                             if (account) {

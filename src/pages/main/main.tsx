@@ -38,7 +38,7 @@ const AnalysisTool = lazy(() => import('../analysis-tool'));
 
 const AppWrapper = observer(() => {
     const { connectionStatus } = useApiBase();
-    const { dashboard, load_modal, run_panel, quick_strategy, summary_card } = useStore();
+    const { dashboard, load_modal, run_panel, quick_strategy } = useStore();
     const {
         active_tab,
         active_tour,
@@ -63,7 +63,6 @@ const AppWrapper = observer(() => {
     const { cancel_button_text, ok_button_text, title, message, dismissable, is_closed_on_cancel } = dialog_options as {
         [key: string]: string;
     };
-    const { clear } = summary_card;
     const { DASHBOARD, BOT_BUILDER } = DBOT_TABS;
     const init_render = React.useRef(true);
     const hash = ['dashboard', 'bot_builder', 'chart', 'digit_analysis', 'deriv_charts', 'free_bots', 'analysis_tool'];
@@ -117,16 +116,18 @@ const AppWrapper = observer(() => {
     });
 
     React.useEffect(() => {
-        if (connectionStatus !== CONNECTION_STATUS.OPENED) {
-            const is_bot_running = document.getElementById('db-animation__stop-button') !== null;
-            if (is_bot_running) {
-                clear();
-                stopBot();
-                api_base.setIsRunning(false);
-                setWebSocketState(false);
-            }
+        if (connectionStatus === CONNECTION_STATUS.OPENED) {
+            setWebSocketState(true);
+            return;
         }
-    }, [clear, connectionStatus, setWebSocketState, stopBot]);
+        // UNKNOWN is startup, not evidence of a lost trading connection.
+        if (connectionStatus === CONNECTION_STATUS.CLOSED && run_panel.is_running) {
+            setWebSocketState(false);
+            stopBot();
+            api_base.setIsRunning(false);
+        }
+        // Keep the existing trade summary and open-contract information visible.
+    }, [connectionStatus, run_panel.is_running, setWebSocketState, stopBot]);
 
     // Update tab shadows height to match bot builder height
     const updateTabShadowsHeight = () => {

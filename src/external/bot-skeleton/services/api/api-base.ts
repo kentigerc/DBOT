@@ -80,11 +80,20 @@ class APIBase {
         setConnectionStatus(CONNECTION_STATUS.OPENED);
     };
 
-    onsocketclose = () => {
+    onsocketclose = (event?: CloseEvent) => {
         setConnectionStatus(CONNECTION_STATUS.CLOSED);
         setIsAuthorized(false);
         this.is_authorized = false;
-        if (this.is_running) globalObserver.emit('Error', new Error('Deriv disconnected. Check your account before restarting the bot.'));
+        if (this.is_running) {
+            const code = event?.code ?? 'unknown';
+            const upstream = /^Deriv connection closed \(upstream (\d+|unknown)\)\.$/.exec(event?.reason || '')?.[1];
+            globalObserver.emit(
+                'Error',
+                new Error(
+                    `Trading connection closed (socket ${code}${upstream ? `; upstream ${upstream}` : ''}; ${document.hidden ? 'background' : 'visible'} tab). Check your open contract before restarting the bot.`
+                )
+            );
+        }
         if (!this.stopping) this.reconnectIfNotConnected();
     };
 
@@ -178,27 +187,32 @@ class APIBase {
 
         try {
             const connection = this.api.connection;
-            if (connection.readyState !== 1) await new Promise<void>((resolve, reject) => {
-                const timer = setTimeout(() => finish(new Error('Deriv connection timed out.')), 15000);
-                const finish = (error?: Error) => {
-                    clearTimeout(timer);
-                    connection.removeEventListener('open', opened);
-                    connection.removeEventListener('error', failed);
-                    connection.removeEventListener('close', failed);
-                    if (error) reject(error); else resolve();
-                };
-                const opened = () => finish();
-                const failed = () => finish(new Error('Unable to open the Deriv account connection.'));
-                connection.addEventListener('open', opened);
-                connection.addEventListener('error', failed);
-                connection.addEventListener('close', failed);
-            });
+            if (connection.readyState !== 1)
+                await new Promise<void>((resolve, reject) => {
+                    const timer = setTimeout(() => finish(new Error('Deriv connection timed out.')), 15000);
+                    const finish = (error?: Error) => {
+                        clearTimeout(timer);
+                        connection.removeEventListener('open', opened);
+                        connection.removeEventListener('error', failed);
+                        connection.removeEventListener('close', failed);
+                        if (error) reject(error);
+                        else resolve();
+                    };
+                    const opened = () => finish();
+                    const failed = () => finish(new Error('Unable to open the Deriv account connection.'));
+                    connection.addEventListener('open', opened);
+                    connection.addEventListener('error', failed);
+                    connection.addEventListener('close', failed);
+                });
             const account = getDerivAccount();
             if (!account) throw new Error('No active Deriv account.');
             const authorize = {
-                loginid: account.account_id, currency: account.currency, balance: Number(account.balance),
+                loginid: account.account_id,
+                currency: account.currency,
+                balance: Number(account.balance),
                 account_list: getDerivSession().accounts.map(item => ({
-                    loginid: item.account_id, currency: item.currency,
+                    loginid: item.account_id,
+                    currency: item.currency,
                     is_virtual: item.account_type === 'demo' ? 1 : 0,
                     is_disabled: item.status === 'active' ? 0 : 1,
                 })),
@@ -209,7 +223,6 @@ class APIBase {
             setIsAuthorized(true);
             this.is_authorized = true;
             localStorage.setItem('client_account_details', JSON.stringify(authorize?.account_list));
-
 
             if (this.has_active_symbols) {
                 this.toggleRunButton(false);
@@ -242,7 +255,6 @@ class APIBase {
                     const subscription = this.api?.send({
                         [streamName]: 1,
                         subscribe: 1,
-
                     });
                     if (subscription) {
                         this.current_auth_subscriptions.push(subscription);

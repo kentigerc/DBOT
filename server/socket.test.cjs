@@ -146,3 +146,28 @@ test('background Builder stream ignores other tools and only reports settlements
     client.close();
     other.close();
 });
+
+test('preserves the upstream close code without exposing provider reason text', async t => {
+    const { connect, upstreams } = await fixture(t);
+    const client = connect();
+    await opened(client);
+    const closed = new Promise(resolve =>
+        client.once('close', (code, reason) => resolve({ code, reason: reason.toString() }))
+    );
+    const event = new Event('close');
+    Object.defineProperties(event, { code: { value: 1008 }, reason: { value: 'private provider context' } });
+    upstreams[0].dispatchEvent(event);
+    assert.deepEqual(await closed, { code: 1008, reason: 'Deriv connection closed (upstream 1008).' });
+});
+test('maps an abnormal upstream closure to a valid WebSocket code and retains the diagnostic', async t => {
+    const { connect, upstreams } = await fixture(t);
+    const client = connect();
+    await opened(client);
+    const closed = new Promise(resolve =>
+        client.once('close', (code, reason) => resolve({ code, reason: reason.toString() }))
+    );
+    const event = new Event('close');
+    Object.defineProperty(event, 'code', { value: 1006 });
+    upstreams[0].dispatchEvent(event);
+    assert.deepEqual(await closed, { code: 1011, reason: 'Deriv connection closed (upstream 1006).' });
+});

@@ -301,3 +301,11 @@ XML Auto now keeps the loss market and continues the XML's own recovery directly
 
 Validation: 57 targeted scanner, purchase and monitor tests passed; production build passed. Tests cover Over and Under recovery on 1HZ10V without another entry, repeated losses, recovery-win batch reset, feed pauses, STOP, and existing loss limits.
 A fresh-profile simulated browser verified recovery bought on the same loss market while the scanner's last-digit entry condition was not met, without waiting for the next qualifying digit, then completed three new normal wins and the next batch. STOP prevented further purchases. No live trades were placed.
+
+### Trading-connection popup and close diagnostics
+
+Main app disconnect handling now reacts to CLOSED while a bot is running, rather than interpreting startup UNKNOWN state or a rendered Stop button as a trading connection failure. OPENED clears the dashboard's disconnected flag, so a recovered connection does not retain the blocking platform-unavailable popup. Keep the existing trade summary/open-contract details instead of clearing them on disconnect. Trading remains stopped after an actual disconnect; reconnection does not authorize automatic resumption.
+
+The socket bridge preserves valid Deriv upstream close codes, maps abnormal/reserved codes to a legal 1011 frame and includes the numeric upstream code in a safe, fixed reason. Never forward provider reason text. The trading error journal includes socket/upstream code and tab visibility. These changes fix UI state handling and improve diagnosis; they do not establish the cause of external network/provider closures.
+
+Validation: nine socket bridge tests passed, including upstream close-code preservation, abnormal-code mapping and absence of private provider reason text. Production build passed. Fresh-profile browser with simulated provider data closed an authenticated trading socket during a purchase, verified a new account connection, no stale blocking popup, and no automatic restart. No live trades placed.
