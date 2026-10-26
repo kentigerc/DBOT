@@ -255,7 +255,19 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
             >
                 {show_overlay && <ContractResultOverlay profit={profit} />}
                 <span className='animation__text'>
-                    <ContractStageText contract_stage={contract_stage} />
+                    {auto.enabled && ['waiting', 'loading', 'scanning', 'cooldown'].includes(auto.phase) ? (
+                        <span title={auto.message}>
+                            {auto.phase === 'waiting'
+                                ? 'Waiting for entry'
+                                : auto.phase === 'loading'
+                                  ? 'Loading XML bot'
+                                  : auto.phase === 'cooldown'
+                                    ? 'Batch complete · analysing again'
+                                    : 'Scanning markets'}
+                        </span>
+                    ) : (
+                        <ContractStageText contract_stage={contract_stage} />
+                    )}
                 </span>
                 <div className='animation__progress'>
                     <div className='animation__progress-line'>

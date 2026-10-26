@@ -54,6 +54,19 @@ it('uses the existing Stop button to cancel Auto even while the Builder runner i
     });
     xmlScannerCycle.start('TEST-DEMO', 100, jest.fn());
     render(<TradeAnimation />);
+    expect(screen.getByText('Scanning markets')).toBeTruthy();
+    act(() => {
+        const token = xmlScannerCycle.claim({
+            symbol: 'R_100',
+            side: 'over',
+            name: 'Over Punisher',
+            submarket: 'random_index',
+            sampleSize: 100,
+            baselineCounts: [9, 9, 9, 8, 10, 10, 11, 11, 11, 12],
+        })!;
+        xmlScannerCycle.loaded(token, { takeProfit: 1000, stopLoss: 10000 });
+    });
+    expect(screen.getByText('Waiting for entry')).toBeTruthy();
     const button = screen.getByRole('button', { name: 'Stop' });
     expect(button).toBeEnabled();
     act(() => fireEvent.click(button));

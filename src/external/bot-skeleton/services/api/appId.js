@@ -21,9 +21,9 @@ export const generateDerivApiInstance = async ({ publicOnly = false } = {}) => {
                           scannerExitGuard.purchased(id);
                           xmlScannerCycle.purchased(id);
                       },
-                      purchaseFailed: () => {
+                      purchaseFailed: error => {
                           scannerExitGuard.purchaseFailed();
-                          xmlScannerCycle.purchaseFailed();
+                          xmlScannerCycle.purchaseFailed(error);
                       },
                       contract: value => {
                           scannerExitGuard.contract(value);

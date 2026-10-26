@@ -13,7 +13,7 @@ import './digit-analysis.scss';
 
 export default function DigitAnalysis({ active = true }: { active?: boolean }) {
     const navigate = useNavigate();
-    const { dashboard, run_panel } = useStore();
+    const { dashboard, run_panel, journal } = useStore();
     const panelRef = useMarketPanelHeight<HTMLElement>({ enabled: active });
     const [markets, setMarkets] = useState<DigitMarket[]>([]);
     const [symbol, setSymbol] = useState('R_100');
@@ -161,8 +161,17 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                     const account = getDerivAccount();
                     if (!account || account.status !== 'active') throw new Error('Select an active Deriv account.');
                     if (account.currency !== 'USD') throw new Error('Select a USD account for these XML bots.');
-                    xmlScannerCycle.start(account.account_id, sampleSize, complete =>
-                        run_panel.onStopButtonClick(complete)
+                    xmlScannerCycle.start(
+                        account.account_id,
+                        sampleSize,
+                        complete => run_panel.onStopButtonClick(complete),
+                        message =>
+                            journal.onNotify({
+                                message,
+                                message_type: 'notify',
+                                className: 'journal__text--warn',
+                                sound: 'silent',
+                            })
                     );
                 }}
                 onLoad={(side, matchedSymbol, submarket, baselineCounts, autoGeneration) => {

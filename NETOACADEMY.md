@@ -250,3 +250,7 @@ All three Free Bots now use silent journal notifications instead of Blockly `tex
 ## Floating panels removed
 
 The XML Auto status card and scanner market-warning card no longer render. Their invisible components remain mounted for live tick monitoring, the saved-match one-point trigger, bounded recovery, batch completion/restart, and account/offline cancellation. The original Run/Stop bar shows an enabled Stop throughout XML Auto, including loading/scanning/cooldown; the scanner section's STOP XML AUTO also remains. Removing visual panels does not remove their automatic guards.
+
+## XML Auto stop diagnostics
+
+Every XML Auto stop now records its first specific reason as a silent Journal notification. Market protection identifies changed live conditions or the four-loss cap; session limits distinguish take-profit, stop-loss and ten consecutive losses; rejected purchases retain the provider's error code/message; execution errors retain their details. Repeated stop callbacks cannot overwrite the original cause. Logging failures never prevent the actual stop. The existing Run/Stop bar distinguishes “Waiting for entry”, “Loading XML bot”, “Scanning markets” and batch cooldown from stopped trading, without restoring any floating panels. The XML's own “Monitoring market conditions” journal text is not a stop diagnosis. These changes add observability; entry and risk thresholds are unchanged.

@@ -186,3 +186,23 @@ it('percentage protection ends Auto after four total losses and cannot begin a n
     expect(cycle.purchase('TEST-DEMO')).toBe(false);
     expect(cycle.claim(match)).toBeUndefined();
 });
+
+it('reports the first exact stop reason once, without changing it during repeated stop callbacks', () => {
+    const cycle = new XmlScannerCycle(),
+        report = jest.fn();
+    cycle.start('TEST-DEMO', 100, jest.fn(), report);
+    cycle.stop('Market protection: live conditions changed; recovery is clear.');
+    cycle.stop();
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(report).toHaveBeenCalledWith(
+        'XML Auto stopped: Market protection: live conditions changed; recovery is clear.'
+    );
+    expect(cycle.getSnapshot().message).toContain('Market protection');
+});
+it('records the provider rejection instead of an unexplained generic stop', () => {
+    const cycle = new XmlScannerCycle(),
+        report = jest.fn();
+    cycle.start('TEST-DEMO', 100, jest.fn(), report);
+    cycle.purchaseFailed({ code: 'InvalidContractProposal', message: 'The proposal expired.' });
+    expect(report).toHaveBeenCalledWith(expect.stringContaining('InvalidContractProposal · The proposal expired.'));
+});

@@ -241,7 +241,27 @@ export default class RunPanelStore {
         );
         runInAction(() => {
             if (scannerAuto === true) xmlScannerCycle.runStarted();
-            scannerExitGuard.begin(() => this.onStopButtonClick());
+            scannerExitGuard.begin(() => {
+                const state = scannerExitGuard.getSnapshot();
+                const reason =
+                    state.losses >= 4
+                        ? 'Market protection: four consecutive losses reached.'
+                        : 'Market protection: live conditions changed.';
+                const automatic = xmlScannerCycle.getSnapshot().enabled;
+                xmlScannerCycle.stop(reason, false);
+                try {
+                    if (!automatic)
+                        this.root_store.journal.onNotify({
+                            message: reason,
+                            message_type: MessageTypes.NOTIFY,
+                            className: 'journal__text--warn',
+                            sound: 'silent',
+                        });
+                } catch {
+                    /* Logging must not prevent the protection stop. */
+                }
+                this.onStopButtonClick();
+            });
             this.setIsRunning(true);
             ui.setPromptHandler(true);
             this.toggleDrawer(true);
@@ -686,9 +706,11 @@ export default class RunPanelStore {
     };
 
     onError = (data: { error: any }) => {
-        xmlScannerCycle.stop('XML execution error. Check the Builder journal before restarting.');
         // data.error for API errors, data for code errors
         const error = data.error || data;
+        xmlScannerCycle.stop(
+            `XML execution error: ${error.code || ''} ${error.message || 'Check the preceding journal entry.'}`.trim()
+        );
         if (unrecoverable_errors.includes(error.code)) {
             this.root_store.summary_card.clear();
             this.error_type = ErrorTypes.UNRECOVERABLE_ERRORS;

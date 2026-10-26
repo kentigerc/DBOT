@@ -39,6 +39,7 @@ export class XmlScannerCycle {
     };
     private listeners = new Set<() => void>();
     private stopBot?: (batchComplete: boolean) => void;
+    private reportStop?: (message: string) => void;
     private guarded = false;
     private started = false;
     private entered = false;
@@ -63,7 +64,12 @@ export class XmlScannerCycle {
         this.state = { ...this.state, ...patch };
         this.listeners.forEach(fn => fn());
     }
-    start(accountId: string, sampleSize: number, stopBot: (batchComplete: boolean) => void) {
+    start(
+        accountId: string,
+        sampleSize: number,
+        stopBot: (batchComplete: boolean) => void,
+        reportStop?: (message: string) => void
+    ) {
         if (this.state.enabled) throw new Error('XML Auto is already active.');
         if (this.inFlight || this.contractId !== undefined)
             throw new Error('Settle the previous XML purchase before starting again.');
@@ -71,6 +77,7 @@ export class XmlScannerCycle {
             throw new Error('Select an active Deriv account and sample size.');
         clearTimeout(this.timer);
         this.stopBot = stopBot;
+        this.reportStop = reportStop;
         this.guarded = true;
         this.started = this.entered = this.recovery = this.inFlight = false;
         this.contractId = undefined;
@@ -136,6 +143,11 @@ export class XmlScannerCycle {
         this.waiter?.(false);
         this.waiter = undefined;
         this.update({ enabled: false, phase: 'stopped', message });
+        try {
+            this.reportStop?.(`XML Auto stopped: ${message}`);
+        } catch {
+            /* Logging cannot interfere with stopping. */
+        }
         if (this.started) {
             this.started = false;
             if (notifyRunner) this.stopBot?.(false);
@@ -197,9 +209,10 @@ export class XmlScannerCycle {
         this.inFlight = true;
         return true;
     }
-    purchaseFailed() {
+    purchaseFailed(error?: { code?: string; message?: string }) {
         this.inFlight = false;
-        this.stop('XML purchase was rejected. Check the journal before restarting.');
+        const detail = [error?.code, error?.message].filter(Boolean).join(' · ');
+        this.stop(`XML purchase rejected${detail ? ': ' + detail : '. Check the journal before restarting.'}`);
     }
     purchased(id: number) {
         if (this.guarded && this.inFlight) this.contractId = id;
@@ -247,7 +260,14 @@ export class XmlScannerCycle {
             this.update({ phase: 'finishing' });
             const generation = this.state.generation;
             queueMicrotask(() => {
-                if (this.valid(generation)) this.stop('XML Auto session risk limit reached.');
+                if (this.valid(generation))
+                    this.stop(
+                        pnl >= this.takeProfit
+                            ? `Session take-profit reached: $${(pnl / 100).toFixed(2)}.`
+                            : pnl <= -this.stopLoss
+                              ? `Session stop-loss reached: $${(pnl / 100).toFixed(2)}.`
+                              : `Consecutive-loss limit reached: ${losses}/10.`
+                    );
             });
         } else if (wins >= 3) {
             this.update({ phase: 'finishing', message: 'Three normal wins complete. Stopping before a fresh scan.' });

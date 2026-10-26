@@ -126,7 +126,7 @@ export class NewApiTransport extends EventTarget {
             if (data.subscription?.id && original) this.streams.set(data.subscription.id, original);
             this.requests.delete(data.req_id);
             if (data.buy?.contract_id) this.purchaseGuard?.purchased(data.buy.contract_id);
-            if (original?.buy && data.error) this.purchaseGuard?.purchaseFailed();
+            if (original?.buy && data.error) this.purchaseGuard?.purchaseFailed(data.error);
             const forwarded = new MessageEvent('message', {
                 data: JSON.stringify(fromNewApiResponse(data, original, accountId)),
             });
