@@ -56,10 +56,12 @@
       <data>netoacademy:hosted-bot:over-1-over-0.xml</data></block>
     </statement>
     <statement name="INITIALIZATION">
-      <block type="text_print" id=")J1(pHFl]elGq*pgN)0Q" collapsed="true">
-        <value name="TEXT">
+      <block type="notify" id=")J1(pHFl]elGq*pgN)0Q" collapsed="true">
+        <field name="NOTIFICATION_TYPE">info</field>
+        <field name="NOTIFICATION_SOUND">silent</field>
+        <value name="MESSAGE">
           <shadow type="text" id="9fO$}GCCGs/RoRg-ta2,">
-            <field name="TEXT">ENHANCED C4 VOLUME 4 AI PREMIUM 🤖. BEST TRADERS 💯 Neto trading school ; DOING THE IMPOSSIBLE.</field>
+            <field name="TEXT">NetoAcademy bot started.</field>
           <data>netoacademy:hosted-bot:over-1-over-0.xml</data></shadow>
         </value>
         <next>
@@ -500,8 +502,10 @@
                               <data>netoacademy:hosted-bot:over-1-over-0.xml</data></block>
                             </statement>
                             <next>
-                              <block type="text_print" id="enp..`)du!7z68?SIQmg">
-                                <value name="TEXT">
+                              <block type="notify" id="enp..`)du!7z68?SIQmg">
+                                <field name="NOTIFICATION_TYPE">info</field>
+                                <field name="NOTIFICATION_SOUND">silent</field>
+                                <value name="MESSAGE">
                                   <block type="variables_get" id="k*3)ZZykx+;3NSpchI$y">
                                     <field name="VAR" id="-=h)v:H7(iJs-EFv/JK@">text3</field>
                                   <data>netoacademy:hosted-bot:over-1-over-0.xml</data></block>
@@ -689,8 +693,10 @@
                               <data>netoacademy:hosted-bot:over-1-over-0.xml</data></block>
                             </statement>
                             <next>
-                              <block type="text_print" id="+3Hs~,C7X#a)Dg{yGUA^" collapsed="true">
-                                <value name="TEXT">
+                              <block type="notify" id="+3Hs~,C7X#a)Dg{yGUA^" collapsed="true">
+                                <field name="NOTIFICATION_TYPE">info</field>
+                                <field name="NOTIFICATION_SOUND">silent</field>
+                                <value name="MESSAGE">
                                   <block type="variables_get" id="VGSDOT_}3)sr/]$EBEwd" collapsed="true">
                                     <field name="VAR" id="EViAhS~,4C]Vds9g$pgq">text6</field>
                                   <data>netoacademy:hosted-bot:over-1-over-0.xml</data></block>

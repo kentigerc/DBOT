@@ -3,25 +3,18 @@ import { observer } from 'mobx-react-lite';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import { useStore } from '@/hooks/useStore';
 import { lastDigit } from '@/pages/digit-analysis/digits';
-import { evaluateScan } from '@/pages/digit-analysis/scanner';
 import { risingScannerDigits, scannerExitGuard } from '@/utils/scanner-exit-guard';
 import { getScannerWatch, setScannerWatch, subscribeScannerWatch } from '@/utils/scanner-watch';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
-import useMovablePanel from '../movable-panel/use-movable-panel';
-import './scanner-trade-monitor.scss';
 
 type Tick = { quote: number; epoch: number; pip_size: number; symbol?: string; underlying_symbol?: string };
 const ScannerTradeMonitor = observer(() => {
     const { run_panel } = useStore();
-    const movable = useMovablePanel('market monitor');
     const target = useSyncExternalStore(subscribeScannerWatch, getScannerWatch);
     const running = run_panel.is_running;
-    const protection = useSyncExternalStore(scannerExitGuard.subscribe, scannerExitGuard.getSnapshot);
     const workspaceName = (window as unknown as { Blockly?: { xmlValues?: { file_name?: string } } }).Blockly?.xmlValues
         ?.file_name;
-    const [issue, setIssue] = useState('');
     const [workspaceSymbol, setWorkspaceSymbol] = useState('');
-    const [checkedAt, setCheckedAt] = useState('');
     useEffect(() => {
         if (!running) {
             setWorkspaceSymbol('');
@@ -68,11 +61,7 @@ const ScannerTradeMonitor = observer(() => {
         return () => workspace?.removeChangeListener(read);
     }, [target, running, workspaceName]);
     useEffect(() => {
-        if (!target || !running) {
-            setIssue('');
-            setCheckedAt('');
-            return;
-        }
+        if (!target || !running) return;
         let disposed = false;
         let api: Awaited<ReturnType<typeof generateDerivApiInstance>> | undefined;
         let listener: { unsubscribe: () => void } | undefined;
@@ -81,18 +70,14 @@ const ScannerTradeMonitor = observer(() => {
         let lastUpdate = Date.now();
         let digits: number[] = [];
         const queued: Tick[] = [];
-        setIssue('');
-        setCheckedAt('');
         const warn = (message: string) => {
             if (!disposed) {
-                setIssue(previous => previous || message);
                 xmlScannerCycle.stop(message);
             }
         };
         const evaluate = () => {
             if (disposed) return;
             lastUpdate = Date.now();
-            setCheckedAt(new Date().toLocaleTimeString());
             xmlScannerCycle.market(target.symbol, digits, lastEpoch);
             if (target.baselineCounts) {
                 const counts = Array<number>(10).fill(0);
@@ -100,12 +85,6 @@ const ScannerTradeMonitor = observer(() => {
                 if (risingScannerDigits(target.baselineCounts, counts, target.side, target.sampleSize).length >= 2)
                     scannerExitGuard.trigger();
             }
-            if (!evaluateScan(digits, target.side, target.sampleSize).matches)
-                setIssue(
-                    previous =>
-                        previous ||
-                        'Market changed: the entry conditions no longer match. Stop the bot now and review any open trade.'
-                );
         };
         const accept = (tick: Tick) => {
             if (disposed || tick.epoch <= lastEpoch) return;
@@ -193,63 +172,9 @@ const ScannerTradeMonitor = observer(() => {
     }, [target, running]);
     useEffect(() => {
         if (target && running && workspaceSymbol && workspaceSymbol !== target.symbol)
-            setIssue(
-                previous =>
-                    previous ||
-                    'The bot market was changed after the scanner match. Stop the bot and scan again before continuing.'
-            );
+            xmlScannerCycle.stop('The bot market was changed after the scanner match. Start a fresh scan.');
     }, [target, running, workspaceSymbol]);
-    if (!target || (!running && !protection.triggered)) return null;
-    const protectionMessage = protection.triggered
-        ? protection.phase === 'stopped'
-            ? 'Market protection stopped the bot. Review the market before starting again.'
-            : protection.phase === 'settling'
-              ? 'Market protection activated. Waiting for the open trade to settle; recovery is limited to four consecutive losses total.'
-              : 'Market protection activated. Recovery is active; the bot will stop after a win or four consecutive losses total.'
-        : '';
-    const warning = protectionMessage || issue;
-    return (
-        <aside
-            ref={movable.ref}
-            style={warning ? { ...movable.style, zIndex: 12000 } : movable.style}
-            className={`scanner-trade-monitor${warning ? ' scanner-trade-monitor--warning' : ''}`}
-            role={warning ? 'alert' : 'status'}
-            aria-live={warning ? 'assertive' : 'polite'}
-        >
-            {movable.handle}
-            <div>
-                <strong>
-                    {warning
-                        ? protection.triggered
-                            ? 'Market protection'
-                            : 'Action required — stop trading'
-                        : checkedAt
-                          ? 'Live market monitor'
-                          : 'Checking entry conditions…'}
-                </strong>
-                <p>
-                    {target.name} · {target.symbol} · {target.side === 'over' ? 'Over' : 'Under'}
-                </p>
-                <p>
-                    {warning ||
-                        (checkedAt
-                            ? `Conditions matched at ${checkedAt}. Monitoring each new tick.`
-                            : 'Waiting for fresh market data; conditions have not yet been verified.')}
-                </p>
-                {!target.baselineCounts && <p>Load a fresh scanner match to enable automatic market protection.</p>}
-                {warning && !protection.triggered && (
-                    <p>
-                        This warning stays until the bot stops. Stopping the bot may leave an open contract to settle
-                        normally.
-                    </p>
-                )}
-            </div>
-            {running ? (
-                <button onClick={() => run_panel.onStopButtonClick()}>Stop bot</button>
-            ) : (
-                <strong>Stopped</strong>
-            )}
-        </aside>
-    );
+    // Monitoring and automatic protection continue without any floating warning UI.
+    return null;
 });
 export default ScannerTradeMonitor;

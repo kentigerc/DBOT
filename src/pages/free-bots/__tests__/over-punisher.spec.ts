@@ -25,7 +25,16 @@ describe.each(['over-punisher.xml', 'over-1-over-0.xml', 'under-punisher.xml'])(
     });
     it('runs setup without a password prompt and retains hosted export protection', () => {
         const document = parse();
-        expect(document.querySelector('block[type="text_prompt_ext"], block[type="text_prompt"]')).toBeNull();
+        expect(
+            document.querySelector('block[type="text_prompt_ext"], block[type="text_prompt"], block[type="text_print"]')
+        ).toBeNull();
+        const startupMessage = Array.from(document.querySelectorAll('block[type="notify"]')).find(
+            block => block.getAttribute('id') === ')J1(pHFl]elGq*pgN)0Q'
+        );
+        expect(startupMessage?.querySelector('field[name="NOTIFICATION_SOUND"]')?.textContent).toBe('silent');
+        expect(startupMessage?.querySelector('value[name="MESSAGE"] field[name="TEXT"]')?.textContent).toBe(
+            'NetoAcademy bot started.'
+        );
         const setup = Array.from(document.querySelectorAll('block[type="procedures_defnoreturn"]')).find(block =>
             Array.from(block.children).some(child => child.localName === 'field' && child.textContent === 'werttyg')
         );

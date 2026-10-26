@@ -56,10 +56,12 @@
       <data>netoacademy:hosted-bot:under-punisher.xml</data></block>
     </statement>
     <statement name="INITIALIZATION">
-      <block type="variables_set" id="mod_6b9b207c96e041"><field name="VAR">Balanced Choice</field><value name="VALUE"><block type="math_number" id="mod_3f8aa9e404bb4f"><field name="NUM">8</field><data>netoacademy:hosted-bot:under-punisher.xml</data></block></value><next><block type="variables_set" id="mod_ec7f12c0ce234f"><field name="VAR">Balance Phase</field><value name="VALUE"><block type="math_number" id="mod_cd94b06f4e204f"><field name="NUM">0</field><data>netoacademy:hosted-bot:under-punisher.xml</data></block></value><next><block type="variables_set" id="mod_c6468f35d0d74d"><field name="VAR">High Digit Streak</field><value name="VALUE"><block type="math_number" id="mod_dd0365279d8a4b"><field name="NUM">0</field><data>netoacademy:hosted-bot:under-punisher.xml</data></block></value><next><block type="variables_set" id="mod_efa859c7d65748"><field name="VAR">Under4 Signal</field><value name="VALUE"><block type="math_number" id="mod_0cadb80a0e6349"><field name="NUM">0</field><data>netoacademy:hosted-bot:under-punisher.xml</data></block></value><next><block type="text_print" id=")J1(pHFl]elGq*pgN)0Q" collapsed="true">
-        <value name="TEXT">
+      <block type="variables_set" id="mod_6b9b207c96e041"><field name="VAR">Balanced Choice</field><value name="VALUE"><block type="math_number" id="mod_3f8aa9e404bb4f"><field name="NUM">8</field><data>netoacademy:hosted-bot:under-punisher.xml</data></block></value><next><block type="variables_set" id="mod_ec7f12c0ce234f"><field name="VAR">Balance Phase</field><value name="VALUE"><block type="math_number" id="mod_cd94b06f4e204f"><field name="NUM">0</field><data>netoacademy:hosted-bot:under-punisher.xml</data></block></value><next><block type="variables_set" id="mod_c6468f35d0d74d"><field name="VAR">High Digit Streak</field><value name="VALUE"><block type="math_number" id="mod_dd0365279d8a4b"><field name="NUM">0</field><data>netoacademy:hosted-bot:under-punisher.xml</data></block></value><next><block type="variables_set" id="mod_efa859c7d65748"><field name="VAR">Under4 Signal</field><value name="VALUE"><block type="math_number" id="mod_0cadb80a0e6349"><field name="NUM">0</field><data>netoacademy:hosted-bot:under-punisher.xml</data></block></value><next><block type="notify" id=")J1(pHFl]elGq*pgN)0Q" collapsed="true">
+        <field name="NOTIFICATION_TYPE">info</field>
+        <field name="NOTIFICATION_SOUND">silent</field>
+        <value name="MESSAGE">
           <shadow type="text" id="9fO$}GCCGs/RoRg-ta2,">
-            <field name="TEXT">ENHANCED C4 VOLUME 4 AI PREMIUM 🤖. BEST TRADERS 💯 Neto trading school ; DOING THE IMPOSSIBLE.</field>
+            <field name="TEXT">NetoAcademy bot started.</field>
           <data>netoacademy:hosted-bot:under-punisher.xml</data></shadow>
         </value>
         <next>
@@ -431,8 +433,10 @@
                               <data>netoacademy:hosted-bot:under-punisher.xml</data></block>
                             </statement>
                             <next>
-                              <block type="text_print" id="enp..`)du!7z68?SIQmg">
-                                <value name="TEXT">
+                              <block type="notify" id="enp..`)du!7z68?SIQmg">
+                                <field name="NOTIFICATION_TYPE">info</field>
+                                <field name="NOTIFICATION_SOUND">silent</field>
+                                <value name="MESSAGE">
                                   <block type="variables_get" id="k*3)ZZykx+;3NSpchI$y">
                                     <field name="VAR" id="-=h)v:H7(iJs-EFv/JK@">text3</field>
                                   <data>netoacademy:hosted-bot:under-punisher.xml</data></block>
@@ -620,8 +624,10 @@
                               <data>netoacademy:hosted-bot:under-punisher.xml</data></block>
                             </statement>
                             <next>
-                              <block type="text_print" id="+3Hs~,C7X#a)Dg{yGUA^" collapsed="true">
-                                <value name="TEXT">
+                              <block type="notify" id="+3Hs~,C7X#a)Dg{yGUA^" collapsed="true">
+                                <field name="NOTIFICATION_TYPE">info</field>
+                                <field name="NOTIFICATION_SOUND">silent</field>
+                                <value name="MESSAGE">
                                   <block type="variables_get" id="VGSDOT_}3)sr/]$EBEwd" collapsed="true">
                                     <field name="VAR" id="EViAhS~,4C]Vds9g$pgq">text6</field>
                                   <data>netoacademy:hosted-bot:under-punisher.xml</data></block>

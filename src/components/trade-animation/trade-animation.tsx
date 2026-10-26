@@ -6,6 +6,7 @@ import { DBOT_TABS } from '@/constants/bot-contents';
 import { contract_stages } from '@/constants/contract-stage';
 import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
+import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { LabelPairedPlayLgFillIcon, LabelPairedSquareLgFillIcon } from '@deriv/quill-icons/LabelPaired';
 import { Localize, localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
@@ -24,6 +25,7 @@ type TTradeAnimation = {
 
 const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnimation) => {
     const movable = useMovablePanel('Run/Stop bar');
+    const auto = React.useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
     const { dashboard, run_panel, summary_card, blockly_store } = useStore();
     const { client } = useStore();
     const { active_tab } = dashboard;
@@ -33,12 +35,14 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
     const { is_contract_completed, profit } = summary_card;
     const {
         contract_stage,
-        is_stop_button_visible,
-        is_stop_button_disabled,
+        is_stop_button_visible: builder_stop_visible,
+        is_stop_button_disabled: builder_stop_disabled,
         onRunButtonClick,
         onStopBotClick,
         performSelfExclusionCheck,
     } = run_panel;
+    const is_stop_button_visible = builder_stop_visible || auto.enabled;
+    const is_stop_button_disabled = auto.enabled ? false : builder_stop_disabled;
     const { account_status } = client;
     const cashier_validation = account_status?.cashier_validation;
     const [shouldDisable, setShouldDisable] = React.useState(false);
@@ -125,7 +129,7 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
     // 1. There are no active or saved bots AND the user is not in the bot builder tab
     const should_disable_run = has_no_bots && !is_bot_builder_tab;
 
-    const is_disabled = is_stop_button_visible ? false : shouldDisable || should_disable_run;
+    const is_disabled = is_stop_button_visible ? is_stop_button_disabled : shouldDisable || should_disable_run;
 
     // Show the tooltip when:
     // 1. The user is NOT in the bot builder tab, AND
@@ -133,7 +137,7 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
     const should_show_tooltip = !is_stop_button_visible && !is_bot_builder_tab && has_no_bots;
 
     const button_props = React.useMemo(() => {
-        if (is_stop_button_visible && !is_stop_button_disabled) {
+        if (is_stop_button_visible) {
             return {
                 id: 'db-animation__stop-button',
                 class: 'animation__stop-button',
@@ -218,7 +222,9 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
                 </div>
             ) : (
                 <Button
-                    is_disabled={(is_disabled && !is_unavailable_for_payment_agent) || contract_stage === 3}
+                    is_disabled={
+                        !auto.enabled && ((is_disabled && !is_unavailable_for_payment_agent) || contract_stage === 3)
+                    }
                     className={button_props.class}
                     id={button_props.id}
                     icon={button_props.icon}
