@@ -16,7 +16,7 @@ let store: {
     run_panel: { is_running: boolean; onStopButtonClick: jest.Mock };
     dashboard: { bot_builder_symbol: string };
 };
-const counts = [8, 9, 9, 9, 10, 10, 11, 11, 11, 12];
+const counts = [9, 9, 9, 8, 10, 10, 11, 11, 11, 12];
 const sample = (values: number[]) => values.flatMap((count, digit) => Array<number>(count).fill(digit));
 const history = (values = counts) => ({
     pip_size: 2,
@@ -87,10 +87,10 @@ it('keeps the alert latched after the percentages recover', async () => {
     tick(1, 100);
     digits.shift();
     digits.push(1);
-    for (let epoch = 101; epoch <= 108; epoch++) {
-        tick(0, epoch);
+    for (const [index, digit] of sample(counts).entries()) {
+        tick(digit, 101 + index);
         digits.shift();
-        digits.push(0);
+        digits.push(digit);
     }
     expect(evaluateScan(digits, 'over', 100).matches).toBe(true);
     expect(screen.getByRole('alert').textContent).toContain('Market changed');

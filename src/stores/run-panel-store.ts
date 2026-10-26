@@ -12,6 +12,7 @@ import { scannerExitGuard } from '@/utils/scanner-exit-guard';
 import { helpers } from '@/utils/store-helpers';
 // import { journalError, switch_account_notification } from '@/utils/bot-notifications';
 import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
+import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { Buy, ProposalOpenContract } from '@deriv/api-types';
 import { TStores } from '@deriv/stores/types';
 import { localize } from '@deriv-com/translations';
@@ -171,7 +172,10 @@ export default class RunPanelStore {
         await self_exclusion.checkRestriction();
     };
 
-    onRunButtonClick = async () => {
+    onRunButtonClick = async (scannerAuto: unknown = false) => {
+        if (scannerAuto === true) {
+            if (!xmlScannerCycle.canRun()) return;
+        } else xmlScannerCycle.manualRun();
         try {
             if (await checkServerAnalysis()) {
                 botNotification(localize('Stop and settle the server Analysis Tool before running a Builder bot.'));
@@ -181,6 +185,7 @@ export default class RunPanelStore {
             botNotification(localize('Unable to verify the server trading session. Try again before running a bot.'));
             return;
         }
+        if (scannerAuto === true && !xmlScannerCycle.canRun()) return;
         if (isAnalysisTrading()) {
             botNotification(localize('Stop and settle the Analysis Tool strategy before running a Builder bot.'));
             return;
@@ -235,6 +240,7 @@ export default class RunPanelStore {
             )
         );
         runInAction(() => {
+            if (scannerAuto === true) xmlScannerCycle.runStarted();
             scannerExitGuard.begin(() => this.onStopButtonClick());
             this.setIsRunning(true);
             ui.setPromptHandler(true);
@@ -248,7 +254,8 @@ export default class RunPanelStore {
         this.setShowBotStopMessage(false);
     };
 
-    onStopButtonClick = () => {
+    onStopButtonClick = (batchComplete: unknown = false) => {
+        if (batchComplete !== true) xmlScannerCycle.stop('XML Auto stopped.', false);
         scannerExitGuard.cancel();
         this.is_contracy_buying_in_progress = false;
         const { is_multiplier } = this.root_store.summary_card;
@@ -261,6 +268,7 @@ export default class RunPanelStore {
     };
 
     onStopBotClick = () => {
+        xmlScannerCycle.stop('XML Auto stopped.', false);
         scannerExitGuard.cancel();
         const { is_multiplier } = this.root_store.summary_card;
         const { summary_card } = this.root_store;
@@ -610,6 +618,12 @@ export default class RunPanelStore {
     };
 
     onBotReadyEvent = () => {
+        // Loading ticks for a new XML run emits "ready" while the runner is
+        // already active. It is not a stop event for an automatic batch.
+        if (xmlScannerCycle.getSnapshot().enabled && this.is_running) {
+            observer.unregisterAll('bot.bot_ready');
+            return;
+        }
         scannerExitGuard.cancel();
         this.setIsRunning(false);
         observer.unregisterAll('bot.bot_ready');
@@ -672,6 +686,7 @@ export default class RunPanelStore {
     };
 
     onError = (data: { error: any }) => {
+        xmlScannerCycle.stop('XML execution error. Check the Builder journal before restarting.');
         // data.error for API errors, data for code errors
         const error = data.error || data;
         if (unrecoverable_errors.includes(error.code)) {

@@ -6,8 +6,9 @@ import { notification_message } from '@/components/bot-notification/bot-notifica
 import { DBOT_TABS } from '@/constants/bot-contents';
 import { load, save_types } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
-import { hostedBotMarket } from '@/utils/hosted-bot-market';
+import { hostedBotForAuto, hostedBotLimits, hostedBotMarket, waitForHostedBotReady } from '@/utils/hosted-bot-market';
 import { setScannerWatch } from '@/utils/scanner-watch';
+import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
 import { TBlocklyEvents } from 'Types';
@@ -30,6 +31,12 @@ const BotBuilder = observer(() => {
     const el_ref = React.useRef<HTMLInputElement | null>(null);
 
     const [importError, setImportError] = React.useState('');
+    const [pendingVersion, setPendingVersion] = React.useState(0);
+    React.useEffect(() => {
+        const changed = () => setPendingVersion(value => value + 1);
+        window.addEventListener('neto-pending-bot', changed);
+        return () => window.removeEventListener('neto-pending-bot', changed);
+    }, []);
     const importing = React.useRef(false);
     React.useEffect(() => {
         const workspace = window.Blockly?.derivWorkspace;
@@ -42,6 +49,8 @@ const BotBuilder = observer(() => {
                 const bot = JSON.parse(pending);
                 if (typeof bot.fileName !== 'string' || typeof bot.name !== 'string' || bot.fileName.includes('/'))
                     throw new Error('Invalid bot selection.');
+                const automatic = Number.isSafeInteger(bot.autoGeneration);
+                if (automatic && !xmlScannerCycle.valid(bot.autoGeneration)) return;
                 const response = await fetch(`/api/bots/load?file=${encodeURIComponent(bot.fileName)}`, {
                     credentials: 'same-origin',
                     cache: 'no-store',
@@ -54,8 +63,11 @@ const BotBuilder = observer(() => {
                     new DOMParser().parseFromString(content, 'text/xml').querySelector('parsererror')
                 )
                     throw new Error('This bot does not contain valid XML.');
+                if (automatic && !xmlScannerCycle.valid(bot.autoGeneration)) return;
                 const result = await load({
-                    block_string: hostedBotMarket(content, bot.symbol, bot.submarket),
+                    block_string: automatic
+                        ? hostedBotForAuto(content, bot.symbol, bot.submarket)
+                        : hostedBotMarket(content, bot.symbol, bot.submarket),
                     file_name: bot.name,
                     workspace,
                     from: save_types.LOCAL,
@@ -64,6 +76,7 @@ const BotBuilder = observer(() => {
                     showIncompatibleStrategyDialog: null,
                 });
                 if (result?.error) throw new Error(result.error);
+                if (automatic && !xmlScannerCycle.valid(bot.autoGeneration)) return;
                 const hostedSide =
                     bot.fileName === 'over-punisher.xml'
                         ? 'over'
@@ -98,14 +111,28 @@ const BotBuilder = observer(() => {
                         : null
                 );
                 sessionStorage.removeItem('neto.pendingBot');
+                if (
+                    automatic &&
+                    !(await waitForHostedBotReady(workspace, bot.symbol, () =>
+                        xmlScannerCycle.valid(bot.autoGeneration)
+                    ))
+                )
+                    return;
+                if (automatic && xmlScannerCycle.loaded(bot.autoGeneration, hostedBotLimits(content))) {
+                    await run_panel.onRunButtonClick(true);
+                    if (xmlScannerCycle.valid(bot.autoGeneration) && !run_panel.is_running)
+                        xmlScannerCycle.stop('The XML bot could not start. Check the Builder message before retrying.');
+                }
             } catch (reason) {
+                xmlScannerCycle.stop(reason instanceof Error ? reason.message : 'Unable to import this bot.');
                 setImportError(reason instanceof Error ? reason.message : 'Unable to import this bot.');
                 sessionStorage.removeItem('neto.pendingBot');
             } finally {
+                if (sessionStorage.getItem('neto.pendingBot') === pending) sessionStorage.removeItem('neto.pendingBot');
                 importing.current = false;
             }
         })();
-    }, [is_loading, active_tab]);
+    }, [is_loading, active_tab, run_panel, pendingVersion]);
 
     // TODO: fix
     // const isMounted = useIsMounted();

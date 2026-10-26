@@ -23,3 +23,65 @@ export function hostedBotMarket(content: string, symbol?: string, submarket = 'r
     });
     return new XMLSerializer().serializeToString(document);
 }
+
+// Read the hosted XML's existing limits; Auto mode carries them across reloads.
+export function hostedBotLimits(content: string) {
+    const document = new DOMParser().parseFromString(content, 'text/xml');
+    const initialization = document.querySelector('block[type="trade_definition"] > statement[name="INITIALIZATION"]');
+    const amount = (name: string) => {
+        const assignment = Array.from(initialization?.querySelectorAll('block[type="variables_set"]') || []).find(
+            block =>
+                Array.from(block.children).some(
+                    child =>
+                        child.localName === 'field' &&
+                        child.getAttribute('name') === 'VAR' &&
+                        child.textContent === name
+                )
+        );
+        const value = Number(
+            assignment?.querySelector('value[name="VALUE"] > block[type="math_number"] > field[name="NUM"]')
+                ?.textContent
+        );
+        if (!Number.isFinite(value) || value <= 0) throw new Error('XML Auto requires valid profit and loss limits.');
+        return Math.round(value * 100);
+    };
+    return { takeProfit: amount('Expected Profit'), stopLoss: amount('Stop Loss') };
+}
+
+export function hostedBotForAuto(content: string, symbol: string, submarket: string) {
+    const document = new DOMParser().parseFromString(hostedBotMarket(content, symbol, submarket), 'text/xml');
+    const purchases = new Set(
+        Array.from(document.querySelectorAll('block[type="purchase"] > field[name="PURCHASE_LIST"]')).map(
+            field => field.textContent
+        )
+    );
+    // Enable both directions when the XML already contains them (e.g. its recovery).
+    // This does not change any purchase block, prediction, stake or recovery logic.
+    if (purchases.has('DIGITOVER') && purchases.has('DIGITUNDER')) {
+        const field = document.querySelector('block[type="trade_definition_contracttype"] > field[name="TYPE_LIST"]');
+        if (field) field.textContent = 'both';
+    }
+    return new XMLSerializer().serializeToString(document);
+}
+
+type ScannerWorkspace = { getAllBlocks: () => { type: string; getFieldValue: (name: string) => string }[] };
+export async function waitForHostedBotReady(workspace: ScannerWorkspace, symbol: string, valid: () => boolean) {
+    const deadline = Date.now() + 15000;
+    while (valid()) {
+        const blocks = workspace.getAllBlocks();
+        const market = blocks.find(block => block.type === 'trade_definition_market');
+        const trade = blocks.find(block => block.type === 'trade_definition_tradetype');
+        const purchases = blocks.filter(block => block.type === 'purchase');
+        if (
+            market?.getFieldValue('SYMBOL_LIST') === symbol &&
+            trade?.getFieldValue('TRADETYPE_LIST') === 'overunder' &&
+            purchases.length &&
+            purchases.every(block => ['DIGITOVER', 'DIGITUNDER'].includes(block.getFieldValue('PURCHASE_LIST')))
+        )
+            return true;
+        if (Date.now() >= deadline)
+            throw new Error('Bot market settings are not ready. Check the market connection and try again.');
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return false;
+}

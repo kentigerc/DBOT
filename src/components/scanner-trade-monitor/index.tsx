@@ -6,6 +6,7 @@ import { lastDigit } from '@/pages/digit-analysis/digits';
 import { evaluateScan } from '@/pages/digit-analysis/scanner';
 import { risingScannerDigits, scannerExitGuard } from '@/utils/scanner-exit-guard';
 import { getScannerWatch, setScannerWatch, subscribeScannerWatch } from '@/utils/scanner-watch';
+import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import useMovablePanel from '../movable-panel/use-movable-panel';
 import './scanner-trade-monitor.scss';
 
@@ -83,12 +84,16 @@ const ScannerTradeMonitor = observer(() => {
         setIssue('');
         setCheckedAt('');
         const warn = (message: string) => {
-            if (!disposed) setIssue(previous => previous || message);
+            if (!disposed) {
+                setIssue(previous => previous || message);
+                xmlScannerCycle.stop(message);
+            }
         };
         const evaluate = () => {
             if (disposed) return;
             lastUpdate = Date.now();
             setCheckedAt(new Date().toLocaleTimeString());
+            xmlScannerCycle.market(target.symbol, digits, lastEpoch);
             if (target.baselineCounts) {
                 const counts = Array<number>(10).fill(0);
                 digits.forEach(digit => counts[digit]++);
@@ -96,8 +101,10 @@ const ScannerTradeMonitor = observer(() => {
                     scannerExitGuard.trigger();
             }
             if (!evaluateScan(digits, target.side, target.sampleSize).matches)
-                warn(
-                    'Market changed: the entry conditions no longer match. Stop the bot now and review any open trade.'
+                setIssue(
+                    previous =>
+                        previous ||
+                        'Market changed: the entry conditions no longer match. Stop the bot now and review any open trade.'
                 );
         };
         const accept = (tick: Tick) => {

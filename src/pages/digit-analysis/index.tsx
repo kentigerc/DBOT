@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
-import { getDerivSession } from '@/utils/deriv-session';
+import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
+import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import DigitCycle from './digit-cycle';
 import { digitFrequencies } from './digits';
 import { DigitMarket, subscribeLiveDigits } from './live-digits';
@@ -76,7 +77,13 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                 </label>
                 <label>
                     Sample size
-                    <select value={sampleSize} onChange={event => setSampleSize(Number(event.target.value))}>
+                    <select
+                        value={sampleSize}
+                        onChange={event => {
+                            xmlScannerCycle.stop('Sample size changed. Start a fresh XML Auto session.');
+                            setSampleSize(Number(event.target.value));
+                        }}
+                    >
                         {[100, 500, 1000].map(size => (
                             <option key={size} value={size}>
                                 Last {size.toLocaleString()} ticks
@@ -148,7 +155,17 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                 sampleSize={sampleSize}
                 onSelect={setSymbol}
                 active={active}
-                onLoad={(side, matchedSymbol, submarket, baselineCounts) => {
+                onAutoStart={() => {
+                    if (run_panel.is_running || run_panel.has_open_contract)
+                        throw new Error('Stop and settle Bot Builder first.');
+                    const account = getDerivAccount();
+                    if (!account || account.status !== 'active') throw new Error('Select an active Deriv account.');
+                    if (account.currency !== 'USD') throw new Error('Select a USD account for these XML bots.');
+                    xmlScannerCycle.start(account.account_id, sampleSize, complete =>
+                        run_panel.onStopButtonClick(complete)
+                    );
+                }}
+                onLoad={(side, matchedSymbol, submarket, baselineCounts, autoGeneration) => {
                     if (!getDerivSession().authenticated)
                         throw new Error('Log in with Deriv to load a NetoAcademy bot.');
                     if (run_panel.is_running) throw new Error('Stop your running bot before loading another bot.');
@@ -162,8 +179,10 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                             scannerSide: side,
                             baselineCounts,
                             sampleSize,
+                            autoGeneration,
                         })
                     );
+                    window.dispatchEvent(new Event('neto-pending-bot'));
                     dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
                     navigate('/#bot_builder');
                     return true;

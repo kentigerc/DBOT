@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
+import { getDerivAccount } from '@/utils/deriv-session';
+import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
+import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { digitFrequencies, lastDigit } from './digits';
 import { evaluateScan, ScanSide } from './scanner';
 
@@ -26,24 +29,44 @@ export default function MarketScanner({
     onSelect,
     onLoad,
     active = true,
+    onAutoStart,
 }: {
     sampleSize: number;
     onSelect: (symbol: string) => void;
-    onLoad: (side: ScanSide, symbol: string, submarket: string, baselineCounts: number[]) => boolean;
+    onLoad: (
+        side: ScanSide,
+        symbol: string,
+        submarket: string,
+        baselineCounts: number[],
+        autoGeneration?: number
+    ) => boolean;
     active?: boolean;
+    onAutoStart?: () => void;
 }) {
+    const auto = useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
+    const loadRef = useRef(onLoad);
+    loadRef.current = onLoad;
+    const scanning = auto.enabled ? auto.phase === 'scanning' : active;
     const [enabled, setEnabled] = useState(true);
     const [message, setMessage] = useState('Connecting to market data…');
     const [results, setResults] = useState<Result[]>([]);
     const [preview, setPreview] = useState<Snapshot & { matchedSides: ScanSide[] }>();
     const [loadError, setLoadError] = useState('');
+    const [preparing, setPreparing] = useState(false);
+    const startAttempt = useRef(0);
+    useEffect(
+        () => () => {
+            startAttempt.current++;
+        },
+        []
+    );
     useEffect(() => {
         setResults([]);
         setPreview(undefined);
         setLoadError('');
     }, [sampleSize]);
     useEffect(() => {
-        if (!active || !enabled) {
+        if (!scanning || !enabled) {
             setMessage('Scanner paused. Displayed percentages are snapshots.');
             return;
         }
@@ -116,6 +139,41 @@ export default function MarketScanner({
                             }));
                             const matches = evaluations.filter(result => result.matches);
                             setPreview({ ...evaluations[0], matchedSides: matches.map(result => result.side) });
+                            const automatic = xmlScannerCycle.getSnapshot();
+                            if (automatic.enabled && automatic.phase === 'scanning' && matches.length) {
+                                const selected = matches.find(result => result.entryReady) || matches[0];
+                                const baselineCounts = digitFrequencies(digits).map(item => item.count);
+                                const token = xmlScannerCycle.claim({
+                                    symbol: selected.symbol,
+                                    side: selected.side,
+                                    submarket: selected.submarket || 'random_index',
+                                    sampleSize,
+                                    baselineCounts,
+                                    name: selected.side === 'over' ? 'Over Punisher' : 'Under Punisher',
+                                });
+                                if (token !== undefined) {
+                                    setResults([selected]);
+                                    try {
+                                        if (
+                                            !loadRef.current(
+                                                selected.side,
+                                                selected.symbol,
+                                                selected.submarket || 'random_index',
+                                                baselineCounts,
+                                                token
+                                            )
+                                        )
+                                            throw new Error('The XML bot could not be selected.');
+                                    } catch (error) {
+                                        xmlScannerCycle.stop(
+                                            error instanceof Error
+                                                ? error.message
+                                                : 'Unable to load the selected XML bot.'
+                                        );
+                                    }
+                                    return;
+                                }
+                            }
                             setResults(previous => [
                                 ...previous.filter(
                                     item => item.symbol !== market.symbol && Date.now() - item.checkedAt < 60000
@@ -155,7 +213,7 @@ export default function MarketScanner({
             controller.abort();
             api?.disconnect();
         };
-    }, [active, enabled, sampleSize]);
+    }, [scanning, enabled, sampleSize]);
     return (
         <section className='digit-scanner' aria-labelledby='digit-scanner-title'>
             <h2 id='digit-scanner-title'>Over / Under market scanner</h2>
@@ -164,8 +222,58 @@ export default function MarketScanner({
                 each pass.
             </p>
             <div className='digit-scanner__controls'>
-                <button onClick={() => setEnabled(value => !value)}>{enabled ? 'PAUSE' : 'RESUME'}</button>
+                <button disabled={auto.enabled} onClick={() => setEnabled(value => !value)}>
+                    {enabled ? 'PAUSE' : 'RESUME'}
+                </button>
+                <button
+                    disabled={auto.enabled || preparing}
+                    onClick={async () => {
+                        const attempt = ++startAttempt.current;
+                        setPreparing(true);
+                        try {
+                            const account = getDerivAccount();
+                            if (!account) throw new Error('Log in with Deriv and select an account first.');
+                            if (isAnalysisTrading() || (await checkServerAnalysis()))
+                                throw new Error('Stop and settle the Analysis Tool before starting XML Auto.');
+                            if (
+                                attempt !== startAttempt.current ||
+                                getDerivAccount()?.account_id !== account.account_id
+                            )
+                                return;
+                            if (!onAutoStart) throw new Error('XML Auto is unavailable here.');
+                            onAutoStart();
+                            setEnabled(true);
+                            setLoadError('');
+                        } catch (error) {
+                            if (attempt === startAttempt.current)
+                                setLoadError(error instanceof Error ? error.message : 'Unable to start XML Auto.');
+                        } finally {
+                            if (attempt === startAttempt.current) setPreparing(false);
+                        }
+                    }}
+                >
+                    START XML AUTO
+                </button>
+                <button
+                    disabled={!auto.enabled && !preparing}
+                    onClick={() => {
+                        startAttempt.current++;
+                        setPreparing(false);
+                        xmlScannerCycle.stop();
+                    }}
+                >
+                    STOP XML AUTO
+                </button>
             </div>
+            <p className='digit-analysis__note'>
+                XML Auto runs three-win batches with the selected bot’s XML recovery. Keep this tab open and connected.
+            </p>
+            {auto.phase !== 'idle' && (
+                <p role='status'>
+                    {auto.message} · Batch wins {auto.wins}/3 · Batches {auto.batches} · Session P/L{' '}
+                    {(auto.pnl / 100).toFixed(2)}
+                </p>
+            )}
             <p role='status' aria-live='polite'>
                 {message}
             </p>
@@ -215,8 +323,11 @@ export default function MarketScanner({
                             <strong>{result.side === 'over' ? 'Over Punisher' : 'Under Punisher'}</strong>
                         </p>
                         <div className='digit-scanner__actions'>
-                            <button onClick={() => onSelect(result.symbol)}>View digits</button>
+                            <button disabled={auto.enabled} onClick={() => onSelect(result.symbol)}>
+                                View digits
+                            </button>
                             <button
+                                disabled={auto.enabled}
                                 onClick={() => {
                                     try {
                                         if (
@@ -224,11 +335,7 @@ export default function MarketScanner({
                                                 result.side,
                                                 result.symbol,
                                                 result.submarket || 'random_index',
-                                                Array.from(
-                                                    { length: 10 },
-                                                    (_, digit) =>
-                                                        result.selected.find(item => item.digit === digit)?.count || 0
-                                                )
+                                                digitFrequencies(result.digits).map(item => item.count)
                                             )
                                         ) {
                                             setLoadError('');
@@ -247,8 +354,8 @@ export default function MarketScanner({
                 ))}
             </div>
             <p>
-                The scanner pauses when you leave this tab. Loading selects the matched market in Bot Builder; review
-                your settings before running. Historical matches do not predict the next digit.
+                Manual scanning pauses when you leave this section. XML Auto continues until stopped or a limit is
+                reached. Manual Load Bot lets you review the XML before running it.
             </p>
         </section>
     );

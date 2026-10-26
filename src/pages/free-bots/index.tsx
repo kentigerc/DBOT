@@ -78,6 +78,7 @@ const FreeBots = observer(() => {
             setError('');
             // Load after the builder mounts and initializes its workspace.
             sessionStorage.setItem('neto.pendingBot', JSON.stringify({ fileName: bot.fileName, name: bot.name }));
+            window.dispatchEvent(new Event('neto-pending-bot'));
             dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
             navigate('/#bot_builder');
         } catch (error) {

@@ -1,3 +1,4 @@
+import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { LogTypes } from '../../../constants/messages';
 import { api_base } from '../../api/api-base';
 import { contractStatus, info, log } from '../utils/broadcast';
@@ -10,12 +11,14 @@ let purchase_reference;
 
 export default Engine =>
     class Purchase extends Engine {
-        purchase(contract_type) {
+        async purchase(contract_type) {
             // Prevent calling purchase twice
             if (this.store.getState().scope !== BEFORE_PURCHASE) {
                 return Promise.resolve();
             }
 
+            if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol))) return;
+            if (this.store.getState().scope !== BEFORE_PURCHASE) return;
             const onSuccess = response => {
                 // Don't unnecessarily send a forget request for a purchased contract.
                 const { buy } = response;

@@ -1,0 +1,29 @@
+.xml-scanner-auto {
+    position: fixed;
+    z-index: 11990;
+    inset-block-end: 8rem;
+    inset-inline-start: 1rem;
+    width: min(29rem, calc(100vw - 2rem));
+    padding: 1rem;
+    border: 1px solid var(--border-normal);
+    border-radius: 1rem;
+    background: var(--general-main-1);
+    color: var(--text-prominent);
+    box-shadow: 0 4px 18px #0004;
+    font-size: 1.2rem;
+    strong {
+        display: block;
+        margin-block: 0.6rem;
+    }
+    p {
+        margin-block: 0.5rem;
+    }
+    button {
+        padding: 0.5rem 0.8rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        background: var(--button-primary-default, #e50914);
+        color: #fff;
+        border: 0;
+    }
+}

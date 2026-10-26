@@ -14,8 +14,8 @@ const history = (counts: number[]) => ({
     pip_size: 2,
     history: { prices: counts.flatMap((n, digit) => Array<number>(n).fill(100 + digit / 100)) },
 });
-const over = history([8, 9, 9, 9, 10, 10, 11, 11, 11, 12]);
-const under = history([12, 11, 11, 11, 10, 10, 9, 9, 9, 8]);
+const over = history([9, 9, 9, 8, 10, 10, 11, 11, 11, 12]);
+const under = history([12, 11, 11, 11, 10, 10, 8, 9, 9, 9]);
 const neutral = history(Array(10).fill(10));
 const createApi = () => ({
     send: jest
@@ -40,7 +40,7 @@ it('automatically scans, shows circles and suggests Over Punisher without starti
     fireEvent.click(screen.getByRole('button', { name: 'View digits' }));
     expect(select).toHaveBeenCalledWith('R_100');
     fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
-    expect(load).toHaveBeenCalledWith('over', 'R_100', 'random_index', [8, 9, 9, 9, 0, 0, 0, 0, 0, 0]);
+    expect(load).toHaveBeenCalledWith('over', 'R_100', 'random_index', [9, 9, 9, 8, 10, 10, 11, 11, 11, 12]);
     expect(screen.getByRole('button', { name: 'PAUSE' })).toBeTruthy();
     expect(api.send.mock.calls.every(([request]) => request.active_symbols || request.ticks_history)).toBe(true);
 });
@@ -54,7 +54,7 @@ it('finds Over and Under in the same pass without a selector and loads the right
     expect(screen.queryByRole('combobox')).toBeNull();
     const underCard = screen.getByText('Under Punisher').closest('article')!;
     fireEvent.click(within(underCard).getByRole('button', { name: 'Load Bot' }));
-    expect(load).toHaveBeenCalledWith('under', '1HZ10V', 'random_index', [0, 0, 0, 0, 0, 0, 9, 9, 9, 8]);
+    expect(load).toHaveBeenCalledWith('under', '1HZ10V', 'random_index', [12, 11, 11, 11, 10, 10, 8, 9, 9, 9]);
     expect(
         api.send.mock.calls.some(
             ([request]) => request.ticks_history === 'CRASH500' || request.ticks_history === 'R_50'
@@ -160,5 +160,62 @@ it('replaces an Over match with Under when the same market changes direction', a
     expect(screen.getByText('Under Punisher')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Load Bot' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
-    expect(load).toHaveBeenCalledWith('under', 'R_100', 'random_index', [0, 0, 0, 0, 0, 0, 9, 9, 9, 8]);
+    expect(load).toHaveBeenCalledWith('under', 'R_100', 'random_index', [12, 11, 11, 11, 10, 10, 8, 9, 9, 9]);
+});
+
+it('loads exactly one matched XML automatically only after the user enables Auto', async () => {
+    const { xmlScannerCycle } = require('@/utils/xml-scanner-cycle');
+    const session = require('@/utils/deriv-session');
+    const locks = require('@/utils/trading-lock');
+    const account = jest
+        .spyOn(session, 'getDerivAccount')
+        .mockReturnValue({ account_id: 'TEST-DEMO', status: 'active', account_type: 'demo', currency: 'USD', balance: 10000 });
+    const check = jest.spyOn(locks, 'checkServerAnalysis').mockResolvedValue(false);
+    connect.mockResolvedValue(createApi());
+    const load = jest.fn().mockReturnValue(true);
+    const start = () => xmlScannerCycle.start('TEST-DEMO', 100, jest.fn());
+    const { rerender } = render(
+        <MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} onAutoStart={start} />
+    );
+    await screen.findByRole('button', { name: 'Load Bot' });
+    expect(load).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'START XML AUTO' }));
+    await waitFor(() => expect(xmlScannerCycle.getSnapshot().enabled).toBe(true));
+    // A fresh pass continues even while the Builder section is in front.
+    rerender(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} onAutoStart={start} active={false} />);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1), { timeout: 4500 });
+    expect(load.mock.calls[0][0]).toMatch(/over|under/);
+    expect(load.mock.calls[0][3]).toHaveLength(10);
+    expect(Number.isSafeInteger(load.mock.calls[0][4])).toBe(true);
+    expect(xmlScannerCycle.getSnapshot().phase).toBe('loading');
+    fireEvent.click(screen.getByRole('button', { name: 'STOP XML AUTO' }));
+    expect(xmlScannerCycle.getSnapshot().enabled).toBe(false);
+    account.mockRestore();
+    check.mockRestore();
+});
+
+it('STOP cancels the asynchronous session check before XML Auto can start', async () => {
+    const session = require('@/utils/deriv-session');
+    const locks = require('@/utils/trading-lock');
+    const account = jest
+        .spyOn(session, 'getDerivAccount')
+        .mockReturnValue({ account_id: 'TEST-DEMO', status: 'active', account_type: 'demo', currency: 'USD', balance: 10000 });
+    let release!: (busy: boolean) => void;
+    const check = jest.spyOn(locks, 'checkServerAnalysis').mockImplementation(
+        () =>
+            new Promise(resolve => {
+                release = resolve;
+            })
+    );
+    connect.mockResolvedValue(createApi());
+    const start = jest.fn();
+    render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={jest.fn()} onAutoStart={start} />);
+    fireEvent.click(screen.getByRole('button', { name: 'START XML AUTO' }));
+    fireEvent.click(screen.getByRole('button', { name: 'STOP XML AUTO' }));
+    await act(async () => {
+        release(false);
+    });
+    expect(start).not.toHaveBeenCalled();
+    account.mockRestore();
+    check.mockRestore();
 });
