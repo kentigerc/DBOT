@@ -5,13 +5,17 @@ const Client = require('ws');
 const { attachSockets } = require('./socket.cjs');
 
 async function fixture(t, expired = false) {
-    const targets = [];
+    const targets = [],
+        upstreams = [],
+        connections = [],
+        trades = [];
     class Upstream extends EventTarget {
         constructor(url) {
             super();
             this.readyState = 0;
             this.bufferedAmount = 0;
             targets.push(url);
+            upstreams.push(this);
             setImmediate(() => {
                 this.readyState = 1;
                 this.dispatchEvent(new Event('open'));
@@ -37,7 +41,11 @@ async function fixture(t, expired = false) {
             },
         },
         undefined,
-        { createUpstream: url => new Upstream(url) }
+        {
+            createUpstream: url => new Upstream(url),
+            onConnection: (...args) => connections.push(args),
+            onTrade: (...args) => trades.push(args),
+        }
     );
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     t.after(async () => {
@@ -51,7 +59,7 @@ async function fixture(t, expired = false) {
             origin,
             headers: { Cookie: cookie },
         });
-    return { connect, targets };
+    return { connect, targets, upstreams, connections, trades };
 }
 const opened = client =>
     new Promise((resolve, reject) => {
@@ -94,4 +102,22 @@ test('owned account connects using a server-issued OTP and forwards trading requ
 test('expired sessions cannot complete a socket upgrade', async t => {
     const { connect } = await fixture(t, true);
     assert.match(await rejected(connect('?account_id=DOT100', 'http://neto.example', 'session=owned')), /401/);
+});
+
+test('owned socket analytics observe only provider trades and remove disconnected accounts', async t => {
+    const { connect, upstreams, connections, trades } = await fixture(t);
+    const client = connect('?account_id=DOT100', 'http://neto.example', 'session=owned');
+    await opened(client);
+    assert.equal(connections.length, 1);
+    assert.equal(connections[0][0], 'DOT100');
+    assert.equal(connections[0][2], true);
+    const packet = { buy: { contract_id: 123, buy_price: 0.35 } };
+    upstreams[0].dispatchEvent(new MessageEvent('message', { data: JSON.stringify(packet) }));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(trades, [['DOT100', packet.buy]]);
+    const closed = new Promise(resolve => client.once('close', resolve));
+    client.close();
+    await closed;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(connections.at(-1)[2], false);
 });

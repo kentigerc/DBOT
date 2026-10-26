@@ -6,6 +6,7 @@ const API_ORIGIN = 'https://api.derivws.com';
 const SESSION_COOKIE = 'neto_session';
 const FLOW_COOKIE = 'neto_oauth';
 const REFRESH_COOKIE = 'neto_refresh';
+const REPORTING_COOKIE = 'neto_reporting';
 const REFRESH_SECONDS = 7 * 24 * 60 * 60;
 
 class HttpError extends Error {
@@ -21,6 +22,11 @@ function createAuthHandler({
     secret = process.env.NETO_SESSION_SECRET,
     fetchImpl = fetch,
     now = () => Date.now(),
+    onAccounts = () => {},
+    adminAccountIds = (process.env.NETO_ADMIN_ACCOUNT_IDS || '')
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean),
 } = {}) {
     const publicOrigin = new URL(origin).origin;
     const secure = publicOrigin.startsWith('https:');
@@ -86,7 +92,7 @@ function createAuthHandler({
             throw new HttpError(400, 'Invalid JSON.');
         }
     }
-    async function requestJson(url, options, refresh = false) {
+    async function requestJson(url, options, refresh = false, reporting = false) {
         let response;
         try {
             response = await fetchImpl(url, { ...options, signal: AbortSignal.timeout(15000), redirect: 'error' });
@@ -95,6 +101,8 @@ function createAuthHandler({
         }
         // Do not forward upstream bodies: they can contain credentials or authorization codes.
         if (!response.ok) {
+            if (reporting && response.status === 403)
+                throw new HttpError(403, 'Connect your developer reporting authorization to view commission.');
             if (refresh && response.status === 400) {
                 const body = await response.json().catch(() => ({}));
                 if (['invalid_grant', 'invalid_token'].includes(body.error))
@@ -113,7 +121,7 @@ function createAuthHandler({
             headers: { Authorization: `Bearer ${token}`, 'Deriv-App-ID': configuration.appId },
         });
         if (!Array.isArray(result.data)) throw new HttpError(502, 'Deriv returned an unexpected accounts response.');
-        return result.data
+        const accounts = result.data
             .map(account => ({
                 account_id: account.account_id,
                 account_type: account.account_type,
@@ -122,6 +130,12 @@ function createAuthHandler({
                 status: account.status,
             }))
             .filter(account => typeof account.account_id === 'string');
+        try {
+            onAccounts(accounts);
+        } catch {
+            /* Analytics must never affect authorization. */
+        }
+        return accounts;
     }
     function session(req) {
         const cookie = readCookie(req, SESSION_COOKIE);
@@ -262,15 +276,29 @@ function createAuthHandler({
             if (url.pathname === '/api/auth/login' && req.method === 'GET') {
                 if (req.headers['sec-fetch-site'] === 'cross-site')
                     throw new HttpError(403, 'Start login from NetoAcademy.');
+                const adminLogin = url.searchParams.get('admin') === '1';
+                const adminOwner = adminLogin ? (await handle.requireAdmin(req)).sid : undefined;
                 const verifier = randomBytes(48).toString('base64url');
                 const state = randomBytes(32).toString('base64url');
-                setCookie(res, FLOW_COOKIE, { verifier, state, expires: now() + 600000 }, 600);
+                setCookie(
+                    res,
+                    FLOW_COOKIE,
+                    {
+                        verifier,
+                        state,
+                        admin: adminLogin,
+                        adminOwner,
+                        returnTo: adminLogin || url.searchParams.get('return') === 'admin' ? '/admin' : '/',
+                        expires: now() + 600000,
+                    },
+                    600
+                );
                 const auth = new URL('/oauth2/auth', AUTH_ORIGIN);
                 auth.search = new URLSearchParams({
                     response_type: 'code',
                     client_id: configuration.appId,
                     redirect_uri: redirectUri,
-                    scope: 'trade',
+                    scope: adminLogin ? 'application_read' : 'trade',
                     state,
                     code_challenge: createHash('sha256').update(verifier).digest('base64url'),
                     code_challenge_method: 'S256',
@@ -293,6 +321,8 @@ function createAuthHandler({
                 if (body.error) throw new HttpError(400, 'Deriv login was cancelled or declined.');
                 if (typeof body.code !== 'string' || !body.code || body.code.length > 4096)
                     throw new HttpError(400, 'Missing authorization code.');
+                if (flow.admin && (await handle.requireAdmin(req)).sid !== flow.adminOwner)
+                    throw new HttpError(403, 'The owner session changed. Start reporting login again.');
                 const tokens = await requestJson(`${AUTH_ORIGIN}/oauth2/token`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -305,13 +335,27 @@ function createAuthHandler({
                     }).toString(),
                 });
                 const seconds = tokenSeconds(tokens);
+                if (flow.admin) {
+                    setCookie(
+                        res,
+                        REPORTING_COOKIE,
+                        { access_token: tokens.access_token, expires: now() + seconds * 1000 },
+                        seconds
+                    );
+                    return json(res, 200, { authenticated: true, returnTo: '/admin' });
+                }
+                setCookie(res, REPORTING_COOKIE, null, 0);
                 const sid = randomBytes(24).toString('base64url');
                 const refresh = refreshData(tokens, sid);
                 setCookie(res, REFRESH_COOKIE, null, 0);
                 writeSession(res, accessSession(tokens, sid, seconds), refresh);
-                return json(res, 200, { authenticated: true });
+                return json(res, 200, {
+                    authenticated: true,
+                    returnTo: flow.admin || flow.returnTo === '/admin' ? '/admin' : '/',
+                });
             }
             if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+                setCookie(res, REPORTING_COOKIE, null, 0);
                 const value = readCookie(req, SESSION_COOKIE) || readCookie(req, REFRESH_COOKIE);
                 if (value?.sid) renewed.set(value.sid, { revoked: true, until: now() + REFRESH_SECONDS * 1000 });
                 setCookie(res, REFRESH_COOKIE, null, 0);
@@ -326,6 +370,9 @@ function createAuthHandler({
                 return json(res, 200, {
                     authenticated: true,
                     accounts,
+                    isAdmin: accounts.some(
+                        account => account.status === 'active' && adminAccountIds.includes(account.account_id)
+                    ),
                     expiresAt: saved.expires,
                     renewable: !!readCookie(req, REFRESH_COOKIE),
                 });
@@ -346,8 +393,8 @@ function createAuthHandler({
         }
     };
     const accountCache = new Map();
-    handle.authorizeAccount = async (req, accountId) => {
-        const saved = session(req);
+    const reportCache = new Map();
+    const cachedAccounts = async saved => {
         const cacheKey = createHash('sha256').update(saved.access_token).digest('hex');
         let cached = accountCache.get(cacheKey);
         if (!cached || cached.until < now()) {
@@ -355,9 +402,58 @@ function createAuthHandler({
             if (accountCache.size > 1000) accountCache.clear();
             accountCache.set(cacheKey, cached);
         }
-        const account = cached.accounts.find(item => item.account_id === accountId && item.status === 'active');
+        return cached.accounts;
+    };
+    handle.authorizeAccount = async (req, accountId) => {
+        const accounts = await cachedAccounts(session(req));
+        const account = accounts.find(item => item.account_id === accountId && item.status === 'active');
         if (!account) throw new HttpError(403, 'This trading account is not available in your Deriv session.');
         return account;
+    };
+    handle.requireAdmin = async req => {
+        if (!adminAccountIds.length)
+            throw new HttpError(503, 'Admin access is not configured. Set NETO_ADMIN_ACCOUNT_IDS on the server.');
+        const saved = session(req);
+        const accounts = await cachedAccounts(saved);
+        if (!accounts.some(account => account.status === 'active' && adminAccountIds.includes(account.account_id)))
+            throw new HttpError(403, 'This account does not have admin access.');
+        return saved;
+    };
+    handle.markupStatistics = async (req, from, to) => {
+        await handle.requireAdmin(req);
+        const saved = readCookie(req, REPORTING_COOKIE);
+        if (!saved?.access_token)
+            throw new HttpError(403, 'Connect your developer reporting authorization to view commission.');
+        const cacheKey = createHash('sha256').update(saved.access_token).digest('hex') + ':' + from + ':' + to;
+        const cached = reportCache.get(cacheKey);
+        if (cached && cached.until > now()) return cached.result;
+        const url = new URL('/applications/v1/markup-statistics', API_ORIGIN);
+        url.search = new URLSearchParams({ date_from: from, date_to: to }).toString();
+        try {
+            const result = await requestJson(
+                url.toString(),
+                { headers: { Authorization: `Bearer ${saved.access_token}`, 'Deriv-App-ID': configuration.appId } },
+                false,
+                true
+            );
+            for (const [key, value] of reportCache) if (value.until <= now()) reportCache.delete(key);
+            if (reportCache.size >= 1000) reportCache.delete(reportCache.keys().next().value);
+            const checked = { ...result, checkedAt: now() };
+            reportCache.set(cacheKey, { until: now() + 60000, result: checked });
+            return checked;
+        } catch (error) {
+            if (error.status === 401)
+                throw new HttpError(403, 'Developer reporting authorization expired. Connect reporting again.');
+            throw error;
+        }
+    };
+    handle.sessionIdentity = req => {
+        try {
+            const saved = session(req);
+            return saved.sid || null;
+        } catch {
+            return null;
+        }
     };
     handle.connectionUrl = connectionUrl;
     handle.sessionExpires = req => session(req).expires;

@@ -42,6 +42,7 @@ function createAnalysisService(
     auth,
     {
         dispatcher,
+        onTrade = () => {},
         storage = fileStorage(process.env.NETO_ANALYSIS_STATE_DIR || path.join(__dirname, '../.analysis-state')),
         brokerFactory = url => createBroker(url, dispatcher),
         Engine = DigitStrategyEngine,
@@ -62,14 +63,31 @@ function createAnalysisService(
         let value = sessions.get(account.account_id);
         if (!value) {
             value = { account, starting: false, request: undefined };
+            const brokerForRun = async () => {
+                const broker = await brokerFactory(await auth.connectionUrl(value.request, account.account_id));
+                const reporting = broker.onMessage?.().subscribe(({ data }) => {
+                    const packet = data.buy?.contract_id
+                        ? data.buy
+                        : [true, 1].includes(data.proposal_open_contract?.is_sold)
+                          ? data.proposal_open_contract
+                          : undefined;
+                    if (packet) {
+                        try {
+                            onTrade(value.account, value.engine.getSnapshot(), packet);
+                        } catch {
+                            /* Reporting never interrupts trading. */
+                        }
+                    }
+                });
+                broker.connection?.addEventListener('close', () => reporting?.unsubscribe(), { once: true });
+                return broker;
+            };
+
             value.engine = new Engine({
                 account: () => value.account,
                 builderRunning: () => (builderBuys.get(account.account_id)?.size || 0) > 0,
                 storage,
-                createApi: async () => {
-                    const url = await auth.connectionUrl(value.request, account.account_id);
-                    return brokerFactory(url);
-                },
+                createApi: brokerForRun,
             });
             value.engine.selectAccount(account);
             // A restart never continues entries automatically. Clear an expired process lease.
@@ -82,7 +100,7 @@ function createAnalysisService(
                     account: () => value.account,
                     builderRunning: () => (builderBuys.get(account.account_id)?.size || 0) > 0,
                     storage,
-                    createApi: async () => brokerFactory(await auth.connectionUrl(value.request, account.account_id)),
+                    createApi: brokerForRun,
                 });
                 value.engine.selectAccount(account);
             }

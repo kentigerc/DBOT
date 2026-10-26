@@ -13,7 +13,11 @@ const CallbackPage = () => {
             window.history.replaceState(null, '', '/callback');
             completion = sessionRequest('/api/auth/callback', body);
         }
-        completion.then(() => window.location.replace('/')).catch(reason => setError(reason.message));
+        completion
+            .then(value =>
+                window.location.replace((value as { returnTo?: string })?.returnTo === '/admin' ? '/admin' : '/')
+            )
+            .catch(reason => setError(reason.message));
     }, []);
     return (
         <main style={{ padding: '4rem', fontSize: '1.6rem' }}>

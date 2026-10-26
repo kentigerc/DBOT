@@ -46,3 +46,5 @@ lerna-debug.log*
 .ai-rules.md
 .server-build/
 .analysis-state/
+
+.analytics-state/

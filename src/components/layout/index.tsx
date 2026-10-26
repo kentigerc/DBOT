@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { Outlet } from 'react-router-dom';
 import PWAUpdateNotification from '@/components/pwa-update-notification';
 import { useDevice } from '@deriv-com/ui';
+import UsageTracker from '../usage-tracker';
 import Footer from './footer';
 import AppHeader from './header';
 import Body from './main-body';
@@ -12,6 +13,7 @@ const Layout = observer(() => {
     return (
         <div className={`layout${isDesktop ? ' responsive' : ''}`}>
             <AppHeader />
+            <UsageTracker />
             <Body>
                 <Outlet />
             </Body>

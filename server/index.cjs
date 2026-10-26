@@ -14,13 +14,51 @@ const origin =
 const secret = process.env.NETO_SESSION_SECRET || (development ? randomBytes(48).toString('base64url') : undefined);
 const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
 const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
+let admin;
+let analysis;
 const handleAuth = createAuthHandler({
     origin,
     secret,
+    onAccounts: values => admin?.accounts(values),
     fetchImpl: (url, options) => proxyFetch(url, { ...options, ...(dispatcher ? { dispatcher } : {}) }),
 });
 const { createAnalysisService } = require('./analysis.cjs');
-const analysis = createAnalysisService(handleAuth, { dispatcher });
+const { createAnalyticsStore } = require('./analytics-store.cjs');
+const { createAdminAnalytics } = require('./admin.cjs');
+let analyticsStore;
+try {
+    analyticsStore = createAnalyticsStore();
+} catch {
+    console.error('Analytics storage could not initialize; trading remains available.');
+    analyticsStore = {
+        mode: 'unavailable',
+        health: () => false,
+        put: async () => {
+            throw new Error('Storage unavailable');
+        },
+        list: async () => {
+            throw new Error('Storage unavailable');
+        },
+        prune: async () => {},
+        close: async () => {},
+    };
+}
+admin = createAdminAnalytics({
+    auth: handleAuth,
+    store: analyticsStore,
+    secret,
+    activeBots: () =>
+        [...(analysis?.sessions.values() || [])].filter(value => value.engine.getSnapshot().active).length,
+});
+analysis = createAnalysisService(handleAuth, {
+    dispatcher,
+    onTrade: (account, state, packet) =>
+        admin.trade(
+            account.account_id,
+            state.settings.strategy === 'over2-under7' ? 'hit_and_run' : 'analysis_tool',
+            packet
+        ),
+});
 const { createBotLoader } = require('./bots.cjs');
 const loadBot = createBotLoader(handleAuth);
 const root = path.resolve(__dirname, '../dist');
@@ -37,6 +75,8 @@ const types = {
 };
 
 const server = http.createServer(async (req, res) => {
+    if (req.url.split('?')[0].startsWith('/api/admin/') || req.url.split('?')[0] === '/api/analytics/pulse')
+        return admin.handle(req, res);
     if (req.url.split('?')[0] === '/api/bots/load') return loadBot(req, res);
     if (req.url.split('?')[0] === '/api/analysis') return analysis.handle(req, res);
     if (req.url.split('?')[0].startsWith('/api/')) return handleAuth(req, res);
@@ -84,9 +124,14 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-attachSockets(server, handleAuth, dispatcher, { analysis });
+attachSockets(server, handleAuth, dispatcher, {
+    analysis,
+    onConnection: (account, key, open) => admin.connection(account, key, open),
+    onTrade: (account, value) => admin.trade(account, 'bot_builder', value),
+});
 process.on('SIGTERM', () => {
     analysis.stopAll();
+    void admin.close().catch(() => {});
     server.close();
     setTimeout(() => process.exit(0), 10000).unref();
 });

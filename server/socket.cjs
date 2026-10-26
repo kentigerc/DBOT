@@ -7,7 +7,12 @@ function attachSockets(
     server,
     auth,
     dispatcher,
-    { analysis, createUpstream = url => new WebSocket(url, { ...(dispatcher ? { dispatcher } : {}) }) } = {}
+    {
+        analysis,
+        onTrade = () => {},
+        onConnection = () => {},
+        createUpstream = url => new WebSocket(url, { ...(dispatcher ? { dispatcher } : {}) }),
+    } = {}
 ) {
     const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
     server.on('upgrade', async (req, socket, head) => {
@@ -57,6 +62,11 @@ function attachSockets(
                     }
                     sockets.handleUpgrade(req, socket, head, client => {
                         const clientKey = randomUUID();
+                        if (account) {
+                            try {
+                                onConnection(account, clientKey, true);
+                            } catch {}
+                        }
                         const stopExpiry = account
                             ? watchSessionExpiry(
                                   () => auth.sessionExpires(req),
@@ -104,7 +114,13 @@ function attachSockets(
                                     return;
                                 }
                                 try {
-                                    if (account) analysis?.builderResponse(account, JSON.parse(event.data), clientKey);
+                                    if (account) {
+                                        const packet = JSON.parse(event.data);
+                                        analysis?.builderResponse(account, packet, clientKey);
+                                        if (packet.buy?.contract_id) onTrade(account, packet.buy);
+                                        if ([true, 1].includes(packet.proposal_open_contract?.is_sold))
+                                            onTrade(account, packet.proposal_open_contract);
+                                    }
                                 } catch {
                                     /* invalid upstream packet */
                                 }
@@ -114,11 +130,21 @@ function attachSockets(
                         upstream.addEventListener('close', () => client.close(1000, 'Deriv connection closed.'));
                         upstream.addEventListener('error', () => client.close(1011, 'Deriv connection failed.'));
                         client.on('close', () => {
+                            if (account) {
+                                try {
+                                    onConnection(account, clientKey, false);
+                                } catch {}
+                            }
                             clearInterval(heartbeat);
                             stopExpiry();
                             upstream.close();
                         });
                         client.on('error', () => {
+                            if (account) {
+                                try {
+                                    onConnection(account, clientKey, false);
+                                } catch {}
+                            }
                             clearInterval(heartbeat);
                             stopExpiry();
                             upstream.close();

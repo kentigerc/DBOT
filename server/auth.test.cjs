@@ -65,7 +65,7 @@ async function fixture(t, options = {}) {
         assert.equal(response.status, 200);
         return auth;
     }
-    return { request, login, authenticated, cookies, calls };
+    return { request, login, authenticated, cookies, calls, handler };
 }
 
 test('login uses the supplied app ID and fresh S256 PKCE; tokens are exchanged server-side', async t => {
@@ -377,4 +377,73 @@ test('account lookup and OTP requests explicitly attribute trading connections t
     // App attribution belongs to OTP creation, not invented markup fields on purchases.
     const body = await response.json();
     assert.equal(new URL(body.url).searchParams.get('otp'), 'test-one-time');
+});
+
+test('admin reporting authorization is restricted to provider-verified allowlisted accounts', async t => {
+    const app = await fixture(t, { handler: { adminAccountIds: ['DOT100'] } });
+    assert.equal((await app.request('/api/auth/login?admin=1')).status, 401);
+    await app.authenticated();
+    assert.equal((await (await app.request('/api/session')).json()).isAdmin, true);
+    const tradingCookie = app.cookies.get('neto_session');
+    const login = await app.request('/api/auth/login?admin=1');
+    const url = new URL(login.headers.get('location'));
+    assert.equal(url.searchParams.get('scope'), 'application_read');
+    const callback = await app.request('/api/auth/callback', {
+        code: 'test-code',
+        state: url.searchParams.get('state'),
+    });
+    assert.equal((await callback.json()).returnTo, '/admin');
+    assert.equal(app.cookies.get('neto_session'), tradingCookie);
+    assert.ok(app.cookies.get('neto_reporting'));
+    const other = await fixture(t, { handler: { adminAccountIds: ['OTHER-OWNER'] } });
+    await other.authenticated();
+    assert.equal((await (await other.request('/api/session')).json()).isAdmin, false);
+    assert.equal((await other.request('/api/auth/login?admin=1')).status, 403);
+});
+test('regular login from admin returns to admin without requesting reporting privileges', async t => {
+    const app = await fixture(t);
+    const response = await app.request('/api/auth/login?return=admin');
+    const url = new URL(response.headers.get('location'));
+    assert.equal(url.searchParams.get('scope'), 'trade');
+    const callback = await app.request('/api/auth/callback', {
+        code: 'test-code',
+        state: url.searchParams.get('state'),
+    });
+    assert.equal((await callback.json()).returnTo, '/admin');
+});
+test('developer reporting credentials remain separate from the active trading session', async t => {
+    let exchanges = 0;
+    const app = await fixture(t, {
+        handler: { adminAccountIds: ['DOT100'] },
+        upstream: async (url, init) => {
+            if (url.endsWith('/oauth2/token'))
+                return Response.json({
+                    access_token: ++exchanges === 1 ? 'trade-only-token' : 'report-only-token',
+                    expires_in: 3600,
+                });
+            if (url.includes('/markup-statistics')) {
+                assert.equal(init.headers.Authorization, 'Bearer report-only-token');
+                assert.equal(init.headers['Deriv-App-ID'], configuration.appId);
+                const query = new URL(url).searchParams;
+                assert.equal(query.get('date_from'), '2026-10-01');
+                return Response.json({ data: { breakdown: [] } });
+            }
+            assert.equal(init.headers.Authorization, 'Bearer trade-only-token');
+            return Response.json({
+                data: [{ account_id: 'DOT100', account_type: 'demo', currency: 'USD', status: 'active' }],
+            });
+        },
+    });
+    await app.authenticated();
+    const tradingCookie = app.cookies.get('neto_session');
+    const login = await app.request('/api/auth/login?admin=1');
+    const url = new URL(login.headers.get('location'));
+    await app.request('/api/auth/callback', { code: 'report-code', state: url.searchParams.get('state') });
+    assert.equal(app.cookies.get('neto_session'), tradingCookie);
+    assert.ok(app.cookies.get('neto_reporting'));
+    const request = { headers: { cookie: [...app.cookies].map(([key, value]) => `${key}=${value}`).join('; ') } };
+    await app.handler.markupStatistics(request, '2026-10-01', '2026-10-26');
+    await app.request('/api/session');
+    await app.request('/api/auth/logout', {});
+    assert.equal(app.cookies.get('neto_reporting'), '');
 });

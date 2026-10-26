@@ -5,7 +5,7 @@ export type DerivAccount = {
     balance: number;
     status: string;
 };
-export type DerivSession = { authenticated: boolean; accounts: DerivAccount[] };
+export type DerivSession = { authenticated: boolean; accounts: DerivAccount[]; isAdmin?: boolean };
 let current: DerivSession = { authenticated: false, accounts: [] };
 let pending: Promise<DerivSession> | undefined;
 export const getDerivSession = () => current;

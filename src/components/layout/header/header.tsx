@@ -95,6 +95,7 @@ const AppHeader = observer(() => {
             <nav aria-label='Main navigation'>
                 <Link to='/#bot_builder'>Bot Builder</Link>
                 <Link to='/free-bots'>Trading Bots</Link>
+                {session.isAdmin && <Link to='/admin'>Admin</Link>}
                 <button
                     type='button'
                     className='neto-header__theme-toggle'

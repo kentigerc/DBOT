@@ -279,3 +279,36 @@ test('HIT AND RUN shares the account runner and keeps Builder locked while activ
     await request('laptop', { action: 'stop' });
     assert.equal((await request('phone')).data.active, false);
 });
+
+test('analytics observes only provider purchase/settlement packets rather than imported strategy counters', async t => {
+    const listeners = new Set(),
+        observed = [];
+    const { request, service } = await fixture(t, {
+        onTrade: (...args) => observed.push(args),
+        brokerFactory: async () => ({
+            send: async () => ({ portfolio: { contracts: [] } }),
+            disconnect() {},
+            connection: new EventTarget(),
+            onMessage: () => ({
+                subscribe: listener => {
+                    listeners.add(listener);
+                    return { unsubscribe: () => listeners.delete(listener) };
+                },
+            }),
+        }),
+    });
+    await request('phone', { action: 'start', settings: { ...DEFAULT_SETTINGS, strategy: 'over2-under7' } });
+    const value = service.sessions.get('demo');
+    await value.task;
+    await value.engine.deps.createApi();
+    assert.equal(observed.length, 0);
+    for (const listener of listeners) listener({ data: { buy: { contract_id: 123, buy_price: 0.35 } } });
+    for (const listener of listeners)
+        listener({ data: { proposal_open_contract: { contract_id: 123, is_sold: 0, profit: -0.35 } } });
+    for (const listener of listeners)
+        listener({ data: { proposal_open_contract: { contract_id: 123, is_sold: 1, buy_price: 0.35, profit: 0.12 } } });
+    assert.equal(observed.length, 2);
+    assert.equal(observed[0][0].account_id, 'demo');
+    assert.equal(observed[0][1].settings.strategy, 'over2-under7');
+    assert.equal(observed[1][2].profit, 0.12);
+});
