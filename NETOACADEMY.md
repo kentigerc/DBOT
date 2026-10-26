@@ -309,3 +309,10 @@ Main app disconnect handling now reacts to CLOSED while a bot is running, rather
 The socket bridge preserves valid Deriv upstream close codes, maps abnormal/reserved codes to a legal 1011 frame and includes the numeric upstream code in a safe, fixed reason. Never forward provider reason text. The trading error journal includes socket/upstream code and tab visibility. These changes fix UI state handling and improve diagnosis; they do not establish the cause of external network/provider closures.
 
 Validation: nine socket bridge tests passed, including upstream close-code preservation, abnormal-code mapping and absence of private provider reason text. Production build passed. Fresh-profile browser with simulated provider data closed an authenticated trading socket during a purchase, verified a new account connection, no stale blocking popup, and no automatic restart. No live trades placed.
+
+### Cleanup when the trading socket closes without an acknowledgement
+
+Handle tick/candle unsubscribe on the captured original API instance. Skip forget requests when that socket is closing/closed, and release pending unsubscribe waits on its close event. Late replies from that instance cannot send candle cleanup against a replacement connection. Keep awaiting real acknowledgements on healthy sockets and report their genuine errors. This releases the stop lifecycle after an unacknowledged unsubscribe on a broken connection; it does not clear unknown purchases, settle contracts or authorize automatic restart.
+
+Validation: 33 targeted cleanup/lifecycle/scanner tests passed, including disconnect during a permanently unanswered forget request, late acknowledgement isolation and release of the next-run lifecycle guard. Production build passed. The browser-to-site 1006 cause still needs Render runtime evidence; browser close code alone cannot distinguish network, proxy and process termination.
+Fresh-profile simulated browser also verified trading-socket replacement, no stale popup and no automatic restart after closure. No live trades placed.

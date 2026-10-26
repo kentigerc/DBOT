@@ -1,6 +1,7 @@
 /* eslint-disable no-confusing-arrow */
 import { Map } from 'immutable';
 import { clearAuthData } from '@/utils/auth-utils';
+import { stopTickSubscriptions } from '@/utils/stop-tick-subscriptions';
 import { getLast, historyToTicks } from '../../utils/binary-utils';
 import { observer as globalObserver } from '../../utils/observer';
 import { doUntilDone, getUUID } from '../tradeEngine/utils/helpers';
@@ -321,17 +322,7 @@ export default class TicksService {
     };
 
     unsubscribeFromTicksService() {
-        return new Promise((resolve, reject) => {
-            this.forget()
-                .then(() => {
-                    this.forgetCandleSubscription()
-                        .then(() => {
-                            resolve();
-                        })
-                        .catch(reject);
-                })
-                .catch(reject);
-            this.ticks_history_promise = null;
-        });
+        this.ticks_history_promise = null;
+        return stopTickSubscriptions(api_base.api);
     }
 }
