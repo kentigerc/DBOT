@@ -121,3 +121,28 @@ test('owned socket analytics observe only provider trades and remove disconnecte
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(connections.at(-1)[2], false);
 });
+
+test('background Builder stream ignores other tools and only reports settlements for its own receipts', async t => {
+    const { connect, upstreams, trades } = await fixture(t);
+    const client = connect('?account_id=DOT100', 'http://neto.example', 'session=owned');
+    await opened(client);
+    const emit = packet => upstreams[0].dispatchEvent(new MessageEvent('message', { data: JSON.stringify(packet) }));
+    // HIT AND RUN recovery settles on the same account-wide subscription.
+    emit({ proposal_open_contract: { contract_id: 987, buy_price: 14.39, is_sold: 1, profit: 12.66 } });
+    assert.equal(trades.length, 0);
+    emit({ buy: { contract_id: 123, buy_price: 0.35 } });
+    emit({ proposal_open_contract: { contract_id: 123, buy_price: 0.35, is_sold: 0, profit: -0.35 } });
+    const settlement = { contract_id: 123, buy_price: 0.35, is_sold: 1, profit: 0.12 };
+    emit({ proposal_open_contract: settlement });
+    assert.equal(trades.length, 2);
+    assert.deepEqual(trades[1], ['DOT100', settlement]);
+    // A new browser connection can observe a known Builder purchase's settlement.
+    const other = connect('?account_id=DOT100', 'http://neto.example', 'session=owned');
+    await opened(other);
+    upstreams[1].dispatchEvent(
+        new MessageEvent('message', { data: JSON.stringify({ proposal_open_contract: settlement }) })
+    );
+    assert.equal(trades.length, 3);
+    client.close();
+    other.close();
+});

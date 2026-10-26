@@ -539,8 +539,9 @@ export default function Admin() {
                             </table>
                         </div>
                         <p className='neto-admin__hint'>
-                            Tool attribution comes from confirmed purchases observed by the trading server. Deriv
-                            commission is reported for the app as a whole.
+                            Totals cover all recorded users and sessions in the selected dates. The confirmed purchase
+                            determines the tool, even if another connection observes its settlement. Deriv commission is
+                            reported for the app as a whole.
                         </p>
                     </section>
                     {data && (

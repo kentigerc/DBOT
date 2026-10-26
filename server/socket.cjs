@@ -14,6 +14,10 @@ function attachSockets(
         createUpstream = url => new WebSocket(url, { ...(dispatcher ? { dispatcher } : {}) }),
     } = {}
 ) {
+    // A background Builder socket also subscribes to every account contract.
+    // Only receipts from purchases on Builder sockets establish Builder ownership.
+    // Share this bounded set across sockets so reconnects can report known settlements.
+    const builderContracts = new Set();
     const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
     server.on('upgrade', async (req, socket, head) => {
         const reject = (status = 403) => {
@@ -117,9 +121,18 @@ function attachSockets(
                                     if (account) {
                                         const packet = JSON.parse(event.data);
                                         analysis?.builderResponse(account, packet, clientKey);
-                                        if (packet.buy?.contract_id) onTrade(account, packet.buy);
-                                        if ([true, 1].includes(packet.proposal_open_contract?.is_sold))
-                                            onTrade(account, packet.proposal_open_contract);
+                                        if (packet.buy?.contract_id) {
+                                            builderContracts.add(`${account}:${packet.buy.contract_id}`);
+                                            if (builderContracts.size > 20000)
+                                                builderContracts.delete(builderContracts.values().next().value);
+                                            onTrade(account, packet.buy);
+                                        }
+                                        const contract = packet.proposal_open_contract;
+                                        if (
+                                            [true, 1].includes(contract?.is_sold) &&
+                                            builderContracts.has(`${account}:${contract.contract_id}`)
+                                        )
+                                            onTrade(account, contract);
                                     }
                                 } catch {
                                     /* invalid upstream packet */

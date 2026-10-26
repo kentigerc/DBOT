@@ -33,7 +33,8 @@ function aggregate(events) {
         money = new Map(),
         tradingTools = new Map(),
         tradingUsers = new Map(),
-        contracts = new Map();
+        contracts = new Map(),
+        purchases = new Map();
     const bucket = at => {
         const date = day(at);
         if (!daily.has(date)) daily.set(date, { date, visitors: 0, connections: 0, trades: 0 });
@@ -49,9 +50,19 @@ function aggregate(events) {
             bucket(event.at).connections++;
         }
         if (event.kind === 'usage') tools.set(event.tool, (tools.get(event.tool) || 0) + 1);
-        if (event.kind === 'trade') contracts.set(event.contract, { ...contracts.get(event.contract), ...event });
+        if (event.kind === 'trade') {
+            contracts.set(event.contract, { ...contracts.get(event.contract), ...event });
+            if (event.profit === undefined) purchases.set(event.contract, event);
+        }
     }
-    for (const event of contracts.values()) {
+    for (const record of contracts.values()) {
+        // Account-wide subscriptions can observe another tool's settlement. The
+        // purchase identifies its owner, regardless of SQL ordering at equal timestamps.
+        const event = {
+            ...record,
+            ...purchases.get(record.contract),
+            ...(record.profit !== undefined ? { profit: record.profit } : {}),
+        };
         traders.add(event.account);
         bucket(event.at).trades++;
         for (const groups of [money, tradingTools, tradingUsers]) {
@@ -211,10 +222,12 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
         const account = hash(accountId),
             contract = hash(`${accountId}:${id}`),
             settled = profit !== undefined;
+        const previous = tradeInfo.get(contract);
+        const sourceTool = settled ? previous?.tool || tool : tool;
         const at =
-            tradeInfo.get(contract)?.at ??
+            previous?.at ??
             (Number.isFinite(raw.at) ? raw.at : Number.isFinite(raw.date_start) ? raw.date_start * 1000 : now());
-        tradeInfo.set(contract, { at });
+        tradeInfo.set(contract, { at, tool: sourceTool });
         if (tradeInfo.size > 20000) tradeInfo.delete(tradeInfo.keys().next().value);
         enqueue({
             id: `trade:${contract}:${settled ? 'settled' : 'buy'}`,
@@ -222,7 +235,7 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
             at,
             account,
             contract,
-            tool,
+            tool: sourceTool,
             stake,
             ...(settled ? { profit } : {}),
             ...(accountInfo.get(accountId) || { accountType: 'unknown', currency: 'UNKNOWN' }),

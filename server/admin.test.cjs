@@ -231,3 +231,47 @@ test('per-account activity separates users, currencies and demo; settlements cou
     assert.deepEqual(aggregate([]).tradingUsers, []);
     assert.equal(JSON.stringify(result.tradingUsers).includes('commission'), false);
 });
+
+test('purchase ownership repairs historical cross-tool settlements in either database order', () => {
+    const { aggregate } = require('./admin.cjs');
+    const base = { kind: 'trade', at: Date.now(), account: 'demo-user', accountType: 'demo', currency: 'USD' };
+    const purchase = { ...base, contract: 'recovery-win', tool: 'hit_and_run', stake: 1439 };
+    // Old background Builder streams could win the idempotent settlement write race.
+    const settlement = { ...purchase, tool: 'bot_builder', profit: 1266 };
+    const loss = { ...base, contract: 'normal-loss', tool: 'hit_and_run', stake: 35, profit: -35 };
+    const otherTool = { ...base, contract: 'analysis-win', tool: 'analysis_tool', stake: 74 };
+    const otherSettlement = { ...otherTool, tool: 'bot_builder', profit: 65 };
+    for (const events of [
+        [purchase, settlement, loss, otherTool, otherSettlement],
+        [otherSettlement, loss, settlement, otherTool, purchase],
+    ]) {
+        const result = aggregate(events);
+        assert.equal(
+            result.tradingTools.some(row => row.tool === 'bot_builder'),
+            false
+        );
+        assert.equal(result.tradingTools.find(row => row.tool === 'hit_and_run').net, 1231);
+        assert.equal(result.tradingTools.find(row => row.tool === 'hit_and_run').volume, 1474);
+        assert.equal(result.tradingTools.find(row => row.tool === 'analysis_tool').net, 65);
+        assert.equal(result.money[0].net, 1296);
+        assert.equal(result.tradingUsers[0].net, 1296);
+        assert.equal(result.trades, 3);
+        assert.equal(result.money[0].settled, 3);
+    }
+});
+
+test('live settlement attribution follows the confirmed purchase rather than its observing socket', async t => {
+    const { analytics, request, store } = await fixture(t);
+    analytics.accounts([{ account_id: 'DEMO', account_type: 'demo', currency: 'USD', status: 'active' }]);
+    analytics.trade('DEMO', 'hit_and_run', { contract_id: 987, buy_price: 14.39 });
+    analytics.trade('DEMO', 'bot_builder', { contract_id: 987, buy_price: 14.39, is_sold: 1, profit: 12.66 });
+    analytics.trade('DEMO', 'hit_and_run', { contract_id: 987, buy_price: 14.39, is_sold: 1, profit: 12.66 });
+    await analytics.flush();
+    const result = await (await request('/api/admin/overview', { owner: true })).json();
+    assert.equal(result.tradingTools.length, 1);
+    assert.equal(result.tradingTools[0].tool, 'hit_and_run');
+    assert.equal(result.tradingTools[0].net, 1266);
+    assert.equal(result.trades, 1);
+    const events = await store.list(0, Date.now() + 1000);
+    assert.equal(events.find(event => event.profit !== undefined).tool, 'hit_and_run');
+});
