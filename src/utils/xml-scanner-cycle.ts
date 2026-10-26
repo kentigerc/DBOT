@@ -191,7 +191,7 @@ export class XmlScannerCycle {
             this.feedPaused = false;
             this.update({
                 message: this.recovery
-                    ? 'Live monitoring restored · Waiting for recovery entry.'
+                    ? 'Live monitoring restored · Continuing XML recovery.'
                     : 'Live monitoring restored.',
             });
         }
@@ -361,7 +361,9 @@ export class XmlScannerCycle {
         const wins = profit < 0 || this.recovery ? 0 : profit > 0 ? this.state.wins + 1 : this.state.wins;
         if (profit < 0) {
             this.recovery = true;
-            this.entered = false;
+            // Keep the selected market and original entry: XML recovery continues
+            // directly, subject to live-feed freshness and the existing risk guards.
+            this.entered = true;
             this.nextRecoveryMarket = undefined;
             this.rejectedRecoveryMarkets.clear();
             const lossEpoch = Number(value.exit_tick_time ?? value.exit_spot_time ?? value.sell_time);
@@ -371,11 +373,11 @@ export class XmlScannerCycle {
             pnl,
             losses,
             wins,
-            ...(active && profit < 0 ? { phase: 'waiting' as const, recoverySearch: true } : {}),
+            ...(active && profit < 0 ? { phase: 'running' as const, recoverySearch: false } : {}),
             message: !active
                 ? this.state.message
                 : this.recovery
-                  ? 'Scanning Volatility markets for a qualified recovery entry.'
+                  ? 'Continuing XML recovery on the selected market.'
                   : 'Trading XML batch.',
         });
         if (!active) return;

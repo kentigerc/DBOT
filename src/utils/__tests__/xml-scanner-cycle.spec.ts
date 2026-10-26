@@ -230,11 +230,17 @@ it('two wins then a loss recover first, then require exactly three new normal wi
 });
 
 it.each(['over', 'under'] as const)(
-    'requires a new qualified %s entry after every loss on the same market',
+    'recovers %s losses directly on the same 1-second market without a new entry or scan',
     async side => {
         const cycle = new XmlScannerCycle();
         cycle.start('TEST-DEMO', 100, jest.fn());
-        const token = cycle.claim({ ...match, side, name: side === 'over' ? 'Over Punisher' : 'Under Punisher' })!;
+        const selected = {
+            ...match,
+            symbol: '1HZ10V',
+            side,
+            name: side === 'over' ? 'Over Punisher' : 'Under Punisher',
+        };
+        const token = cycle.claim(selected)!;
         cycle.loaded(token, { takeProfit: 1000, stopLoss: 10000 });
         cycle.runStarted();
         const values = side === 'over' ? counts : [...counts].reverse();
@@ -244,96 +250,35 @@ it.each(['over', 'under'] as const)(
             result.push(latest);
             return result;
         };
-        const qualified = side === 'over' ? 1 : 7;
-        let epoch = Date.now() / 1000;
-        cycle.market('R_100', digits(qualified), epoch);
-        expect(await cycle.beforePurchase('R_100')).toBe(true);
-        expect(cycle.purchase('TEST-DEMO')).toBe(true);
-        cycle.purchased(501);
-        cycle.contract({ contract_id: 501, is_sold: 1, profit: -0.35 });
-        expect(cycle.getSnapshot()).toMatchObject({ phase: 'waiting', wins: 0, losses: 1 });
-        expect(cycle.canRun()).toBe(false); // Waiting recovery must not create another runner.
+        const epoch = Date.now() / 1000;
+        cycle.market(selected.symbol, digits(side === 'over' ? 1 : 7), epoch);
         for (const [id, profit] of [
+            [501, -0.35],
             [502, -0.74],
             [503, 1.36],
         ]) {
-            let allowed = false;
-            const pending = cycle.beforePurchase('R_100').then(value => {
-                allowed = value;
-                return value;
-            });
-            cycle.market('R_100', digits(qualified), epoch); // Old signal cannot be reused.
-            cycle.market('OTHER', digits(qualified), epoch + 0.1);
-            cycle.market('R_100', digits(side === 'over' ? 9 : 0), epoch + 0.1); // Wrong last digit.
-            cycle.market('R_100', Array(100).fill(qualified), epoch + 0.2); // Wrong percentages/markers.
-            await Promise.resolve();
-            expect(allowed).toBe(false);
-            expect(cycle.purchase('TEST-DEMO')).toBe(false);
-            epoch += 0.3;
-            cycle.market('R_100', digits(qualified), epoch);
-            expect(await pending).toBe(true);
+            expect(await cycle.beforePurchase(selected.symbol)).toBe(true);
             expect(cycle.purchase('TEST-DEMO')).toBe(true);
             cycle.purchased(id);
-            cycle.contract({ contract_id: id, is_sold: 1, profit });
+            cycle.contract({ contract_id: id, is_sold: 1, profit, exit_tick_time: epoch + 0.5 });
+            expect(cycle.getSnapshot()).toMatchObject({
+                phase: 'running',
+                recoverySearch: false,
+                match: selected,
+                wins: 0,
+            });
+            expect(cycle.recoveryTarget()).toBeUndefined();
+            expect(cycle.offerRecoveryMarket({ ...selected, symbol: 'R_50' }, digits(1), epoch + 0.6)).toBe(false);
+            // Fresh live data is required, but scanner entry digits are no longer required during recovery.
+            cycle.market(selected.symbol, digits(side === 'over' ? 9 : 0), epoch);
         }
-        expect(cycle.getSnapshot()).toMatchObject({ phase: 'running', wins: 0, losses: 0 });
-        // Recovery win starts a new normal batch, not a new market analysis.
-        expect(await cycle.beforePurchase('R_100')).toBe(true);
-        expect(cycle.getSnapshot().match?.symbol).toBe('R_100');
+        expect(cycle.getSnapshot()).toMatchObject({ wins: 0, losses: 0, phase: 'running' });
+        expect(await cycle.beforePurchase(selected.symbol)).toBe(true);
         cycle.stop();
+        expect(await cycle.beforePurchase(selected.symbol)).toBe(false);
     }
 );
 
-it('does not reuse the loss contract’s exit tick when the market stream arrives late', async () => {
-    const { cycle } = setup();
-    const epoch = Date.now() / 1000;
-    cycle.market('R_100', sample(), epoch);
-    expect(await cycle.beforePurchase('R_100')).toBe(true);
-    expect(cycle.purchase('TEST-DEMO')).toBe(true);
-    cycle.purchased(601);
-    cycle.contract({ contract_id: 601, is_sold: 1, profit: -0.35, exit_tick_time: epoch + 0.5 });
-    let allowed = false;
-    const pending = cycle.beforePurchase('R_100').then(value => {
-        allowed = value;
-        return value;
-    });
-    cycle.market('R_100', sample(), epoch + 0.5);
-    await Promise.resolve();
-    expect(allowed).toBe(false);
-    cycle.market('R_100', sample(), epoch + 0.6);
-    expect(await pending).toBe(true);
-    cycle.stop();
-});
-it('scans another market after a loss, preserves the loss streak and requires fresh entry before recovery', async () => {
-    const { cycle } = setup();
-    await settle(cycle, 1, -0.35);
-    const pending = cycle.beforePurchase('R_100');
-    const target = { ...match, symbol: '1HZ50V' };
-    expect(cycle.offerRecoveryMarket({ ...target, side: 'under' }, sample(), Date.now() / 1000 + 0.1)).toBe(false);
-    expect(cycle.offerRecoveryMarket(target, sample(9), Date.now() / 1000 + 0.1)).toBe(false);
-    expect(cycle.offerRecoveryMarket(target, sample(), Date.now() / 1000 + 0.1)).toBe(true);
-    expect(await pending).toBe(true);
-    expect(cycle.canPurchase('TEST-DEMO')).toBe(false);
-    expect(cycle.confirmRecoveryMarket(target)).toBe(true);
-    expect(cycle.getSnapshot()).toMatchObject({ losses: 1, wins: 0, phase: 'waiting', match: target });
-    const entry = cycle.beforePurchase(target.symbol);
-    cycle.market(target.symbol, sample(), Date.now() / 1000 + 0.2);
-    expect(await entry).toBe(true);
-    expect(cycle.purchase('TEST-DEMO')).toBe(true);
-    cycle.purchased(2);
-    cycle.contract({ contract_id: 2, is_sold: 1, profit: 0.65 });
-    expect(cycle.getSnapshot()).toMatchObject({ losses: 0, wins: 0, phase: 'running' });
-    cycle.stop();
-});
-it('STOP cancels a pending multi-market recovery selection', async () => {
-    const { cycle } = setup();
-    await settle(cycle, 1, -0.35);
-    const pending = cycle.beforePurchase('R_100');
-    cycle.stop();
-    expect(await pending).toBe(false);
-    expect(cycle.offerRecoveryMarket({ ...match, symbol: 'R_50' }, sample(), Date.now() / 1000 + 0.1)).toBe(false);
-    expect(cycle.recoveryTarget()).toBeUndefined();
-});
 it('pauses purchases during a feed reconnect, preserving wins, losses and session P/L', async () => {
     const { cycle } = setup();
     await settle(cycle, 1, 0.12);
@@ -371,9 +316,8 @@ it('requires the restored live guard before releasing same-market recovery after
     const pending = cycle.beforePurchase('R_100');
     expect(cycle.offerRecoveryMarket(match, sample(), Date.now() / 1000 + 0.1)).toBe(false);
     cycle.market('R_100', sample(9), Date.now() / 1000 + 0.1);
-    expect(cycle.canPurchase('TEST-DEMO')).toBe(false);
+    expect(cycle.canPurchase('TEST-DEMO')).toBe(true);
     expect(cycle.getSnapshot().losses).toBe(1);
-    cycle.market('R_100', sample(), Date.now() / 1000 + 0.2);
     expect(await pending).toBe(true);
     expect(cycle.getSnapshot()).toMatchObject({ losses: 1, wins: 0, pnl: -35 });
     cycle.stop();
