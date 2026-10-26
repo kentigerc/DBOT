@@ -25,6 +25,7 @@ const setup = () => {
     return { cycle, stop, token };
 };
 const settle = async (cycle: XmlScannerCycle, id: number, profit: number) => {
+    if (cycle.getSnapshot().phase === 'waiting') cycle.market('R_100', sample(), Date.now() / 1000 + id / 1000);
     expect(await cycle.beforePurchase('R_100')).toBe(true);
     expect(cycle.purchase('TEST-DEMO')).toBe(true);
     cycle.purchased(id);
@@ -171,6 +172,7 @@ it('percentage protection ends Auto after four total losses and cannot begin a n
     guard.begin(() => cycle.stop('Market protection stopped the bot.'));
     cycle.market('R_100', sample(), Date.now() / 1000);
     for (let id = 1; id <= 4; id++) {
+        cycle.market('R_100', sample(), Date.now() / 1000 + id / 1000);
         expect(await cycle.beforePurchase('R_100')).toBe(true);
         expect(cycle.purchase('TEST-DEMO') && guard.purchase()).toBe(true);
         cycle.purchased(id);
@@ -224,5 +226,81 @@ it('two wins then a loss recover first, then require exactly three new normal wi
     await Promise.resolve();
     expect(stop).toHaveBeenCalledTimes(1);
     expect(stop).toHaveBeenCalledWith(true);
+    cycle.stop();
+});
+
+it.each(['over', 'under'] as const)(
+    'requires a new qualified %s entry after every loss on the same market',
+    async side => {
+        const cycle = new XmlScannerCycle();
+        cycle.start('TEST-DEMO', 100, jest.fn());
+        const token = cycle.claim({ ...match, side, name: side === 'over' ? 'Over Punisher' : 'Under Punisher' })!;
+        cycle.loaded(token, { takeProfit: 1000, stopLoss: 10000 });
+        cycle.runStarted();
+        const values = side === 'over' ? counts : [...counts].reverse();
+        const digits = (latest: number) => {
+            const result = values.flatMap((n, d) => Array<number>(n).fill(d));
+            result.splice(result.indexOf(latest), 1);
+            result.push(latest);
+            return result;
+        };
+        const qualified = side === 'over' ? 1 : 7;
+        let epoch = Date.now() / 1000;
+        cycle.market('R_100', digits(qualified), epoch);
+        expect(await cycle.beforePurchase('R_100')).toBe(true);
+        expect(cycle.purchase('TEST-DEMO')).toBe(true);
+        cycle.purchased(501);
+        cycle.contract({ contract_id: 501, is_sold: 1, profit: -0.35 });
+        expect(cycle.getSnapshot()).toMatchObject({ phase: 'waiting', wins: 0, losses: 1 });
+        expect(cycle.canRun()).toBe(false); // Waiting recovery must not create another runner.
+        for (const [id, profit] of [
+            [502, -0.74],
+            [503, 1.36],
+        ]) {
+            let allowed = false;
+            const pending = cycle.beforePurchase('R_100').then(value => {
+                allowed = value;
+                return value;
+            });
+            cycle.market('R_100', digits(qualified), epoch); // Old signal cannot be reused.
+            cycle.market('OTHER', digits(qualified), epoch + 0.1);
+            cycle.market('R_100', digits(side === 'over' ? 9 : 0), epoch + 0.1); // Wrong last digit.
+            cycle.market('R_100', Array(100).fill(qualified), epoch + 0.2); // Wrong percentages/markers.
+            await Promise.resolve();
+            expect(allowed).toBe(false);
+            expect(cycle.purchase('TEST-DEMO')).toBe(false);
+            epoch += 0.3;
+            cycle.market('R_100', digits(qualified), epoch);
+            expect(await pending).toBe(true);
+            expect(cycle.purchase('TEST-DEMO')).toBe(true);
+            cycle.purchased(id);
+            cycle.contract({ contract_id: id, is_sold: 1, profit });
+        }
+        expect(cycle.getSnapshot()).toMatchObject({ phase: 'running', wins: 0, losses: 0 });
+        // Recovery win starts a new normal batch, not a new market analysis.
+        expect(await cycle.beforePurchase('R_100')).toBe(true);
+        expect(cycle.getSnapshot().match?.symbol).toBe('R_100');
+        cycle.stop();
+    }
+);
+
+it('does not reuse the loss contract’s exit tick when the market stream arrives late', async () => {
+    const { cycle } = setup();
+    const epoch = Date.now() / 1000;
+    cycle.market('R_100', sample(), epoch);
+    expect(await cycle.beforePurchase('R_100')).toBe(true);
+    expect(cycle.purchase('TEST-DEMO')).toBe(true);
+    cycle.purchased(601);
+    cycle.contract({ contract_id: 601, is_sold: 1, profit: -0.35, exit_tick_time: epoch + 0.5 });
+    let allowed = false;
+    const pending = cycle.beforePurchase('R_100').then(value => {
+        allowed = value;
+        return value;
+    });
+    cycle.market('R_100', sample(), epoch + 0.5);
+    await Promise.resolve();
+    expect(allowed).toBe(false);
+    cycle.market('R_100', sample(), epoch + 0.6);
+    expect(await pending).toBe(true);
     cycle.stop();
 });

@@ -5,6 +5,23 @@ import DerivAPIBasic from '@deriv/deriv-api/dist/DerivAPIBasic';
 import APIMiddleware from './api-middleware';
 import { NewApiTransport } from './new-api-transport';
 
+export const accountPurchaseGuard = accountId => ({
+    purchase: () =>
+        xmlScannerCycle.canPurchase(accountId) && scannerExitGuard.purchase() && xmlScannerCycle.purchase(accountId),
+    purchased: id => {
+        scannerExitGuard.purchased(id);
+        xmlScannerCycle.purchased(id);
+    },
+    purchaseFailed: error => {
+        scannerExitGuard.purchaseFailed();
+        xmlScannerCycle.purchaseFailed(error);
+    },
+    contract: value => {
+        scannerExitGuard.contract(value);
+        xmlScannerCycle.contract(value);
+    },
+});
+
 export const generateDerivApiInstance = async ({ publicOnly = false } = {}) => {
     const account = publicOnly ? undefined : getDerivAccount();
     const url = new URL('/api/socket', window.location.origin);
@@ -14,23 +31,7 @@ export const generateDerivApiInstance = async ({ publicOnly = false } = {}) => {
         connection: new NewApiTransport(
             url.toString(),
             account?.account_id,
-            account
-                ? {
-                      purchase: () => xmlScannerCycle.purchase(account.account_id) && scannerExitGuard.purchase(),
-                      purchased: id => {
-                          scannerExitGuard.purchased(id);
-                          xmlScannerCycle.purchased(id);
-                      },
-                      purchaseFailed: error => {
-                          scannerExitGuard.purchaseFailed();
-                          xmlScannerCycle.purchaseFailed(error);
-                      },
-                      contract: value => {
-                          scannerExitGuard.contract(value);
-                          xmlScannerCycle.contract(value);
-                      },
-                  }
-                : undefined
+            account ? accountPurchaseGuard(account.account_id) : undefined
         ),
         middleware: new APIMiddleware({}),
     });
