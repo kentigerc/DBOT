@@ -219,7 +219,8 @@ export default class RunPanelStore {
                             message_type: MessageTypes.NOTIFY,
                             className: 'journal__text--warn',
                             sound: 'silent',
-                        })
+                        }),
+                    xmlScannerCycle.getSnapshot().settings
                 );
                 this.root_store.dashboard.setActiveTab(DBOT_TABS.DIGIT_ANALYSIS);
             } catch (error) {

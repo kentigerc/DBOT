@@ -1,3 +1,4 @@
+import { validateXmlAutoSettings, type XmlAutoSettings } from '@/utils/xml-auto-settings';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import { getDerivAccount } from '@/utils/deriv-session';
@@ -41,7 +42,7 @@ export default function MarketScanner({
         autoGeneration?: number
     ) => boolean;
     active?: boolean;
-    onAutoStart?: () => void;
+    onAutoStart?: (settings: XmlAutoSettings) => void;
 }) {
     const auto = useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
     const loadRef = useRef(onLoad);
@@ -49,6 +50,11 @@ export default function MarketScanner({
     const scanning = auto.enabled
         ? auto.phase === 'scanning' || (auto.phase === 'waiting' && auto.recoverySearch)
         : active;
+    const [draft, setDraft] = useState({
+        stake: String(auto.settings.stake),
+        stopLoss: String(auto.settings.stopLoss),
+        multiplier: String(auto.settings.multiplier),
+    });
     const [enabled, setEnabled] = useState(true);
     const [message, setMessage] = useState('Connecting to market data…');
     const [results, setResults] = useState<Result[]>([]);
@@ -250,6 +256,28 @@ export default function MarketScanner({
                 each pass.
             </p>
             <div className='digit-scanner__controls'>
+                {(
+                    [
+                        ['stake', 'Stake ($)', '0.35', '0.01'],
+                        ['stopLoss', 'Session stop loss ($)', '0.35', '0.01'],
+                        ['multiplier', 'Martingale (×)', '1.01', '0.01'],
+                    ] as const
+                ).map(([key, label, min, step]) => (
+                    <label key={key}>
+                        {label}
+                        <input
+                            type='number'
+                            min={min}
+                            step={step}
+                            inputMode='decimal'
+                            max={key === 'stake' ? 100 : undefined}
+                            value={auto.enabled ? auto.settings[key] : draft[key]}
+                            disabled={auto.enabled || preparing}
+                            onChange={event => setDraft(value => ({ ...value, [key]: event.target.value }))}
+                        />
+                    </label>
+                ))}
+
                 <button disabled={auto.enabled} onClick={() => setEnabled(value => !value)}>
                     {enabled ? 'PAUSE' : 'RESUME'}
                 </button>
@@ -259,6 +287,11 @@ export default function MarketScanner({
                         const attempt = ++startAttempt.current;
                         setPreparing(true);
                         try {
+                            const settings = validateXmlAutoSettings({
+                                stake: Number(draft.stake),
+                                stopLoss: Number(draft.stopLoss),
+                                multiplier: Number(draft.multiplier),
+                            });
                             const account = getDerivAccount();
                             if (!account) throw new Error('Log in with Deriv and select an account first.');
                             if (isAnalysisTrading() || (await checkServerAnalysis()))
@@ -269,7 +302,7 @@ export default function MarketScanner({
                             )
                                 return;
                             if (!onAutoStart) throw new Error('XML Auto is unavailable here.');
-                            onAutoStart();
+                            onAutoStart(settings);
                             setEnabled(true);
                             setLoadError('');
                         } catch (error) {

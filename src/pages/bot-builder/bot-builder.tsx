@@ -64,10 +64,11 @@ const BotBuilder = observer(() => {
                 )
                     throw new Error('This bot does not contain valid XML.');
                 if (automatic && !xmlScannerCycle.valid(bot.autoGeneration)) return;
+                const configuredContent = automatic
+                    ? hostedBotForAuto(content, bot.symbol, bot.submarket, xmlScannerCycle.getSnapshot().settings)
+                    : hostedBotMarket(content, bot.symbol, bot.submarket);
                 const result = await load({
-                    block_string: automatic
-                        ? hostedBotForAuto(content, bot.symbol, bot.submarket)
-                        : hostedBotMarket(content, bot.symbol, bot.submarket),
+                    block_string: configuredContent,
                     file_name: bot.name,
                     workspace,
                     from: save_types.LOCAL,
@@ -119,7 +120,7 @@ const BotBuilder = observer(() => {
                     ))
                 )
                     return;
-                if (automatic && xmlScannerCycle.loaded(bot.autoGeneration, hostedBotLimits(content))) {
+                if (automatic && xmlScannerCycle.loaded(bot.autoGeneration, hostedBotLimits(configuredContent))) {
                     const launch = await run_panel.onRunButtonClick(true);
                     if (xmlScannerCycle.valid(bot.autoGeneration) && !launch?.started)
                         xmlScannerCycle.stop(

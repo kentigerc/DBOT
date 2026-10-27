@@ -1,3 +1,4 @@
+import { validateXmlAutoSettings, type XmlAutoSettings } from './xml-auto-settings';
 // Override only the market fields in hosted XML; retain protection and strategy blocks.
 export function hostedBotMarket(content: string, symbol?: string, submarket = 'random_index') {
     if (symbol === undefined) return content;
@@ -48,11 +49,60 @@ export function hostedBotLimits(content: string) {
     return { takeProfit: amount('Expected Profit'), stopLoss: amount('Stop Loss') };
 }
 
-export function hostedBotForAuto(content: string, symbol: string, submarket: string) {
+export function hostedBotForAuto(content: string, symbol: string, submarket: string, settings?: XmlAutoSettings) {
     const document = new DOMParser().parseFromString(hostedBotMarket(content, symbol, submarket), 'text/xml');
     document.querySelectorAll('block[type="text"] > field[name="TEXT"]').forEach(field => {
         if (/now recovering/i.test(field.textContent || '')) field.textContent = 'Executing recovery.';
     });
+    if (settings) {
+        const config = validateXmlAutoSettings(settings);
+        const values: Record<string, number> = {
+            Stake: config.stake,
+            'Win Stake': config.stake,
+            'Stop Loss': config.stopLoss,
+        };
+        const initial = document.querySelector('block[type="trade_definition"] > statement[name="INITIALIZATION"]');
+        for (const [name, value] of Object.entries(values)) {
+            const assignment = Array.from(initial?.querySelectorAll('block[type="variables_set"]') || []).find(block =>
+                Array.from(block.children).some(
+                    field =>
+                        field.localName === 'field' &&
+                        field.getAttribute('name') === 'VAR' &&
+                        field.textContent === name
+                )
+            );
+            const numeric = assignment?.querySelector(
+                'value[name="VALUE"] > block[type="math_number"] > field[name="NUM"]'
+            );
+            if (!numeric) throw new Error(`The XML bot is missing its ${name} setting.`);
+            numeric.textContent = String(value);
+            assignment
+                ?.querySelectorAll('value[name="VALUE"] > shadow[type="math_number"] > field[name="NUM"]')
+                .forEach(field => {
+                    field.textContent = String(value);
+                });
+        }
+        let multipliers = 0;
+        document.querySelectorAll('block[type="math_arithmetic"]').forEach(block => {
+            const operation = Array.from(block.children).find(
+                child => child.localName === 'field' && child.getAttribute('name') === 'OP'
+            );
+            if (
+                operation?.textContent !== 'MULTIPLY' ||
+                !block.querySelector('block[type="read_details"] > field[name="DETAIL_INDEX"]')
+            )
+                return;
+            block
+                .querySelectorAll(
+                    'value > block[type="math_number"] > field[name="NUM"], value > shadow[type="math_number"] > field[name="NUM"]'
+                )
+                .forEach(field => {
+                    field.textContent = String(config.multiplier);
+                    multipliers++;
+                });
+        });
+        if (!multipliers) throw new Error('The XML bot is missing its recovery multiplier.');
+    }
     const purchases = new Set(
         Array.from(document.querySelectorAll('block[type="purchase"] > field[name="PURCHASE_LIST"]')).map(
             field => field.textContent

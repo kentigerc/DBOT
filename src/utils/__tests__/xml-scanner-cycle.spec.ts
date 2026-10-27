@@ -331,3 +331,29 @@ it('doubles XML recovery stakes and refuses stakes beyond the risk budget', asyn
     expect(cycle.recoveryStake(50)).toBeUndefined();
     expect(cycle.getSnapshot().enabled).toBe(false);
 });
+it('carries a frozen session configuration through XML reloads and uses its recovery multiplier', async () => {
+    const cycle = new XmlScannerCycle();
+    const draft = { stake: 1, stopLoss: 30, multiplier: 3 };
+    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, draft);
+    draft.multiplier = 8;
+    const token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 1000, stopLoss: 3000 });
+    cycle.runStarted();
+    await settle(cycle, 1, -1);
+    expect(cycle.recoveryStake(1)).toBe(3);
+    expect(cycle.getSnapshot().settings).toEqual({ stake: 1, stopLoss: 30, multiplier: 3 });
+    cycle.stop();
+    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, { stake: 2, stopLoss: 50, multiplier: 2 });
+    expect(cycle.getSnapshot().settings).toEqual({ stake: 2, stopLoss: 50, multiplier: 2 });
+    cycle.stop();
+});
+it('enforces the chosen session loss budget during recovery', async () => {
+    const cycle = new XmlScannerCycle();
+    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, { stake: 1, stopLoss: 1.5, multiplier: 2 });
+    const token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 1000, stopLoss: 150 });
+    cycle.runStarted();
+    await settle(cycle, 1, -1);
+    expect(cycle.recoveryStake(1)).toBeUndefined();
+    expect(cycle.getSnapshot().enabled).toBe(false);
+});

@@ -309,7 +309,8 @@
         display: grid;
         gap: 8px;
     }
-    select {
+    select,
+    input {
         color: var(--text-general);
         background: var(--general-main-1);
         border: 1px solid var(--border-normal);
@@ -317,6 +318,14 @@
         min-height: 44px;
         padding: 8px 12px;
         font-size: 16px;
+    }
+    input {
+        width: 155px;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    input:disabled {
+        opacity: 0.65;
     }
     button {
         min-height: 44px;

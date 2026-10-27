@@ -1,6 +1,16 @@
 import { parityRecoveryDirection } from '@/services/digit-strategy/strategy';
 import { lastDigit } from '@/pages/digit-analysis/digits';
+export type RecoveryTick = {
+    symbol?: string;
+    underlying_symbol?: string;
+    quote: number;
+    epoch: number;
+    pip_size: number;
+};
 type RecoveryResponse = {
+    tick?: RecoveryTick;
+    error?: unknown;
+    subscription?: { id: string };
     active_symbols?: {
         symbol: string;
         display_name?: string;
@@ -18,10 +28,139 @@ type RecoveryResponse = {
         }[];
     };
 };
-type Api = { send: (body: Record<string, unknown>) => Promise<RecoveryResponse>; disconnect: () => void };
+type Api = {
+    connection?: EventTarget;
+    onMessage: () => {
+        subscribe: (callback: (message: { data: RecoveryResponse }) => void) => { unsubscribe: () => void };
+    };
+    send: (body: Record<string, unknown>) => Promise<RecoveryResponse>;
+    disconnect: () => void;
+};
 export type ParityRecovery = { symbol: string; direction: 'DIGITEVEN' | 'DIGITODD'; epoch: number };
 const fresh = (epoch: number) =>
     Number.isFinite(epoch) && Date.now() / 1000 - epoch <= 6 && epoch <= Date.now() / 1000 + 2;
+export async function waitForXmlParityFormation(
+    api: Api,
+    request: (body: Record<string, unknown>) => Promise<RecoveryResponse>,
+    symbol: string,
+    direction: 'DIGITEVEN' | 'DIGITODD',
+    sampleSize: number,
+    signal: AbortSignal,
+    status: (message: string) => void
+): Promise<ParityRecovery | undefined> {
+    let ready = false,
+        finished = false;
+    let digits: number[] = [],
+        pattern: number[] = [];
+    let lastEpoch = 0,
+        lastArrival = Date.now();
+    let subscriptionId: string | undefined;
+    let resolve!: (plan?: ParityRecovery) => void, reject!: (error: Error) => void;
+    const result = new Promise<ParityRecovery | undefined>((yes, no) => {
+        resolve = yes;
+        reject = no;
+    });
+    void result.catch(() => {});
+    const finish = (plan?: ParityRecovery) => {
+        if (!finished) {
+            finished = true;
+            resolve(plan);
+        }
+    };
+    const fail = () => {
+        if (!finished) {
+            finished = true;
+            reject(new Error('Recovery live feed unavailable'));
+        }
+    };
+    const abort = () => finish();
+    const queued: RecoveryTick[] = [];
+    const accept = (tick: RecoveryTick) => {
+        if (finished || signal.aborted || tick.epoch <= lastEpoch) return;
+        const digit = lastDigit(tick.quote, tick.pip_size);
+        if (digit === null || !fresh(tick.epoch) || tick.epoch - lastEpoch > 6) {
+            fail();
+            return;
+        }
+        lastEpoch = tick.epoch;
+        lastArrival = Date.now();
+        digits = [...digits, digit].slice(-sampleSize);
+        const counts = Array<number>(10).fill(0);
+        digits.forEach(value => counts[value]++);
+        if (parityRecoveryDirection(counts) !== direction) {
+            finish();
+            return;
+        }
+        pattern = [...pattern, digit % 2].slice(-3);
+        const chosen = direction === 'DIGITEVEN' ? 0 : 1;
+        if (pattern.length === 3 && pattern[0] === chosen && pattern[1] === chosen && pattern[2] !== chosen)
+            finish({ symbol, direction, epoch: lastEpoch });
+    };
+    signal.addEventListener('abort', abort, { once: true });
+    api.connection?.addEventListener('close', fail);
+    api.connection?.addEventListener('error', fail);
+    const listener = api.onMessage().subscribe(({ data }) => {
+        if (finished) return;
+        if (data.error) {
+            fail();
+            return;
+        }
+        if (!data.tick) return;
+        const market = data.tick.symbol || data.tick.underlying_symbol;
+        if (market && market !== symbol) return;
+        if (!ready) queued.push(data.tick);
+        else accept(data.tick);
+    });
+    const watchdog = setInterval(() => {
+        if (ready && Date.now() - lastArrival > 6000) fail();
+    }, 1000);
+    try {
+        if (signal.aborted) return;
+        status(`Waiting for recovery entry · ${symbol}`);
+        const response = await request({
+            ticks_history: symbol,
+            style: 'ticks',
+            end: 'latest',
+            count: sampleSize,
+            subscribe: 1,
+        });
+        subscriptionId = response.subscription?.id;
+        if (finished || signal.aborted) return await result;
+        const prices = response.history?.prices;
+        lastEpoch = Number(response.history?.times?.slice(-1)[0]);
+        if (
+            !Array.isArray(prices) ||
+            prices.length < sampleSize ||
+            !Number.isInteger(response.pip_size) ||
+            !fresh(lastEpoch)
+        ) {
+            fail();
+            return await result;
+        }
+        const parsed = prices.slice(-sampleSize).map(price => lastDigit(price, response.pip_size!));
+        if (parsed.some(d => d === null)) {
+            fail();
+            return await result;
+        }
+        digits = parsed as number[];
+        const counts = Array<number>(10).fill(0);
+        digits.forEach(d => counts[d]++);
+        if (parityRecoveryDirection(counts) !== direction) return;
+        ready = true;
+        lastArrival = Date.now();
+        queued.forEach(accept);
+        return await result;
+    } finally {
+        finished = true;
+        clearInterval(watchdog);
+        listener.unsubscribe();
+        signal.removeEventListener('abort', abort);
+        api.connection?.removeEventListener('close', fail);
+        api.connection?.removeEventListener('error', fail);
+        if (subscriptionId && !signal.aborted) void api.send({ forget: subscriptionId }).catch(() => {});
+    }
+}
+
 export async function scanXmlParityRecovery(
     createApi: () => Promise<Api>,
     sampleSize: number,
@@ -107,8 +246,19 @@ export async function scanXmlParityRecovery(
                                     parseInt(c.max_contract_duration, 10) >= 1
                             );
                             if (supported && !signal.aborted && fresh(epoch)) {
-                                found = true;
-                                return { symbol: market.symbol, direction, epoch };
+                                const plan = await waitForXmlParityFormation(
+                                    api,
+                                    request,
+                                    market.symbol,
+                                    direction,
+                                    sampleSize,
+                                    signal,
+                                    status
+                                );
+                                if (plan) {
+                                    found = true;
+                                    return plan;
+                                }
                             }
                         } catch (error) {
                             if (signal.aborted) return;

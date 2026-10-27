@@ -1,3 +1,4 @@
+import { DEFAULT_XML_AUTO_SETTINGS, validateXmlAutoSettings, type XmlAutoSettings } from './xml-auto-settings';
 import { nextRecoveryStake } from '@/services/digit-strategy/strategy';
 import { evaluateScan, type ScanSide } from '@/pages/digit-analysis/scanner';
 
@@ -20,6 +21,7 @@ type Phase =
     | 'cooldown'
     | 'stopped';
 type State = {
+    settings: XmlAutoSettings;
     enabled: boolean;
     phase: Phase;
     generation: number;
@@ -37,6 +39,7 @@ type State = {
 // In-memory only: reloading a page never authorizes another automated run.
 export class XmlScannerCycle {
     private state: State = {
+        settings: DEFAULT_XML_AUTO_SETTINGS,
         enabled: false,
         phase: 'idle',
         generation: 0,
@@ -84,13 +87,15 @@ export class XmlScannerCycle {
         accountId: string,
         sampleSize: number,
         stopBot: (batchComplete: boolean) => void,
-        reportStop?: (message: string) => void
+        reportStop?: (message: string) => void,
+        settings: XmlAutoSettings = DEFAULT_XML_AUTO_SETTINGS
     ) {
         if (this.state.enabled) throw new Error('XML Auto is already active.');
         if (this.inFlight || this.contractId !== undefined)
             throw new Error('Settle the previous XML purchase before starting again.');
         if (!accountId || ![100, 500, 1000].includes(sampleSize))
             throw new Error('Select an active Deriv account and sample size.');
+        const validatedSettings = validateXmlAutoSettings(settings);
         clearTimeout(this.timer);
         this.stopBot = stopBot;
         this.reportStop = reportStop;
@@ -103,8 +108,9 @@ export class XmlScannerCycle {
         this.nextRecoveryMarket = undefined;
         this.rejectedRecoveryMarkets.clear();
         this.takeProfit = Number.MAX_SAFE_INTEGER;
-        this.stopLoss = Number.MAX_SAFE_INTEGER;
+        this.stopLoss = Math.round(validatedSettings.stopLoss * 100);
         this.update({
+            settings: validatedSettings,
             enabled: true,
             phase: 'scanning',
             recoverySearch: false,
@@ -214,7 +220,7 @@ export class XmlScannerCycle {
     recoveryStake(previousAmount: number) {
         if (!this.isRecovering()) return;
         const cents = Math.round(Number(previousAmount) * 100);
-        const stake = nextRecoveryStake(cents, 2);
+        const stake = nextRecoveryStake(cents, this.state.settings.multiplier);
         if (
             !Number.isSafeInteger(cents) ||
             cents <= 0 ||
@@ -304,6 +310,10 @@ export class XmlScannerCycle {
         if (!this.guarded) return Promise.resolve(true);
         if (!this.state.enabled || !this.started || !['waiting', 'running'].includes(this.state.phase))
             return Promise.resolve(false);
+        if (!this.recovery && this.state.pnl - Math.round(this.state.settings.stake * 100) < -this.stopLoss) {
+            this.stop('Next XML stake would exceed the session stop loss.');
+            return Promise.resolve(false);
+        }
         if (symbol !== this.state.match?.symbol) {
             this.stop('The XML market changed. Start a fresh scan.');
             return Promise.resolve(false);

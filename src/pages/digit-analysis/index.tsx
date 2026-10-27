@@ -159,7 +159,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                 sampleSize={sampleSize}
                 onSelect={setSymbol}
                 active={active}
-                onAutoStart={() => {
+                onAutoStart={settings => {
                     if (run_panel.is_running || run_panel.has_open_contract)
                         throw new Error('Stop and settle Bot Builder first.');
                     const account = getDerivAccount();
@@ -175,7 +175,8 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                                 message_type: 'notify',
                                 className: 'journal__text--warn',
                                 sound: 'silent',
-                            })
+                            }),
+                        settings
                     );
                 }}
                 onLoad={(side, matchedSymbol, submarket, baselineCounts, autoGeneration) => {
