@@ -333,7 +333,7 @@ it('doubles XML recovery stakes and refuses stakes beyond the risk budget', asyn
 });
 it('carries a frozen session configuration through XML reloads and uses its recovery multiplier', async () => {
     const cycle = new XmlScannerCycle();
-    const draft = { stake: 1, stopLoss: 30, multiplier: 3 };
+    const draft = { stake: 1, stopLoss: 30, takeProfit: 10, multiplier: 3 };
     cycle.start('TEST-DEMO', 100, jest.fn(), undefined, draft);
     draft.multiplier = 8;
     const token = cycle.claim(match)!;
@@ -341,19 +341,55 @@ it('carries a frozen session configuration through XML reloads and uses its reco
     cycle.runStarted();
     await settle(cycle, 1, -1);
     expect(cycle.recoveryStake(1)).toBe(3);
-    expect(cycle.getSnapshot().settings).toEqual({ stake: 1, stopLoss: 30, multiplier: 3 });
+    expect(cycle.getSnapshot().settings).toEqual({ stake: 1, stopLoss: 30, takeProfit: 10, multiplier: 3 });
     cycle.stop();
-    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, { stake: 2, stopLoss: 50, multiplier: 2 });
-    expect(cycle.getSnapshot().settings).toEqual({ stake: 2, stopLoss: 50, multiplier: 2 });
+    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, { stake: 2, stopLoss: 50, takeProfit: 10, multiplier: 2 });
+    expect(cycle.getSnapshot().settings).toEqual({ stake: 2, stopLoss: 50, takeProfit: 10, multiplier: 2 });
     cycle.stop();
 });
 it('enforces the chosen session loss budget during recovery', async () => {
     const cycle = new XmlScannerCycle();
-    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, { stake: 1, stopLoss: 1.5, multiplier: 2 });
+    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, { stake: 1, stopLoss: 1.5, takeProfit: 10, multiplier: 2 });
     const token = cycle.claim(match)!;
     cycle.loaded(token, { takeProfit: 1000, stopLoss: 150 });
     cycle.runStarted();
     await settle(cycle, 1, -1);
     expect(cycle.recoveryStake(1)).toBeUndefined();
     expect(cycle.getSnapshot().enabled).toBe(false);
+});
+it('retains the session take-profit target across batches and stops at cumulative profit', async () => {
+    jest.useFakeTimers();
+    const cycle = new XmlScannerCycle(),
+        stop = jest.fn();
+    cycle.start('TEST-DEMO', 100, stop, undefined, { stake: 0.35, stopLoss: 100, takeProfit: 0.5, multiplier: 2 });
+    let token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 50, stopLoss: 10000 });
+    cycle.runStarted();
+    for (let id = 1; id <= 3; id++) await settle(cycle, id, 0.12);
+    cycle.runnerStopped();
+    jest.advanceTimersByTime(5000);
+    token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 50, stopLoss: 10000 });
+    cycle.runStarted();
+    expect(cycle.getSnapshot().settings.takeProfit).toBe(0.5);
+    await settle(cycle, 4, 0.14);
+    jest.runAllTicks();
+    expect(cycle.getSnapshot()).toMatchObject({
+        enabled: false,
+        pnl: 50,
+        message: 'Session take-profit reached: $0.50.',
+    });
+    expect(stop).toHaveBeenLastCalledWith(false);
+});
+it('permits a selected profit target above the old $10 default', async () => {
+    const cycle = new XmlScannerCycle();
+    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, { stake: 0.35, stopLoss: 100, takeProfit: 25, multiplier: 2 });
+    const token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 2500, stopLoss: 10000 });
+    cycle.runStarted();
+    await settle(cycle, 1, 11);
+    expect(cycle.getSnapshot().enabled).toBe(true);
+    await settle(cycle, 2, 14);
+    await Promise.resolve();
+    expect(cycle.getSnapshot()).toMatchObject({ enabled: false, pnl: 2500 });
 });

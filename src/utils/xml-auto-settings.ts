@@ -1,7 +1,12 @@
-export type XmlAutoSettings = Readonly<{ stake: number; stopLoss: number; multiplier: number }>;
-export const DEFAULT_XML_AUTO_SETTINGS: XmlAutoSettings = Object.freeze({ stake: 0.35, stopLoss: 100, multiplier: 2 });
+export type XmlAutoSettings = Readonly<{ stake: number; stopLoss: number; takeProfit: number; multiplier: number }>;
+export const DEFAULT_XML_AUTO_SETTINGS: XmlAutoSettings = Object.freeze({
+    stake: 0.35,
+    stopLoss: 100,
+    takeProfit: 10,
+    multiplier: 2,
+});
 export function validateXmlAutoSettings(settings: XmlAutoSettings): XmlAutoSettings {
-    const { stake, stopLoss, multiplier } = settings;
+    const { stake, stopLoss, takeProfit, multiplier } = settings;
     const money = (value: number) =>
         Number.isFinite(value) &&
         Number.isSafeInteger(Math.round(value * 100)) &&
@@ -10,6 +15,8 @@ export function validateXmlAutoSettings(settings: XmlAutoSettings): XmlAutoSetti
         throw new Error('Stake must be between $0.35 and $100, with at most two decimal places.');
     if (!money(stopLoss) || stopLoss < stake)
         throw new Error('Session stop loss must be at least the stake, with at most two decimal places.');
+    if (!money(takeProfit) || takeProfit <= 0)
+        throw new Error('Session take profit must be positive, with at most two decimal places.');
     if (
         !Number.isFinite(multiplier) ||
         multiplier <= 1 ||
@@ -17,5 +24,5 @@ export function validateXmlAutoSettings(settings: XmlAutoSettings): XmlAutoSetti
         Math.abs(multiplier * 100 - Math.round(multiplier * 100)) > 1e-7
     )
         throw new Error('Martingale multiplier must be greater than 1, with at most two decimal places.');
-    return Object.freeze({ stake, stopLoss, multiplier });
+    return Object.freeze({ stake, stopLoss, takeProfit, multiplier });
 }

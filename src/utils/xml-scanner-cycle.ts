@@ -107,7 +107,7 @@ export class XmlScannerCycle {
         this.feedPaused = false;
         this.nextRecoveryMarket = undefined;
         this.rejectedRecoveryMarkets.clear();
-        this.takeProfit = Number.MAX_SAFE_INTEGER;
+        this.takeProfit = Math.round(validatedSettings.takeProfit * 100);
         this.stopLoss = Math.round(validatedSettings.stopLoss * 100);
         this.update({
             settings: validatedSettings,
@@ -408,11 +408,7 @@ export class XmlScannerCycle {
             losses,
             wins,
             ...(active && profit < 0 ? { phase: 'running' as const, recoverySearch: false } : {}),
-            message: !active
-                ? this.state.message
-                : this.recovery
-                  ? 'Preparing recovery.'
-                  : 'Trading XML batch.',
+            message: !active ? this.state.message : this.recovery ? 'Preparing recovery.' : 'Trading XML batch.',
         });
         if (!active) return;
         if (pnl >= this.takeProfit || pnl <= -this.stopLoss || losses >= 10) {

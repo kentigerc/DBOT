@@ -81,24 +81,24 @@ describe.each(['over-punisher.xml', 'under-punisher.xml', 'over-1-over-0.xml'])(
         it('applies the same stake, stop loss and multiplier without editing the source XML', () => {
             const { hostedBotForAuto, hostedBotLimits } = require('../hosted-bot-market');
             const source = readFileSync(path.join(__dirname, '../../../server/bots', filename), 'utf8');
-            const settings = { stake: 1.25, stopLoss: 30, multiplier: 3 };
+            const settings = { stake: 1.25, stopLoss: 30, takeProfit: 12, multiplier: 3 };
             const configured = hostedBotForAuto(source, '1HZ10V', 'random_index', settings);
             const document = new DOMParser().parseFromString(configured, 'text/xml');
             const initial = document.querySelector('statement[name="INITIALIZATION"]')!;
-            for (const name of ['Stake', 'Win Stake', 'Stop Loss']) {
+            for (const name of ['Stake', 'Win Stake', 'Stop Loss', 'Expected Profit']) {
                 const block = Array.from(initial.querySelectorAll('block[type="variables_set"]')).find(b =>
                     Array.from(b.children).some(f => f.localName === 'field' && f.textContent === name)
                 )!;
                 expect(
                     block.querySelector('value[name="VALUE"] > block[type="math_number"] > field[name="NUM"]')!
                         .textContent
-                ).toBe(String(name === 'Stop Loss' ? 30 : 1.25));
+                ).toBe(String(name === 'Stop Loss' ? 30 : name === 'Expected Profit' ? 12 : 1.25));
             }
             const factor = Array.from(document.querySelectorAll('block[type="math_arithmetic"]')).find(b =>
                 b.querySelector('block[type="read_details"]')
             )!;
             expect(factor.querySelector('block[type="math_number"] > field[name="NUM"]')!.textContent).toBe('3');
-            expect(hostedBotLimits(configured)).toEqual({ ...hostedBotLimits(source), stopLoss: 3000 });
+            expect(hostedBotLimits(configured)).toEqual({ takeProfit: 1200, stopLoss: 3000 });
             expect(readFileSync(path.join(__dirname, '../../../server/bots', filename), 'utf8')).toBe(source);
         });
     }

@@ -365,3 +365,9 @@ XML Auto now scans and observes EEO/OOE only for the first recovery entry in a l
 Normal trading after a recovery win clears the lock. A later independent loss sequence must select a market and observe its own first formation. A different Auto generation also invalidates any old lock. Recovery status uses “Preparing/Continuing recovery” so later attempts are not described as new scans. Analysis Tool and HIT AND RUN are unchanged.
 
 Validation: 54 targeted recovery, native purchase, cycle and protection tests passed; production build passed. Tests verify one initial scan across repeated losses, unchanged direction/market despite later percentages, a fresh-quote-only follow-up, stale-data rejection, STOP cancellation and clearing the lock for a later recovery. Fresh-profile simulated browser verified one EEO subscription, Even recovery on 1HZ50V at $1.50 then $4.50 with a 3x session multiplier even when the later sample favored Odd, then three normal wins and a fresh XML batch. Session settings, responsive controls and STOP remained functional. No live trades placed.
+
+### Scanner session take profit
+
+Add Session take profit beside the existing XML Auto settings, default $10. Require a positive cent-precision amount. Freeze it with the selected stake/stop-loss/multiplier at START and apply it as Expected Profit in every hosted XML load. Initialize the cumulative Auto take-profit guard from that same selected amount; retain it across batch reloads and unlock the field only when Auto stops. Normal batching, recovery lock/formation rules and all other limits remain unchanged.
+
+Validation: 60 targeted settings, cycle, hosted-XML and scanner UI tests passed; production build passed. Tests cover invalid targets, custom Expected Profit in all three hosted XML bots, UI submission/locking, targets above the former $10 default and stopping at cumulative profit after multiple batches.

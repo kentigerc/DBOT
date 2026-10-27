@@ -60,6 +60,7 @@ export function hostedBotForAuto(content: string, symbol: string, submarket: str
             Stake: config.stake,
             'Win Stake': config.stake,
             'Stop Loss': config.stopLoss,
+            'Expected Profit': config.takeProfit,
         };
         const initial = document.querySelector('block[type="trade_definition"] > statement[name="INITIALIZATION"]');
         for (const [name, value] of Object.entries(values)) {

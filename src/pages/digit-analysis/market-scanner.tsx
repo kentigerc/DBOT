@@ -53,6 +53,7 @@ export default function MarketScanner({
     const [draft, setDraft] = useState({
         stake: String(auto.settings.stake),
         stopLoss: String(auto.settings.stopLoss),
+        takeProfit: String(auto.settings.takeProfit),
         multiplier: String(auto.settings.multiplier),
     });
     const [enabled, setEnabled] = useState(true);
@@ -260,6 +261,7 @@ export default function MarketScanner({
                     [
                         ['stake', 'Stake ($)', '0.35', '0.01'],
                         ['stopLoss', 'Session stop loss ($)', '0.35', '0.01'],
+                        ['takeProfit', 'Session take profit ($)', '0.01', '0.01'],
                         ['multiplier', 'Martingale (×)', '1.01', '0.01'],
                     ] as const
                 ).map(([key, label, min, step]) => (
@@ -290,6 +292,7 @@ export default function MarketScanner({
                             const settings = validateXmlAutoSettings({
                                 stake: Number(draft.stake),
                                 stopLoss: Number(draft.stopLoss),
+                                takeProfit: Number(draft.takeProfit),
                                 multiplier: Number(draft.multiplier),
                             });
                             const account = getDerivAccount();

@@ -167,19 +167,17 @@ it('loads exactly one matched XML automatically only after the user enables Auto
     const { xmlScannerCycle } = require('@/utils/xml-scanner-cycle');
     const session = require('@/utils/deriv-session');
     const locks = require('@/utils/trading-lock');
-    const account = jest
-        .spyOn(session, 'getDerivAccount')
-        .mockReturnValue({
-            account_id: 'TEST-DEMO',
-            status: 'active',
-            account_type: 'demo',
-            currency: 'USD',
-            balance: 10000,
-        });
+    const account = jest.spyOn(session, 'getDerivAccount').mockReturnValue({
+        account_id: 'TEST-DEMO',
+        status: 'active',
+        account_type: 'demo',
+        currency: 'USD',
+        balance: 10000,
+    });
     const check = jest.spyOn(locks, 'checkServerAnalysis').mockResolvedValue(false);
     connect.mockResolvedValue(createApi());
     const load = jest.fn().mockReturnValue(true);
-    const start = (settings: { stake: number; stopLoss: number; multiplier: number }) =>
+    const start = (settings: { stake: number; stopLoss: number; takeProfit: number; multiplier: number }) =>
         xmlScannerCycle.start('TEST-DEMO', 100, jest.fn(), undefined, settings);
     const { rerender } = render(
         <MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} onAutoStart={start} />
@@ -188,10 +186,11 @@ it('loads exactly one matched XML automatically only after the user enables Auto
     expect(load).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText('Stake ($)'), { target: { value: '0.75' } });
     fireEvent.change(screen.getByLabelText('Session stop loss ($)'), { target: { value: '25' } });
+    fireEvent.change(screen.getByLabelText('Session take profit ($)'), { target: { value: '5' } });
     fireEvent.change(screen.getByLabelText('Martingale (×)'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'START XML AUTO' }));
     await waitFor(() => expect(xmlScannerCycle.getSnapshot().enabled).toBe(true));
-    expect(xmlScannerCycle.getSnapshot().settings).toEqual({ stake: 0.75, stopLoss: 25, multiplier: 3 });
+    expect(xmlScannerCycle.getSnapshot().settings).toEqual({ stake: 0.75, stopLoss: 25, takeProfit: 5, multiplier: 3 });
     expect(screen.getByLabelText('Stake ($)')).toBeDisabled();
     // A fresh pass continues even while the Builder section is in front.
     rerender(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} onAutoStart={start} active={false} />);
@@ -209,15 +208,13 @@ it('loads exactly one matched XML automatically only after the user enables Auto
 it('STOP cancels the asynchronous session check before XML Auto can start', async () => {
     const session = require('@/utils/deriv-session');
     const locks = require('@/utils/trading-lock');
-    const account = jest
-        .spyOn(session, 'getDerivAccount')
-        .mockReturnValue({
-            account_id: 'TEST-DEMO',
-            status: 'active',
-            account_type: 'demo',
-            currency: 'USD',
-            balance: 10000,
-        });
+    const account = jest.spyOn(session, 'getDerivAccount').mockReturnValue({
+        account_id: 'TEST-DEMO',
+        status: 'active',
+        account_type: 'demo',
+        currency: 'USD',
+        balance: 10000,
+    });
     let release!: (busy: boolean) => void;
     const check = jest.spyOn(locks, 'checkServerAnalysis').mockImplementation(
         () =>
