@@ -239,3 +239,26 @@ it('STOP cancels a quote check for an already locked recovery market', async () 
     controller.abort();
     expect(await pending).toBeUndefined();
 });
+it('reports and stops after three consecutive data failures rather than retrying forever', async () => {
+    const create = jest.fn().mockRejectedValue(new Error('Connection unavailable'));
+    const status = jest.fn();
+    const pending = scanXmlParityRecovery(create, 100, new AbortController().signal, status);
+    const rejected = expect(pending).rejects.toThrow('after three attempts');
+    await jest.advanceTimersByTimeAsync(3000);
+    await rejected;
+    expect(create).toHaveBeenCalledTimes(3);
+    expect(status).toHaveBeenCalledWith(expect.stringContaining('Attempt 2/3'));
+});
+it('continues healthy scans without forcing an entry when no market qualifies', async () => {
+    const api = createApi();
+    const controller = new AbortController();
+    const status = jest.fn();
+    api.send.mockImplementation(async body => (body.active_symbols ? markets : data(Array(10).fill(10))));
+    const create = jest.fn().mockResolvedValue(api);
+    const pending = scanXmlParityRecovery(create, 100, controller.signal, status);
+    await jest.advanceTimersByTimeAsync(8000);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(status).toHaveBeenCalledWith(expect.stringContaining('2/2 live samples · No qualifying entry yet'));
+    controller.abort();
+    expect(await pending).toBeUndefined();
+});

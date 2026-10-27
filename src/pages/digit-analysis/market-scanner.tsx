@@ -339,11 +339,13 @@ export default function MarketScanner({
                 </p>
             )}
             <p role='status' aria-live='polite'>
-                {message}
+                {auto.enabled && !scanning ? 'XML Auto active · Follow the session status above.' : message}
             </p>
             {preview && (
                 <div className='digit-scanner__preview'>
-                    <h3>Checking: {preview.display_name}</h3>
+                    <h3>
+                        {auto.enabled && !scanning ? 'Last scan' : 'Checking'}: {preview.display_name}
+                    </h3>
                     <p>
                         Last checked {new Date(preview.checkedAt).toLocaleTimeString()} · {preview.digits.length} ticks
                         ·{' '}

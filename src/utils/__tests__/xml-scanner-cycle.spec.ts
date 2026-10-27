@@ -393,3 +393,23 @@ it('permits a selected profit target above the old $10 default', async () => {
     await Promise.resolve();
     expect(cycle.getSnapshot()).toMatchObject({ enabled: false, pnl: 2500 });
 });
+it('keeps recovery wait progress visible in the journal and cancels it when recovery wins', async () => {
+    jest.useFakeTimers();
+    const write = jest.fn(),
+        cycle = new XmlScannerCycle();
+    cycle.start('TEST-DEMO', 100, jest.fn(), write);
+    const token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 1000, stopLoss: 10000 });
+    cycle.runStarted();
+    await settle(cycle, 1, -0.35);
+    expect(write).toHaveBeenCalledWith(expect.stringContaining('Waiting for XML recovery purchase'));
+    cycle.recoveryStatus('Waiting for recovery entry · R_50 · Live data current.');
+    jest.advanceTimersByTime(15000);
+    expect(write).toHaveBeenCalledWith(expect.stringContaining('Waiting for recovery entry · R_50'));
+    cycle.market('R_100', sample(), Date.now() / 1000);
+    await settle(cycle, 2, 0.7);
+    const count = write.mock.calls.length;
+    jest.advanceTimersByTime(30000);
+    expect(write).toHaveBeenCalledTimes(count);
+    cycle.stop();
+});

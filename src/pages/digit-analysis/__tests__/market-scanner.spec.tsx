@@ -199,6 +199,8 @@ it('loads exactly one matched XML automatically only after the user enables Auto
     expect(load.mock.calls[0][3]).toHaveLength(10);
     expect(Number.isSafeInteger(load.mock.calls[0][4])).toBe(true);
     expect(xmlScannerCycle.getSnapshot().phase).toBe('loading');
+    expect(screen.getByText('XML Auto active · Follow the session status above.')).toBeInTheDocument();
+    expect(screen.queryByText('Scanner paused. Displayed percentages are snapshots.')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'STOP XML AUTO' }));
     expect(xmlScannerCycle.getSnapshot().enabled).toBe(false);
     account.mockRestore();

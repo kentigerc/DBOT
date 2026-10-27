@@ -1,3 +1,4 @@
+import { startXmlRecoveryProgress } from './xml-recovery-progress';
 import { DEFAULT_XML_AUTO_SETTINGS, validateXmlAutoSettings, type XmlAutoSettings } from './xml-auto-settings';
 import { nextRecoveryStake } from '@/services/digit-strategy/strategy';
 import { evaluateScan, type ScanSide } from '@/pages/digit-analysis/scanner';
@@ -54,7 +55,8 @@ export class XmlScannerCycle {
     };
     private listeners = new Set<() => void>();
     private stopBot?: (batchComplete: boolean) => void;
-    private reportStop?: (message: string) => void;
+    private reportJournal?: (message: string) => void;
+    private recoveryJournal?: ReturnType<typeof startXmlRecoveryProgress>;
     private guarded = false;
     private started = false;
     private entered = false;
@@ -87,7 +89,7 @@ export class XmlScannerCycle {
         accountId: string,
         sampleSize: number,
         stopBot: (batchComplete: boolean) => void,
-        reportStop?: (message: string) => void,
+        reportJournal?: (message: string) => void,
         settings: XmlAutoSettings = DEFAULT_XML_AUTO_SETTINGS
     ) {
         if (this.state.enabled) throw new Error('XML Auto is already active.');
@@ -98,7 +100,9 @@ export class XmlScannerCycle {
         const validatedSettings = validateXmlAutoSettings(settings);
         clearTimeout(this.timer);
         this.stopBot = stopBot;
-        this.reportStop = reportStop;
+        this.recoveryJournal?.stop();
+        this.recoveryJournal = undefined;
+        this.reportJournal = reportJournal;
         this.guarded = true;
         this.started = this.entered = this.recovery = this.inFlight = false;
         this.contractId = undefined;
@@ -168,12 +172,14 @@ export class XmlScannerCycle {
     stop(message = 'XML Auto stopped.', notifyRunner = true) {
         if (!this.state.enabled) return;
         clearTimeout(this.timer);
+        this.recoveryJournal?.stop();
+        this.recoveryJournal = undefined;
         this.waiter?.(false);
         this.waiter = undefined;
         this.nextRecoveryMarket = undefined;
         this.update({ enabled: false, phase: 'stopped', recoverySearch: false, message });
         try {
-            this.reportStop?.(`XML Auto stopped: ${message}`);
+            this.reportJournal?.(`XML Auto stopped: ${message}`);
         } catch {
             /* Logging cannot interfere with stopping. */
         }
@@ -235,7 +241,10 @@ export class XmlScannerCycle {
         return stake / 100;
     }
     recoveryStatus(message: string) {
-        if (this.isRecovering()) this.update({ message });
+        if (this.isRecovering()) {
+            this.update({ message });
+            this.recoveryJournal?.update();
+        }
     }
     recoveryTarget() {
         return this.state.enabled ? this.nextRecoveryMarket : undefined;
@@ -408,9 +417,28 @@ export class XmlScannerCycle {
             losses,
             wins,
             ...(active && profit < 0 ? { phase: 'running' as const, recoverySearch: false } : {}),
-            message: !active ? this.state.message : this.recovery ? 'Preparing recovery.' : 'Trading XML batch.',
+            message: !active
+                ? this.state.message
+                : this.recovery
+                  ? 'Waiting for XML recovery purchase.'
+                  : 'Trading XML batch.',
         });
         if (!active) return;
+        if (this.recovery && this.reportJournal && !this.recoveryJournal) {
+            this.recoveryJournal = startXmlRecoveryProgress(
+                () =>
+                    this.inFlight
+                        ? this.contractId === undefined
+                            ? 'Recovery purchase awaiting confirmation.'
+                            : 'Recovery contract awaiting settlement.'
+                        : this.state.message,
+                text => this.reportJournal?.(text),
+                () => this.isRecovering() && this.started
+            );
+        } else if (!this.recovery) {
+            this.recoveryJournal?.stop();
+            this.recoveryJournal = undefined;
+        }
         if (pnl >= this.takeProfit || pnl <= -this.stopLoss || losses >= 10) {
             // Defer termination until every contract/journal listener has handled this settlement.
             this.update({ phase: 'finishing' });

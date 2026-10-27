@@ -88,13 +88,16 @@ export async function waitForXmlParityFormation(
         const counts = Array<number>(10).fill(0);
         digits.forEach(value => counts[value]++);
         if (parityRecoveryDirection(counts) !== direction) {
+            status(`Recovery candidate changed · ${symbol} · Continuing market search.`);
             finish();
             return;
         }
         pattern = [...pattern, digit % 2].slice(-3);
         const chosen = direction === 'DIGITEVEN' ? 0 : 1;
-        if (pattern.length === 3 && pattern[0] === chosen && pattern[1] === chosen && pattern[2] !== chosen)
+        if (pattern.length === 3 && pattern[0] === chosen && pattern[1] === chosen && pattern[2] !== chosen) {
+            status(`Recovery entry ready · ${symbol}`);
             finish({ symbol, direction, epoch: lastEpoch });
+        }
     };
     signal.addEventListener('abort', abort, { once: true });
     api.connection?.addEventListener('close', fail);
@@ -111,8 +114,13 @@ export async function waitForXmlParityFormation(
         if (!ready) queued.push(data.tick);
         else accept(data.tick);
     });
+    let lastStatus = Date.now();
     const watchdog = setInterval(() => {
         if (ready && Date.now() - lastArrival > 6000) fail();
+        else if (ready && !finished && Date.now() - lastStatus >= 10000) {
+            lastStatus = Date.now();
+            status(`Waiting for recovery entry · ${symbol} · Live data current.`);
+        }
     }, 1000);
     try {
         if (signal.aborted) return;
@@ -207,6 +215,8 @@ export async function scanXmlParityRecovery(
     status: (message: string) => void
 ): Promise<ParityRecovery | undefined> {
     let api: Api | undefined;
+    let failures = 0,
+        round = 0;
     const request = async (body: Record<string, unknown>) => {
         if (signal.aborted) throw new Error('Recovery cancelled');
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -248,9 +258,13 @@ export async function scanXmlParityRecovery(
                 );
                 if (!markets.length) throw new Error('No recovery markets available');
                 while (!signal.aborted) {
-                    for (const market of markets) {
+                    round++;
+                    let liveSamples = 0;
+                    for (const [index, market] of markets.entries()) {
                         if (signal.aborted) return;
-                        status(`Searching recovery markets · ${market.display_name || market.symbol}`);
+                        status(
+                            `Searching recovery markets · ${index + 1}/${markets.length} · Round ${round} · ${market.display_name || market.symbol}`
+                        );
                         let found = false;
                         try {
                             const data = await request({
@@ -270,6 +284,7 @@ export async function scanXmlParityRecovery(
                                 continue;
                             const digits = prices.slice(-sampleSize).map(price => lastDigit(price, data.pip_size!));
                             if (digits.some(d => d === null)) continue;
+                            liveSamples++;
                             const counts = Array<number>(10).fill(0);
                             digits.forEach(d => counts[d!]++);
                             const direction = parityRecoveryDirection(counts);
@@ -306,10 +321,18 @@ export async function scanXmlParityRecovery(
                             if (!found && !signal.aborted) await pause();
                         }
                     }
+                    if (!liveSamples) throw new Error('No fresh recovery samples');
+                    failures = 0;
+                    status(
+                        `Recovery scan complete · ${liveSamples}/${markets.length} live samples · No qualifying entry yet.`
+                    );
                 }
             } catch {
                 if (signal.aborted) return;
-                status('Recovery data reconnecting · No purchase submitted.');
+                failures++;
+                if (failures >= 3)
+                    throw new Error('Recovery data unavailable after three attempts. No recovery order was submitted.');
+                status(`Recovery data reconnecting · Attempt ${failures}/3 · No purchase submitted.`);
                 await pause();
             } finally {
                 api?.disconnect();
