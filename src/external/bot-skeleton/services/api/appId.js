@@ -1,3 +1,4 @@
+import { startApiKeepalive } from '@/utils/api-keepalive';
 import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
 import { scannerExitGuard } from '@/utils/scanner-exit-guard';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
@@ -27,7 +28,7 @@ export const generateDerivApiInstance = async ({ publicOnly = false } = {}) => {
     const url = new URL('/api/socket', window.location.origin);
     url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     if (account) url.searchParams.set('account_id', account.account_id);
-    return new DerivAPIBasic({
+    const api = new DerivAPIBasic({
         connection: new NewApiTransport(
             url.toString(),
             account?.account_id,
@@ -35,6 +36,8 @@ export const generateDerivApiInstance = async ({ publicOnly = false } = {}) => {
         ),
         middleware: new APIMiddleware({}),
     });
+    startApiKeepalive(api);
+    return api;
 };
 export const getLoginId = () => getDerivAccount()?.account_id || null;
 // Legacy code uses this as a login marker. It is never sent as an authorization token.

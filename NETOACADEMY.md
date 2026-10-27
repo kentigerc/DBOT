@@ -325,3 +325,10 @@ New journal messages capture current browser UTC event time once for their date/
 
 Validation: 13 server socket/keepalive tests passed and production build passed. Tests cover 25-second non-trading pings, pong filtering, closed-socket handling, timer cancellation and safe send failure. Missing keepalive is a confirmed code gap; an individual browser code 1006 still does not establish which network/provider/hosting component terminated that connection.
 Fresh-profile simulated browser verified 12 distinct journal event times during a trading run, same-market direct recovery, three-new-normal-win batching and STOP preventing subsequent purchases. No live trades placed.
+
+### Browser-to-provider API keepalive
+
+The earlier server ping kept only the Render-to-Deriv hop active and intentionally consumed its own unnumbered pong. Every generated browser API instance now also sends a standard DerivAPIBasic ping every 25 seconds, so traffic and its numbered reply traverse browser → Render → Deriv → Render → browser. This uses normal API-generated request IDs and does not bypass purchase guards or issue/retry trades. Skip connecting/closed sockets, permit only one unanswered ping per API instance and cancel the timer on socket close. The independent server keepalive remains active for the upstream hop.
+
+Validation: 15 API/keepalive/purchase-guard/wire-compatibility tests passed and production build passed. The provided log has advancing timestamps, confirms the latest journal-clock change, and shows no new recorded purchase between the 18:24:20 UTC startup and 18:26:08 UTC socket 1006 closure. The cause of an abnormal network closure remains unproven from the journal alone.
+Fresh-profile simulated browser verified the standard API ping appears on the browser socket after 27 seconds idle, followed by successful same-market direct recovery, three-normal-win batches, advancing journal times and STOP preventing future purchases. No live trades placed.
