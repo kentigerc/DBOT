@@ -62,14 +62,14 @@ it('overrides only XML Auto recovery with a 1-tick parity order on the selected 
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
     jest.spyOn(xmlScannerCycle, 'isRecovering').mockReturnValue(true);
     jest.spyOn(xmlScannerCycle, 'valid').mockReturnValue(true);
-    jest.spyOn(xmlScannerCycle, 'recoveryStake').mockReturnValue(0.74);
+    jest.spyOn(xmlScannerCycle, 'recoveryStake').mockReturnValue(0.7);
     (scanXmlParityRecovery as jest.Mock).mockResolvedValue({
         symbol: '1HZ50V',
         direction: 'DIGITEVEN',
         epoch: Date.now() / 1000,
     });
     (api_base.api.send as jest.Mock).mockResolvedValue({
-        buy: { contract_id: 124, transaction_id: 125, buy_price: 0.74 },
+        buy: { contract_id: 124, transaction_id: 125, buy_price: 0.7 },
     });
     const engine = new (Purchase(Base))();
     engine.xmlLastPurchaseStake = 0.35;
@@ -78,7 +78,7 @@ it('overrides only XML Auto recovery with a 1-tick parity order on the selected 
         expect.objectContaining({
             parameters: {
                 symbol: '1HZ50V',
-                amount: 0.74,
+                amount: 0.7,
                 basis: 'stake',
                 currency: 'USD',
                 duration: 1,
@@ -89,7 +89,7 @@ it('overrides only XML Auto recovery with a 1-tick parity order on the selected 
         })
     );
     expect(engine.tradeOptions).toMatchObject({ symbol: 'R_100', amount: 0.35, prediction: 4 });
-    expect(engine.xmlLastPurchaseStake).toBe(0.74);
+    expect(engine.xmlLastPurchaseStake).toBe(0.7);
 });
 it('STOP cancels parity selection before any recovery purchase is submitted', async () => {
     let active = true;
@@ -97,7 +97,7 @@ it('STOP cancels parity selection before any recovery purchase is submitted', as
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
     jest.spyOn(xmlScannerCycle, 'isRecovering').mockImplementation(() => active);
     jest.spyOn(xmlScannerCycle, 'valid').mockImplementation(() => active);
-    jest.spyOn(xmlScannerCycle, 'recoveryStake').mockReturnValue(0.74);
+    jest.spyOn(xmlScannerCycle, 'recoveryStake').mockReturnValue(0.7);
     jest.spyOn(xmlScannerCycle, 'subscribe').mockImplementation(listener => {
         changed = listener;
         return () => {};

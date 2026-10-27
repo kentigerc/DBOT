@@ -343,3 +343,9 @@ STOP cancels pending scan requests and prevents recovery purchases. Original-mar
 
 Validation: 91 targeted browser/scanner/strategy/purchase tests passed, including parity boundaries, regular/1-second selection, unsupported or cancelled selection, 2.1 rounding, barrier-free 1-tick orders, cancellation before wire submission and unchanged normal XML settings. Server suite: 61 passed, two optional PostgreSQL tests skipped. Production build passed. A fresh-profile browser with simulated provider data verified normal loss → Even recovery on 1HZ50V at $0.74 → recovery loss → Even at $1.55, both one tick → recovery win → three normal XML wins on R_100 at $0.35 → cooldown and next batch. STOP prevented subsequent purchases. No live trades placed.
 Additional recovery-scanner tests passed for skipping unsupported contracts and stale samples before selecting another eligible market. Final build passed after updating the recovery status wording.
+
+### XML martingale multiplier: 2x
+
+XML Auto Even/Odd recovery now doubles the previous confirmed stake (2x instead of 2.1x). Align the Under Punisher XML multiplier to 2.0; Over Punisher and Over 1/Over 0 already use 2.0. Analysis Tool and HIT AND RUN retain their existing configured multipliers. All recovery selection, 1-tick duration, batching and risk limits remain unchanged. Example progression: $0.35 → $0.70 → $1.40 → $2.80.
+
+Validation: 33 targeted cycle, purchase and hosted-XML tests passed; production build passed. Parsed all three hosted XML files to verify 2x multiplication, and compared Under Punisher against its previous XML to confirm only its multiplier value changed.

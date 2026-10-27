@@ -322,11 +322,12 @@ it('requires the restored normal-market live guard before releasing recovery aft
     expect(cycle.getSnapshot()).toMatchObject({ losses: 1, wins: 0, pnl: -35 });
     cycle.stop();
 });
-it('uses the same 2.1 recovery rounding and refuses stakes beyond the risk budget', async () => {
+it('doubles XML recovery stakes and refuses stakes beyond the risk budget', async () => {
     const { cycle } = setup();
     await settle(cycle, 1, -0.35);
-    expect(cycle.recoveryStake(0.35)).toBe(0.74);
-    expect(cycle.recoveryStake(0.74)).toBe(1.55);
+    expect(cycle.recoveryStake(0.35)).toBe(0.7);
+    expect(cycle.recoveryStake(0.7)).toBe(1.4);
+    expect(cycle.recoveryStake(1.4)).toBe(2.8);
     expect(cycle.recoveryStake(50)).toBeUndefined();
     expect(cycle.getSnapshot().enabled).toBe(false);
 });

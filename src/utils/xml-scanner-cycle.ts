@@ -214,7 +214,7 @@ export class XmlScannerCycle {
     recoveryStake(previousAmount: number) {
         if (!this.isRecovering()) return;
         const cents = Math.round(Number(previousAmount) * 100);
-        const stake = nextRecoveryStake(cents, 2.1);
+        const stake = nextRecoveryStake(cents, 2);
         if (
             !Number.isSafeInteger(cents) ||
             cents <= 0 ||
