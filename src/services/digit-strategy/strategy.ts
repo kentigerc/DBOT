@@ -195,6 +195,16 @@ export function signalOn(
 ): Signal {
     return { symbol: m.symbol, direction, barrier, epoch: m.epoch, recovery, formation };
 }
+export function parityRecoveryDirection(counts: number[]): 'DIGITEVEN' | 'DIGITODD' | undefined {
+    if (counts.length !== 10 || counts.some(n => !Number.isInteger(n) || n < 0)) return;
+    const total = counts.reduce((sum, count) => sum + count, 0);
+    if (!total) return;
+    const even = counts.reduce((sum, count, digit) => sum + (digit % 2 === 0 ? count : 0), 0);
+    const odd = total - even;
+    if (even * 100 > 52 * total && odd * 100 < 47 * total) return 'DIGITEVEN';
+    if (odd * 100 > 52 * total && even * 100 < 47 * total) return 'DIGITODD';
+}
+
 export function recoverySignal(m: DigitMarket, s: RecoveryState, config: Settings, now: number): Signal | undefined {
     const mode = config.recoveryMode;
     if (
@@ -204,13 +214,8 @@ export function recoverySignal(m: DigitMarket, s: RecoveryState, config: Setting
     )
         return;
     if (mode === 'parity_percentage') {
-        const counts = m.frequencies();
-        const even = counts.filter(d => d.digit % 2 === 0).reduce((total, d) => total + d.count, 0);
-        const odd = m.digits.length - even;
-        const total = m.digits.length;
-        // Integer comparisons keep exact 52/47 boundaries strict.
-        if (even * 100 > 52 * total && odd * 100 < 47 * total) return signalOn(m, 'DIGITEVEN', undefined, true);
-        if (odd * 100 > 52 * total && even * 100 < 47 * total) return signalOn(m, 'DIGITODD', undefined, true);
+        const direction = parityRecoveryDirection(m.frequencies().map(d => d.count));
+        if (direction) return signalOn(m, direction, undefined, true);
         return;
     }
     if (mode === 'parity' || mode === 'parity_pair') {

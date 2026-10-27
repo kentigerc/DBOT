@@ -1,3 +1,4 @@
+import { nextRecoveryStake } from '@/services/digit-strategy/strategy';
 import { evaluateScan, type ScanSide } from '@/pages/digit-analysis/scanner';
 
 export type XmlScannerMatch = {
@@ -145,7 +146,7 @@ export class XmlScannerCycle {
             throw new Error('XML risk limits are missing or invalid.');
         this.takeProfit = Math.min(this.takeProfit, limits.takeProfit);
         this.stopLoss = Math.min(this.stopLoss, limits.stopLoss);
-        this.update({ phase: 'waiting', message: 'Waiting for a qualifying live entry. XML recovery is retained.' });
+        this.update({ phase: 'waiting', message: 'Waiting for a qualifying live entry. Even/Odd recovery enabled.' });
         return true;
     }
     canRun() {
@@ -206,6 +207,29 @@ export class XmlScannerCycle {
             });
             resolve(true);
         }
+    }
+    isRecovering() {
+        return this.state.enabled && this.recovery;
+    }
+    recoveryStake(previousAmount: number) {
+        if (!this.isRecovering()) return;
+        const cents = Math.round(Number(previousAmount) * 100);
+        const stake = nextRecoveryStake(cents, 2.1);
+        if (
+            !Number.isSafeInteger(cents) ||
+            cents <= 0 ||
+            !Number.isSafeInteger(stake) ||
+            stake <= 0 ||
+            stake > 10000 ||
+            this.state.pnl - stake < -this.stopLoss
+        ) {
+            this.stop('Recovery stake exceeds the stake or session loss limit.');
+            return;
+        }
+        return stake / 100;
+    }
+    recoveryStatus(message: string) {
+        if (this.isRecovering()) this.update({ message });
     }
     recoveryTarget() {
         return this.state.enabled ? this.nextRecoveryMarket : undefined;
@@ -377,7 +401,7 @@ export class XmlScannerCycle {
             message: !active
                 ? this.state.message
                 : this.recovery
-                  ? 'Continuing XML recovery on the selected market.'
+                  ? 'Searching recovery markets.'
                   : 'Trading XML batch.',
         });
         if (!active) return;

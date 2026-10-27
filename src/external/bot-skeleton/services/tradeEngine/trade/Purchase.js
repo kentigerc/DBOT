@@ -1,6 +1,5 @@
-import { retargetXmlRecovery } from '@/utils/xml-recovery-market';
-import { setScannerWatch } from '@/utils/scanner-watch';
-import ApiHelpers from '../../api/api-helpers';
+import { scanXmlParityRecovery } from '@/utils/xml-parity-recovery';
+import { generateDerivApiInstance } from '../../api/appId';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { LogTypes } from '../../../constants/messages';
 import { api_base } from '../../api/api-base';
@@ -21,25 +20,56 @@ export default Engine =>
             }
 
             if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol))) return;
-            let recoveryTarget = xmlScannerCycle.recoveryTarget();
-            while (recoveryTarget) {
-                const target = recoveryTarget;
+            let purchaseOptions = this.tradeOptions;
+            const parityRecovery = xmlScannerCycle.isRecovering();
+            if (parityRecovery) {
+                const stake = xmlScannerCycle.recoveryStake(this.xmlLastPurchaseStake);
+                if (stake === undefined) return;
+                const generation = xmlScannerCycle.getSnapshot().generation;
+                const controller = new AbortController();
                 const valid = () =>
-                    xmlScannerCycle.recoveryTarget() === target && this.store.getState().scope === BEFORE_PURCHASE;
-                const changed = await retargetXmlRecovery(this, target, contract_type, {
-                    contracts: symbol => ApiHelpers.instance.contracts_for.getContractsFor(symbol),
-                    workspace: window.Blockly.derivWorkspace,
-                    valid,
+                    xmlScannerCycle.isRecovering() &&
+                    xmlScannerCycle.valid(generation) &&
+                    this.store.getState().scope === BEFORE_PURCHASE;
+                const unsubscribe = xmlScannerCycle.subscribe(() => {
+                    if (!valid()) controller.abort();
                 });
-                if (!changed) xmlScannerCycle.rejectRecoveryMarket(target);
-                else if (xmlScannerCycle.confirmRecoveryMarket(target)) setScannerWatch({ ...target, automatic: true });
-                if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol))) return;
-                recoveryTarget = xmlScannerCycle.recoveryTarget();
+                try {
+                    while (valid()) {
+                        const plan = await scanXmlParityRecovery(
+                            () => generateDerivApiInstance({ publicOnly: true }),
+                            xmlScannerCycle.getSnapshot().sampleSize,
+                            controller.signal,
+                            message => xmlScannerCycle.recoveryStatus(message)
+                        );
+                        if (!plan || !valid()) return;
+                        // Recheck the original market's live guard after the recovery scan.
+                        if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol)) || !valid()) return;
+                        if (Date.now() / 1000 - plan.epoch > 6) continue;
+                        contract_type = plan.direction;
+                        purchaseOptions = {
+                            amount: stake,
+                            basis: 'stake',
+                            currency: this.tradeOptions.currency,
+                            duration: 1,
+                            duration_unit: 't',
+                            symbol: plan.symbol,
+                            app_markup_percentage: this.tradeOptions.app_markup_percentage,
+                        };
+                        xmlScannerCycle.recoveryStatus(`Recovery market selected · ${plan.symbol}`);
+                        break;
+                    }
+                    if (!valid()) return;
+                } finally {
+                    controller.abort();
+                    unsubscribe();
+                }
             }
             if (this.store.getState().scope !== BEFORE_PURCHASE) return;
             const onSuccess = response => {
                 // Don't unnecessarily send a forget request for a purchased contract.
                 const { buy } = response;
+                this.xmlLastPurchaseStake = Number(buy.buy_price);
 
                 contractStatus({
                     id: 'contract.purchase_received',
@@ -65,7 +95,7 @@ export default Engine =>
                 });
             };
 
-            if (this.is_proposal_subscription_required) {
+            if (this.is_proposal_subscription_required && !parityRecovery) {
                 const { id, askPrice } = this.selectProposal(contract_type);
 
                 const action = () => api_base.api.send({ buy: id, price: askPrice });
@@ -103,14 +133,14 @@ export default Engine =>
                     delayIndex++
                 ).then(onSuccess);
             }
-            const trade_option = tradeOptionToBuy(contract_type, this.tradeOptions);
+            const trade_option = tradeOptionToBuy(contract_type, purchaseOptions);
             const action = () => api_base.api.send(trade_option);
 
             this.isSold = false;
 
             contractStatus({
                 id: 'contract.purchase_sent',
-                data: this.tradeOptions.amount,
+                data: purchaseOptions.amount,
             });
 
             if (!this.options.timeMachineEnabled) {

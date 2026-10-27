@@ -50,6 +50,9 @@ export function hostedBotLimits(content: string) {
 
 export function hostedBotForAuto(content: string, symbol: string, submarket: string) {
     const document = new DOMParser().parseFromString(hostedBotMarket(content, symbol, submarket), 'text/xml');
+    document.querySelectorAll('block[type="text"] > field[name="TEXT"]').forEach(field => {
+        if (/now recovering/i.test(field.textContent || '')) field.textContent = 'Executing recovery.';
+    });
     const purchases = new Set(
         Array.from(document.querySelectorAll('block[type="purchase"] > field[name="PURCHASE_LIST"]')).map(
             field => field.textContent

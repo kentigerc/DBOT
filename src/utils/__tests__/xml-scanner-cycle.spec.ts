@@ -63,7 +63,7 @@ it('blocks a fourth purchase, stops after three normal wins, then scans again af
     expect(cycle.getSnapshot()).toMatchObject({ phase: 'scanning', match: undefined, wins: 0, pnl: 36 });
     cycle.stop();
 });
-it('allows XML recovery without another analysis, and its win restarts a full normal batch', async () => {
+it('preserves batch counters through recovery and starts a full normal batch after its win', async () => {
     const { cycle, stop } = setup();
     cycle.market('R_100', sample(), Date.now() / 1000);
     await settle(cycle, 1, 0.12);
@@ -230,7 +230,7 @@ it('two wins then a loss recover first, then require exactly three new normal wi
 });
 
 it.each(['over', 'under'] as const)(
-    'recovers %s losses directly on the same 1-second market without a new entry or scan',
+    'keeps the normal %s market and entry context through recovery without rebinding XML',
     async side => {
         const cycle = new XmlScannerCycle();
         cycle.start('TEST-DEMO', 100, jest.fn());
@@ -309,7 +309,7 @@ it('STOP cancels a purchase waiting for live monitoring to reconnect', async () 
     cycle.market('R_100', sample(), Date.now() / 1000);
     expect(cycle.canPurchase('TEST-DEMO')).toBe(false);
 });
-it('requires the restored live guard before releasing same-market recovery after a feed stall', async () => {
+it('requires the restored normal-market live guard before releasing recovery after a feed stall', async () => {
     const { cycle } = setup();
     await settle(cycle, 1, -0.35);
     cycle.pauseMarket('R_100');
@@ -321,4 +321,12 @@ it('requires the restored live guard before releasing same-market recovery after
     expect(await pending).toBe(true);
     expect(cycle.getSnapshot()).toMatchObject({ losses: 1, wins: 0, pnl: -35 });
     cycle.stop();
+});
+it('uses the same 2.1 recovery rounding and refuses stakes beyond the risk budget', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, -0.35);
+    expect(cycle.recoveryStake(0.35)).toBe(0.74);
+    expect(cycle.recoveryStake(0.74)).toBe(1.55);
+    expect(cycle.recoveryStake(50)).toBeUndefined();
+    expect(cycle.getSnapshot().enabled).toBe(false);
 });

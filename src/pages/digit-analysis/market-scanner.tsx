@@ -294,7 +294,7 @@ export default function MarketScanner({
                 </button>
             </div>
             <p className='digit-analysis__note'>
-                XML Auto runs three-win batches with the selected bot’s XML recovery. Keep this tab open and connected.
+                XML Auto runs three-win batches with Even/Odd recovery. Keep this tab open and connected.
             </p>
             {auto.phase !== 'idle' && (
                 <p role='status'>

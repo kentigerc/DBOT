@@ -40,6 +40,9 @@ describe('XML Auto import coordination', () => {
         );
         original.querySelector('block[type="trade_definition_contracttype"] > field[name="TYPE_LIST"]')!.textContent =
             'both';
+        original.querySelectorAll('block[type="text"] > field[name="TEXT"]').forEach(field => {
+            if (/now recovering/i.test(field.textContent || '')) field.textContent = 'Executing recovery.';
+        });
         expect(automatic.documentElement.isEqualNode(original.documentElement)).toBe(true);
     });
     it('waits for market dropdowns and cancels if STOP invalidates the import', async () => {
