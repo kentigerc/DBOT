@@ -1,4 +1,9 @@
-import { scanXmlParityRecovery, waitForXmlParityFormation, type RecoveryTick } from '../xml-parity-recovery';
+import {
+    refreshXmlParityRecovery,
+    scanXmlParityRecovery,
+    waitForXmlParityFormation,
+    type RecoveryTick,
+} from '../xml-parity-recovery';
 const counts = [12, 8, 12, 8, 12, 8, 12, 8, 12, 8];
 const now = 1700000000;
 const data = (values = counts) => ({
@@ -199,5 +204,38 @@ it('abandons an entry if parity percentages cease to qualify during observation'
     );
     await jest.advanceTimersByTimeAsync(0);
     api.emit(1, now - 2);
+    expect(await pending).toBeUndefined();
+});
+
+it('checks only a fresh quote on the locked market without repeating parity analysis or a formation', async () => {
+    const api = createApi({ odd: true });
+    const plan = { symbol: '1HZ50V', direction: 'DIGITEVEN' as const, epoch: now - 10 };
+    expect(await refreshXmlParityRecovery(api, plan, new AbortController().signal)).toMatchObject({
+        symbol: '1HZ50V',
+        direction: 'DIGITEVEN',
+        epoch: now - 3,
+    });
+    expect(api.send).toHaveBeenCalledTimes(1);
+    expect(api.send).toHaveBeenCalledWith({ ticks_history: '1HZ50V', style: 'ticks', end: 'latest', count: 1 });
+});
+it('rejects stale data on a locked market rather than switching markets or buying blindly', async () => {
+    const api = createApi({ stale: true });
+    await expect(
+        refreshXmlParityRecovery(
+            api,
+            { symbol: 'R_10', direction: 'DIGITEVEN', epoch: now },
+            new AbortController().signal
+        )
+    ).rejects.toThrow('data is unavailable');
+});
+it('STOP cancels a quote check for an already locked recovery market', async () => {
+    const controller = new AbortController();
+    const api = { send: jest.fn(() => new Promise<never>(() => {})) };
+    const pending = refreshXmlParityRecovery(
+        api,
+        { symbol: 'R_10', direction: 'DIGITEVEN', epoch: now },
+        controller.signal
+    );
+    controller.abort();
     expect(await pending).toBeUndefined();
 });

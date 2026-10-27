@@ -411,7 +411,7 @@ export class XmlScannerCycle {
             message: !active
                 ? this.state.message
                 : this.recovery
-                  ? 'Searching recovery markets.'
+                  ? 'Preparing recovery.'
                   : 'Trading XML batch.',
         });
         if (!active) return;

@@ -1,5 +1,8 @@
-import { scanXmlParityRecovery } from '@/utils/xml-parity-recovery';
-jest.mock('@/utils/xml-parity-recovery', () => ({ scanXmlParityRecovery: jest.fn() }));
+import { refreshXmlParityRecovery, scanXmlParityRecovery } from '@/utils/xml-parity-recovery';
+jest.mock('@/utils/xml-parity-recovery', () => ({
+    scanXmlParityRecovery: jest.fn(),
+    refreshXmlParityRecovery: jest.fn(),
+}));
 import Purchase from '../Purchase';
 import { BEFORE_PURCHASE } from '../state/constants';
 import { api_base } from '../../../api/api-base';
@@ -114,4 +117,55 @@ it('STOP cancels parity selection before any recovery purchase is submitted', as
     changed();
     await pending;
     expect(api_base.api.send).not.toHaveBeenCalled();
+});
+it('locks the first formation market and direction across recovery losses without scanning again', async () => {
+    jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
+    jest.spyOn(xmlScannerCycle, 'isRecovering').mockReturnValue(true);
+    jest.spyOn(xmlScannerCycle, 'valid').mockReturnValue(true);
+    jest.spyOn(xmlScannerCycle, 'recoveryStake').mockImplementation(amount => Number(amount) * 2);
+    const plan = { symbol: '1HZ50V', direction: 'DIGITEVEN', epoch: Date.now() / 1000 };
+    (scanXmlParityRecovery as jest.Mock)
+        .mockResolvedValueOnce(plan)
+        .mockResolvedValue({ ...plan, symbol: 'R_50', direction: 'DIGITODD' });
+    (refreshXmlParityRecovery as jest.Mock).mockImplementation(async (_api, locked) => ({
+        ...locked,
+        epoch: Date.now() / 1000,
+    }));
+    (api_base.api.send as jest.Mock)
+        .mockResolvedValueOnce({ buy: { contract_id: 201, buy_price: 0.7 } })
+        .mockResolvedValueOnce({ buy: { contract_id: 202, buy_price: 1.4 } });
+    const engine = new (Purchase(Base))();
+    engine.xmlLastPurchaseStake = 0.35;
+    await engine.purchase('DIGITUNDER');
+    await engine.purchase('DIGITUNDER');
+    expect(scanXmlParityRecovery).toHaveBeenCalledTimes(1);
+    expect(refreshXmlParityRecovery).toHaveBeenCalledTimes(1);
+    expect((api_base.api.send as jest.Mock).mock.calls.map(([body]) => body.parameters)).toEqual([
+        expect.objectContaining({ symbol: '1HZ50V', contract_type: 'DIGITEVEN', amount: 0.7, duration: 1 }),
+        expect.objectContaining({ symbol: '1HZ50V', contract_type: 'DIGITEVEN', amount: 1.4, duration: 1 }),
+    ]);
+});
+it('clears the recovery lock on a normal trade so a later recovery selects a new market and formation', async () => {
+    let recovering = true;
+    jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
+    jest.spyOn(xmlScannerCycle, 'isRecovering').mockImplementation(() => recovering);
+    jest.spyOn(xmlScannerCycle, 'valid').mockReturnValue(true);
+    jest.spyOn(xmlScannerCycle, 'recoveryStake').mockReturnValue(0.7);
+    (scanXmlParityRecovery as jest.Mock)
+        .mockResolvedValueOnce({ symbol: '1HZ50V', direction: 'DIGITEVEN', epoch: Date.now() / 1000 })
+        .mockResolvedValueOnce({ symbol: 'R_50', direction: 'DIGITODD', epoch: Date.now() / 1000 });
+    (api_base.api.send as jest.Mock).mockResolvedValue({ buy: { contract_id: 203, buy_price: 0.35 } });
+    const engine = new (Purchase(Base))();
+    engine.xmlLastPurchaseStake = 0.35;
+    await engine.purchase('DIGITUNDER');
+    recovering = false;
+    await engine.purchase('DIGITUNDER');
+    recovering = true;
+    await engine.purchase('DIGITUNDER');
+    expect(scanXmlParityRecovery).toHaveBeenCalledTimes(2);
+    expect(refreshXmlParityRecovery).not.toHaveBeenCalled();
+    expect((api_base.api.send as jest.Mock).mock.calls[2][0].parameters).toMatchObject({
+        symbol: 'R_50',
+        contract_type: 'DIGITODD',
+    });
 });

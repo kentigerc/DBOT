@@ -161,6 +161,45 @@ export async function waitForXmlParityFormation(
     }
 }
 
+// Later attempts keep the first formation's market and direction. This is only
+// a fresh quote check, not another percentage scan or formation analysis.
+export async function refreshXmlParityRecovery(
+    api: Pick<Api, 'send'>,
+    plan: ParityRecovery,
+    signal: AbortSignal
+): Promise<ParityRecovery | undefined> {
+    if (signal.aborted) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancel = () => {};
+    try {
+        const response = await Promise.race([
+            api.send({ ticks_history: plan.symbol, style: 'ticks', end: 'latest', count: 1 }),
+            new Promise<never>((_, reject) => {
+                cancel = () => reject(new Error('Recovery cancelled'));
+                signal.addEventListener('abort', cancel, { once: true });
+                if (signal.aborted) cancel();
+                timer = setTimeout(() => reject(new Error('Recovery market data timed out.')), 15000);
+            }),
+        ]);
+        if (signal.aborted) return;
+        const epoch = Number(response.history?.times?.slice(-1)[0]);
+        const price = response.history?.prices?.slice(-1)[0];
+        if (
+            price === undefined ||
+            !Number.isInteger(response.pip_size) ||
+            lastDigit(price, response.pip_size!) === null ||
+            !fresh(epoch)
+        )
+            throw new Error('Recovery market data is unavailable. No recovery trade was submitted.');
+        return { ...plan, epoch };
+    } catch (error) {
+        if (!signal.aborted) throw error;
+    } finally {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', cancel);
+    }
+}
+
 export async function scanXmlParityRecovery(
     createApi: () => Promise<Api>,
     sampleSize: number,
