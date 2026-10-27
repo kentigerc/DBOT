@@ -1,3 +1,4 @@
+const { startUpstreamKeepalive } = require('./upstream-keepalive.cjs');
 const { watchSessionExpiry } = require('./session-expiry.cjs');
 const { randomUUID } = require('node:crypto');
 const { WebSocketServer } = require('ws');
@@ -66,6 +67,7 @@ function attachSockets(
                     }
                     sockets.handleUpgrade(req, socket, head, client => {
                         const clientKey = randomUUID();
+                        const upstreamKeepalive = startUpstreamKeepalive(upstream);
                         if (account) {
                             try {
                                 onConnection(account, clientKey, true);
@@ -112,6 +114,11 @@ function attachSockets(
                             upstream.send(data.toString());
                         });
                         upstream.addEventListener('message', event => {
+                            try {
+                                if (upstreamKeepalive.consume(JSON.parse(event.data))) return;
+                            } catch {
+                                /* Preserve existing invalid-packet forwarding behavior. */
+                            }
                             if (client.readyState === 1) {
                                 if (client.bufferedAmount > 1024 * 1024) {
                                     client.close(1013, 'Connection is busy.');
@@ -160,6 +167,7 @@ function attachSockets(
                                 } catch {}
                             }
                             clearInterval(heartbeat);
+                            upstreamKeepalive.stop();
                             stopExpiry();
                             upstream.close();
                         });
@@ -170,6 +178,7 @@ function attachSockets(
                                 } catch {}
                             }
                             clearInterval(heartbeat);
+                            upstreamKeepalive.stop();
                             stopExpiry();
                             upstream.close();
                         });

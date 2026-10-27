@@ -316,3 +316,12 @@ Handle tick/candle unsubscribe on the captured original API instance. Skip forge
 
 Validation: 33 targeted cleanup/lifecycle/scanner tests passed, including disconnect during a permanently unanswered forget request, late acknowledgement isolation and release of the next-run lifecycle guard. Production build passed. The browser-to-site 1006 cause still needs Render runtime evidence; browser close code alone cannot distinguish network, proxy and process termination.
 Fresh-profile simulated browser also verified trading-socket replacement, no stale popup and no automatic restart after closure. No live trades placed.
+
+### Server-side provider keepalive and journal event timestamps
+
+DerivAPIBasic does not enable its automatic ping interval when supplied a custom connection (as NetoAcademy supplies). The socket bridge now sends a Deriv application-level `{ping: 1}` every 25 seconds, independent of browser timers. This is separate from the bridge's browser WebSocket heartbeat. Consume only an outstanding unnumbered provider pong; numbered client responses and trade packets continue unchanged. Cancel the interval on client close/error. Keepalive never buys, retries purchases or automatically restarts a stopped bot.
+
+New journal messages capture current browser UTC event time once for their date/time fields, rather than reading the legacy server clock that can stay at login time. Existing stored history remains unchanged. This fixes frozen timestamps such as repeated 17:13:48 entries that could not reliably be compared with Render logs.
+
+Validation: 13 server socket/keepalive tests passed and production build passed. Tests cover 25-second non-trading pings, pong filtering, closed-socket handling, timer cancellation and safe send failure. Missing keepalive is a confirmed code gap; an individual browser code 1006 still does not establish which network/provider/hosting component terminated that connection.
+Fresh-profile simulated browser verified 12 distinct journal event times during a trading run, same-market direct recovery, three-new-normal-win batching and STOP preventing subsequent purchases. No live trades placed.

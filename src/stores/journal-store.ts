@@ -1,3 +1,4 @@
+import { toMoment } from '@/utils/time';
 import { action, computed, makeObservable, observable, reaction, when } from 'mobx';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDate } from '@/components/shared';
@@ -170,8 +171,10 @@ export default class JournalStore {
             return;
         }
 
-        const date = formatDate(this.getServerTime());
-        const time = formatDate(this.getServerTime(), 'HH:mm:ss [GMT]');
+        // Capture event time once. The legacy server clock may remain at login time.
+        const timestamp = toMoment();
+        const date = formatDate(timestamp);
+        const time = formatDate(timestamp, 'HH:mm:ss [GMT]');
         const unique_id = uuidv4();
 
         this.unfiltered_messages.unshift({ date, time, message, message_type, className, unique_id, extra });
