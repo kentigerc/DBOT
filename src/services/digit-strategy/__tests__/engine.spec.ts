@@ -613,7 +613,10 @@ it('uses initial formation then recovers directly on the losing volatility until
         }
         return send(body);
     });
-    const { engine } = await setup({ strategy: 'even-odd', recoveryMode: 'parity_percentage', multiplier: 2 }, broker);
+    const { engine } = await setup(
+        { strategy: 'even-odd', recoveryMode: 'parity_percentage', multiplier: 2, duration: 5 },
+        broker
+    );
     let epoch = 1003;
     const tick = async (digit: number) => {
         await jest.advanceTimersByTimeAsync(1000);
@@ -624,16 +627,16 @@ it('uses initial formation then recovers directly on the losing volatility until
     await tick(2);
     await tick(4);
     await tick(1);
-    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.35 });
+    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
     broker.settle(-0.35);
     await jest.advanceTimersByTimeAsync(150);
     expect(broker.buys).toHaveLength(1);
     expect(engine.getSnapshot().recovery).toMatchObject({ lockedSymbol: 'R_100', lockedDirection: 'DIGITEVEN' });
     await tick(9); // No new formation is required after the initial loss.
-    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.7 });
+    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.7 });
     broker.settle(-0.7);
     await tick(9);
-    expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 1.4 });
+    expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 1.4 });
     broker.settle(0.99);
     expect(engine.getSnapshot().recovery).toMatchObject({
         deficit: 6,
@@ -641,7 +644,7 @@ it('uses initial formation then recovers directly on the losing volatility until
         lockedDirection: 'DIGITEVEN',
     });
     await tick(9);
-    expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 2.8 });
+    expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 2.8 });
     engine.stop();
     broker.settle(0.06);
     expect(engine.getSnapshot()).toMatchObject({ active: false, stake: 35, recovery: { deficit: 0 } });

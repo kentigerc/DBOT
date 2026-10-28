@@ -346,12 +346,14 @@ export class DigitStrategyEngine {
                                     lo &&
                                     hi &&
                                     +lo[1] <=
-                                        (settings.recoveryMode === 'parity_percentage' &&
+                                        (settings.strategy !== 'even-odd' &&
+                                        settings.recoveryMode === 'parity_percentage' &&
                                         ['DIGITEVEN', 'DIGITODD'].includes(type)
                                             ? 1
                                             : settings.duration) &&
                                     +hi[1] >=
-                                        (settings.recoveryMode === 'parity_percentage' &&
+                                        (settings.strategy !== 'even-odd' &&
+                                        settings.recoveryMode === 'parity_percentage' &&
                                         ['DIGITEVEN', 'DIGITODD'].includes(type)
                                             ? 1
                                             : settings.duration)
@@ -557,6 +559,7 @@ export class DigitStrategyEngine {
                 contract_type: signal.direction,
                 currency: 'USD',
                 duration:
+                    this.state.settings.strategy !== 'even-odd' &&
                     signal.recovery &&
                     this.state.settings.recoveryMode === 'parity_percentage' &&
                     (this.state.settings.strategy !== 'over2-under7' || this.state.settings.hitRecovery === 'analysis')

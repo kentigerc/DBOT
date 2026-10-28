@@ -83,7 +83,11 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
     return (
         <section className='digit-cycle' aria-labelledby={titleId}>
             <h2 id={titleId}>{parity ? 'EVEN / ODD STRATEGY' : 'HIT AND RUN STRATEGY'}</h2>
-            <p>{parity ? 'Trading Even and Odd · 1 tick.' : 'Trading Under 7 and Over 2 · Even/Odd recovery.'}</p>
+            <p>
+                {parity
+                    ? `Trading Even and Odd · ${draft.duration} ${draft.duration === 1 ? 'tick' : 'ticks'}.`
+                    : 'Trading Under 7 and Over 2 · Even/Odd recovery.'}
+            </p>
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
@@ -103,8 +107,11 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                             setDraft(previous => ({ ...previous, duration: Number(event.target.value) }))
                         }
                     >
-                        <option value={1}>1 tick</option>
-                        {!parity && <option value={2}>2 ticks</option>}
+                        {Array.from({ length: parity ? 10 : 2 }, (_, i) => i + 1).map(ticks => (
+                            <option key={ticks} value={ticks}>
+                                {ticks} {ticks === 1 ? 'tick' : 'ticks'}
+                            </option>
+                        ))}
                     </select>
                 </label>
             </div>

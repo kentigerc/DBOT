@@ -232,7 +232,9 @@ describe('standalone Even/Odd strategy', () => {
         expect(chooseSignal([balanced], state, settings, 10000)).toBeUndefined();
         const even = market([120, 80, 120, 80, 120, 80, 120, 80, 120, 80]);
         expect(chooseSignal([even], state, settings, 14000)).toBeUndefined();
-        expect(() => validateSettings({ ...settings, duration: 2 })).toThrow();
+        expect(() => validateSettings({ ...settings, duration: 10 })).not.toThrow();
+        expect(() => validateSettings({ ...settings, duration: 11 })).toThrow();
+        expect(() => validateSettings({ ...settings, duration: 1.5 })).toThrow();
         expect(() => validateSettings(settings)).not.toThrow();
     });
 });

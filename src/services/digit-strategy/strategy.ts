@@ -54,8 +54,8 @@ export function validateSettings(s: Settings) {
         throw new Error('Invalid recovery method.');
     if (s.strategy !== undefined && !['over2-under7', 'even-odd'].includes(s.strategy))
         throw new Error('Invalid trading strategy.');
-    if (s.strategy === 'even-odd' && (s.recoveryMode !== 'parity_percentage' || s.duration !== 1))
-        throw new Error('Even/Odd uses parity recovery and one-tick contracts.');
+    if (s.strategy === 'even-odd' && s.recoveryMode !== 'parity_percentage')
+        throw new Error('Even/Odd uses parity recovery.');
     for (const key of ['stake', 'maxStake', 'stopLoss', 'takeProfit'] as const) {
         const v = s[key];
         if (
@@ -81,7 +81,12 @@ export function validateSettings(s: Settings) {
         throw new Error('Consecutive-loss limit must be an integer from 1 to 100.');
     if (!Number.isInteger(s.triggerCount) || s.triggerCount < 1 || s.triggerCount > 1000)
         throw new Error('Formation count must be an integer from 1 to 1000.');
-    if (![1, 2].includes(s.duration) || !(s.recoveryMode in RECOVERY_MODES))
+    if (
+        !(s.strategy === 'even-odd'
+            ? Number.isInteger(s.duration) && s.duration >= 1 && s.duration <= 10
+            : [1, 2].includes(s.duration)) ||
+        !(s.recoveryMode in RECOVERY_MODES)
+    )
         throw new Error('Invalid digit strategy settings.');
 }
 export const nextRecoveryStake = (previousCents: number, multiplier = DEFAULT_SETTINGS.multiplier) =>
