@@ -103,3 +103,28 @@ describe.each(['over-punisher.xml', 'under-punisher.xml', 'over-1-over-0.xml'])(
         });
     }
 );
+
+describe.each(['over-punisher.xml', 'under-punisher.xml', 'over-1-over-0.xml'])(
+    'live prediction metadata for %s',
+    filename => {
+        it('marks hosted purchase blocks for current prediction evaluation without changing strategy expressions', () => {
+            const { hostedBotLivePrediction } = require('../hosted-bot-market');
+            const source = readFileSync(path.join(__dirname, '../../../server/bots', filename), 'utf8');
+            const original = new DOMParser().parseFromString(source, 'text/xml');
+            const configured = new DOMParser().parseFromString(hostedBotLivePrediction(source), 'text/xml');
+            expect(
+                configured
+                    .querySelector('value[name="PREDICTION"]')
+                    ?.isEqualNode(original.querySelector('value[name="PREDICTION"]'))
+            ).toBe(true);
+            const purchases = [...configured.querySelectorAll('block[type="purchase"]')];
+            expect(purchases.length).toBeGreaterThan(0);
+            purchases.forEach(block =>
+                expect(JSON.parse(block.querySelector('data')!.textContent!).neto_live_prediction).toBe(true)
+            );
+            expect(hostedBotLivePrediction('<xml><block type="purchase" /></xml>')).toBe(
+                '<xml><block type="purchase" /></xml>'
+            );
+        });
+    }
+);

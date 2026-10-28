@@ -86,6 +86,25 @@ window.Blockly.Blocks.purchase = {
 window.Blockly.JavaScript.javascriptGenerator.forBlock.purchase = block => {
     const purchaseList = block.getFieldValue('PURCHASE_LIST');
 
-    const code = `Bot.purchase('${purchaseList}');\n`;
+    let prediction = '';
+    let livePrediction = false;
+    try {
+        livePrediction = JSON.parse(block.data || '{}').neto_live_prediction === true;
+    } catch {
+        /* Ordinary blocks keep their existing purchase behavior. */
+    }
+    if (livePrediction && ['DIGITOVER', 'DIGITUNDER', 'DIGITMATCH', 'DIGITDIFF'].includes(purchaseList)) {
+        const options = block.workspace
+            .getAllBlocks(false)
+            .find(candidate => candidate.type === 'trade_definition_tradeoptions');
+        if (options?.getInput('PREDICTION')) {
+            prediction = window.Blockly.JavaScript.javascriptGenerator.valueToCode(
+                options,
+                'PREDICTION',
+                window.Blockly.JavaScript.javascriptGenerator.ORDER_ATOMIC
+            );
+        }
+    }
+    const code = `Bot.purchase('${purchaseList}'${prediction ? ', ' + prediction : ''});\n`;
     return code;
 };

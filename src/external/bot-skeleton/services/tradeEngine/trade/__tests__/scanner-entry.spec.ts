@@ -175,3 +175,20 @@ it('returns to the normal XML trade on a win and freshly scans on a later indepe
         contract_type: 'DIGITODD',
     });
 });
+it('uses a freshly evaluated hosted Under 4 barrier instead of the stale Over 0 option or cached proposal', async () => {
+    jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
+    (api_base.api.send as jest.Mock).mockResolvedValue({ buy: { contract_id: 301, buy_price: 0.35 } });
+    const engine = new (Purchase(Base))();
+    engine.tradeOptions.prediction = 0;
+    engine.is_proposal_subscription_required = true;
+    engine.selectProposal = jest.fn(() => {
+        throw new Error('Stale proposal must not be reused');
+    });
+    engine.renewProposalsOnPurchase = jest.fn();
+    await engine.purchase('DIGITUNDER', 4);
+    expect(engine.selectProposal).not.toHaveBeenCalled();
+    expect(api_base.api.send).toHaveBeenCalledWith(
+        expect.objectContaining({ parameters: expect.objectContaining({ contract_type: 'DIGITUNDER', prediction: 4 }) })
+    );
+    expect(engine.tradeOptions.prediction).toBe(0);
+});

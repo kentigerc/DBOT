@@ -21,7 +21,7 @@ export const tradeOptionToProposal = (trade_option, purchase_reference) =>
             proposal: 1,
             symbol: trade_option.symbol,
         };
-        if (trade_option.prediction !== undefined) {
+        if (['TICKLOW', 'TICKHIGH'].includes(type) && trade_option.prediction !== undefined) {
             proposal.selected_tick = trade_option.prediction;
         }
         if (!['TICKLOW', 'TICKHIGH'].includes(type) && trade_option.prediction !== undefined) {
@@ -57,7 +57,7 @@ export const tradeOptionToBuy = (contract_type, trade_option) => {
             symbol: trade_option.symbol,
         },
     };
-    if (trade_option.prediction !== undefined) {
+    if (['TICKLOW', 'TICKHIGH'].includes(contract_type) && trade_option.prediction !== undefined) {
         buy.parameters.selected_tick = trade_option.prediction;
     }
     if (!['TICKLOW', 'TICKHIGH'].includes(contract_type) && trade_option.prediction !== undefined) {

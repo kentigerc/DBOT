@@ -139,3 +139,31 @@ export async function waitForHostedBotReady(workspace: ScannerWorkspace, symbol:
     }
     return false;
 }
+
+// Hosted strategies may update signal variables in Before Purchase. Evaluate their
+// digit expression at the actual purchase, rather than retaining Bot.start's value.
+export function hostedBotLivePrediction(content: string) {
+    const document = new DOMParser().parseFromString(content, 'text/xml');
+    if (document.querySelector('parsererror')) throw new Error('Invalid bot XML.');
+    if (document.documentElement.getAttribute('neto_protected') !== 'true') return content;
+    if (!document.querySelector('block[type="trade_definition_tradeoptions"] > value[name="PREDICTION"]'))
+        return content;
+    document.querySelectorAll('block[type="purchase"]').forEach(block => {
+        let data = Array.from(block.children).find(child => child.localName === 'data');
+        const previous = data?.textContent || '{}';
+        let metadata: Record<string, unknown>;
+        try {
+            metadata = JSON.parse(previous);
+        } catch {
+            metadata = { neto_original_data: previous };
+        }
+        if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))
+            metadata = { neto_original_data: previous };
+        if (!data) {
+            data = document.createElement('data');
+            block.appendChild(data);
+        }
+        data.textContent = JSON.stringify({ ...metadata, neto_live_prediction: true });
+    });
+    return new XMLSerializer().serializeToString(document);
+}

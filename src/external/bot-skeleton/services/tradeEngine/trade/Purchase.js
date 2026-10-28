@@ -13,14 +13,14 @@ let purchase_reference;
 
 export default Engine =>
     class Purchase extends Engine {
-        async purchase(contract_type) {
+        async purchase(contract_type, prediction) {
             // Prevent calling purchase twice
             if (this.store.getState().scope !== BEFORE_PURCHASE) {
                 return Promise.resolve();
             }
 
             if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol))) return;
-            let purchaseOptions = this.tradeOptions;
+            let purchaseOptions = prediction === undefined ? this.tradeOptions : { ...this.tradeOptions, prediction };
             const parityRecovery = xmlScannerCycle.isRecovering();
             const generation = xmlScannerCycle.getSnapshot().generation;
             if (parityRecovery) {
@@ -95,7 +95,7 @@ export default Engine =>
                 });
             };
 
-            if (this.is_proposal_subscription_required && !parityRecovery) {
+            if (this.is_proposal_subscription_required && !parityRecovery && prediction === undefined) {
                 const { id, askPrice } = this.selectProposal(contract_type);
 
                 const action = () => api_base.api.send({ buy: id, price: askPrice });

@@ -6,7 +6,13 @@ import { notification_message } from '@/components/bot-notification/bot-notifica
 import { DBOT_TABS } from '@/constants/bot-contents';
 import { load, save_types } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
-import { hostedBotForAuto, hostedBotLimits, hostedBotMarket, waitForHostedBotReady } from '@/utils/hosted-bot-market';
+import {
+    hostedBotLivePrediction,
+    hostedBotForAuto,
+    hostedBotLimits,
+    hostedBotMarket,
+    waitForHostedBotReady,
+} from '@/utils/hosted-bot-market';
 import { setScannerWatch } from '@/utils/scanner-watch';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { localize } from '@deriv-com/translations';
@@ -64,9 +70,11 @@ const BotBuilder = observer(() => {
                 )
                     throw new Error('This bot does not contain valid XML.');
                 if (automatic && !xmlScannerCycle.valid(bot.autoGeneration)) return;
-                const configuredContent = automatic
-                    ? hostedBotForAuto(content, bot.symbol, bot.submarket, xmlScannerCycle.getSnapshot().settings)
-                    : hostedBotMarket(content, bot.symbol, bot.submarket);
+                const configuredContent = hostedBotLivePrediction(
+                    automatic
+                        ? hostedBotForAuto(content, bot.symbol, bot.submarket, xmlScannerCycle.getSnapshot().settings)
+                        : hostedBotMarket(content, bot.symbol, bot.submarket)
+                );
                 const result = await load({
                     block_string: configuredContent,
                     file_name: bot.name,
