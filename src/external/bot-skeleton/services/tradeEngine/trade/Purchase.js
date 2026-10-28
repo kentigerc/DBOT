@@ -1,4 +1,4 @@
-import { refreshXmlParityRecovery, scanXmlParityRecovery } from '@/utils/xml-parity-recovery';
+import { scanXmlParityRecovery } from '@/utils/xml-parity-recovery';
 import { generateDerivApiInstance } from '../../api/appId';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { LogTypes } from '../../../constants/messages';
@@ -23,8 +23,6 @@ export default Engine =>
             let purchaseOptions = this.tradeOptions;
             const parityRecovery = xmlScannerCycle.isRecovering();
             const generation = xmlScannerCycle.getSnapshot().generation;
-            if (!parityRecovery || this.xmlParityRecoveryLock?.generation !== generation)
-                this.xmlParityRecoveryLock = undefined;
             if (parityRecovery) {
                 const stake = xmlScannerCycle.recoveryStake(this.xmlLastPurchaseStake);
                 if (stake === undefined) return;
@@ -38,24 +36,13 @@ export default Engine =>
                 });
                 try {
                     while (valid()) {
-                        if (this.xmlParityRecoveryLock)
-                            xmlScannerCycle.recoveryStatus(
-                                `Continuing recovery · ${this.xmlParityRecoveryLock.symbol}`
-                            );
-                        const plan = this.xmlParityRecoveryLock
-                            ? await refreshXmlParityRecovery(
-                                  api_base.api,
-                                  this.xmlParityRecoveryLock,
-                                  controller.signal
-                              )
-                            : await scanXmlParityRecovery(
-                                  () => generateDerivApiInstance({ publicOnly: true }),
-                                  xmlScannerCycle.getSnapshot().sampleSize,
-                                  controller.signal,
-                                  message => xmlScannerCycle.recoveryStatus(message)
-                              );
+                        const plan = await scanXmlParityRecovery(
+                            () => generateDerivApiInstance({ publicOnly: true }),
+                            1000,
+                            controller.signal,
+                            message => xmlScannerCycle.recoveryStatus(message)
+                        );
                         if (!plan || !valid()) return;
-                        this.xmlParityRecoveryLock = { ...plan, generation };
                         // Recheck the original market's live guard after the recovery scan.
                         if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol)) || !valid()) return;
                         if (Date.now() / 1000 - plan.epoch > 6) continue;

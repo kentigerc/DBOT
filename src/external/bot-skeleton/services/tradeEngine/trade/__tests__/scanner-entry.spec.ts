@@ -93,6 +93,12 @@ it('overrides only XML Auto recovery with a 1-tick parity order on the selected 
     );
     expect(engine.tradeOptions).toMatchObject({ symbol: 'R_100', amount: 0.35, prediction: 4 });
     expect(engine.xmlLastPurchaseStake).toBe(0.7);
+    expect(scanXmlParityRecovery).toHaveBeenCalledWith(
+        expect.any(Function),
+        1000,
+        expect.any(AbortSignal),
+        expect.any(Function)
+    );
 });
 it('STOP cancels parity selection before any recovery purchase is submitted', async () => {
     let active = true;
@@ -118,7 +124,7 @@ it('STOP cancels parity selection before any recovery purchase is submitted', as
     await pending;
     expect(api_base.api.send).not.toHaveBeenCalled();
 });
-it('locks the first formation market and direction across recovery losses without scanning again', async () => {
+it('scans anew after every recovery loss and can switch both volatility and parity', async () => {
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
     jest.spyOn(xmlScannerCycle, 'isRecovering').mockReturnValue(true);
     jest.spyOn(xmlScannerCycle, 'valid').mockReturnValue(true);
@@ -138,14 +144,14 @@ it('locks the first formation market and direction across recovery losses withou
     engine.xmlLastPurchaseStake = 0.35;
     await engine.purchase('DIGITUNDER');
     await engine.purchase('DIGITUNDER');
-    expect(scanXmlParityRecovery).toHaveBeenCalledTimes(1);
-    expect(refreshXmlParityRecovery).toHaveBeenCalledTimes(1);
+    expect(scanXmlParityRecovery).toHaveBeenCalledTimes(2);
+    expect(refreshXmlParityRecovery).not.toHaveBeenCalled();
     expect((api_base.api.send as jest.Mock).mock.calls.map(([body]) => body.parameters)).toEqual([
         expect.objectContaining({ symbol: '1HZ50V', contract_type: 'DIGITEVEN', amount: 0.7, duration: 1 }),
-        expect.objectContaining({ symbol: '1HZ50V', contract_type: 'DIGITEVEN', amount: 1.4, duration: 1 }),
+        expect.objectContaining({ symbol: 'R_50', contract_type: 'DIGITODD', amount: 1.4, duration: 1 }),
     ]);
 });
-it('clears the recovery lock on a normal trade so a later recovery selects a new market and formation', async () => {
+it('returns to the normal XML trade on a win and freshly scans on a later independent loss', async () => {
     let recovering = true;
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
     jest.spyOn(xmlScannerCycle, 'isRecovering').mockImplementation(() => recovering);

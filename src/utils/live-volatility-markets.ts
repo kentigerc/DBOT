@@ -33,7 +33,11 @@ export async function observeVolatilityMarkets(
     signal: AbortSignal,
     sample: (value: LiveVolatilitySample) => void,
     status: (message: string) => void,
-    options: { prepare?: (market: VolatilityMarket) => Promise<boolean>; stale?: (symbol: string) => void } = {}
+    options: {
+        prepare?: (market: VolatilityMarket) => Promise<boolean>;
+        stale?: (symbol: string) => void;
+        ready?: () => void;
+    } = {}
 ): Promise<void> {
     type Feed = {
         market: VolatilityMarket;
@@ -227,6 +231,7 @@ export async function observeVolatilityMarkets(
         };
         await Promise.race([Promise.all(Array.from({ length: Math.min(3, markets.length) }, worker)), done]);
         initialized = true;
+        if (!finished && !signal.aborted) options.ready?.();
         if (!finished && ![...feeds.values()].some(f => f.ready && !f.failed))
             throw new Error('No fresh live Volatility feeds.');
         await done;

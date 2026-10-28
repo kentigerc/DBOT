@@ -1,5 +1,5 @@
 import { parityRecoveryDirection } from '@/services/digit-strategy/strategy';
-import { observeVolatilityMarkets } from './live-volatility-markets';
+import { freshVolatilityEpoch, observeVolatilityMarkets } from './live-volatility-markets';
 import { lastDigit } from '@/pages/digit-analysis/digits';
 export type RecoveryTick = {
     symbol?: string;
@@ -170,8 +170,8 @@ export async function waitForXmlParityFormation(
     }
 }
 
-// Later attempts keep the first formation's market and direction. This is only
-// a fresh quote check, not another percentage scan or formation analysis.
+// Legacy quote-check helper. XML Auto's current recovery path uses a fresh
+// percentage scan for every attempt instead of this locked-market policy.
 export async function refreshXmlParityRecovery(
     api: Pick<Api, 'send'>,
     plan: ParityRecovery,
@@ -209,6 +209,8 @@ export async function refreshXmlParityRecovery(
     }
 }
 
+// Match HIT AND RUN: select the strongest qualifying parity percentage without
+// a formation wait. The caller repeats this selection after every recovery loss.
 export async function scanXmlParityRecovery(
     createApi: () => Promise<Api>,
     sampleSize: number,
@@ -255,13 +257,24 @@ export async function scanXmlParityRecovery(
                 const observer = new AbortController();
                 const abort = () => observer.abort();
                 signal.addEventListener('abort', abort, { once: true });
-                const candidates = new Map<string, { direction: 'DIGITEVEN' | 'DIGITODD'; pattern: number[] }>();
+                const candidates = new Map<string, { plan: ParityRecovery; share: number }>();
+                let initialized = false;
                 const supported = new Map<string, Set<string>>();
                 let selected = false;
                 let resolvePlan!: (plan: ParityRecovery) => void;
                 const plan = new Promise<ParityRecovery>(resolve => {
                     resolvePlan = resolve;
                 });
+                const select = () => {
+                    if (!initialized || selected || signal.aborted) return;
+                    const best = [...candidates.values()]
+                        .filter(candidate => freshVolatilityEpoch(candidate.plan.epoch))
+                        .sort((a, b) => b.share - a.share)[0];
+                    if (!best) return;
+                    selected = true;
+                    status(`Recovery entry ready · ${best.plan.symbol}`);
+                    resolvePlan(best.plan);
+                };
                 const watching = observeVolatilityMarkets(
                     api,
                     sampleSize,
@@ -277,28 +290,15 @@ export async function scanXmlParityRecovery(
                             candidates.delete(symbol);
                             return;
                         }
-                        let candidate = candidates.get(symbol);
-                        if (!candidate || candidate.direction !== direction) {
-                            candidate = { direction, pattern: [] };
-                            candidates.set(symbol, candidate);
-                            status(`Waiting for recovery entry · ${symbol} · Other markets remain live.`);
-                            return;
-                        }
-                        if (!sample.live) return;
-                        candidate.pattern = [...candidate.pattern, sample.digits[sample.digits.length - 1] % 2].slice(
-                            -3
-                        );
-                        const chosen = direction === 'DIGITEVEN' ? 0 : 1;
-                        if (
-                            candidate.pattern.length === 3 &&
-                            candidate.pattern[0] === chosen &&
-                            candidate.pattern[1] === chosen &&
-                            candidate.pattern[2] !== chosen
-                        ) {
-                            selected = true;
-                            status(`Recovery entry ready · ${symbol}`);
-                            resolvePlan({ symbol, direction, epoch: sample.epoch });
-                        }
+                        const parity = direction === 'DIGITEVEN' ? 0 : 1;
+                        candidates.set(symbol, {
+                            plan: { symbol, direction, epoch: sample.epoch },
+                            share: counts.reduce(
+                                (total, count, digit) => total + (digit % 2 === parity ? count : 0),
+                                0
+                            ),
+                        });
+                        select();
                     },
                     message => status(`Searching recovery markets · ${message}`),
                     {
@@ -321,6 +321,10 @@ export async function scanXmlParityRecovery(
                             return types.size > 0;
                         },
                         stale: symbol => candidates.delete(symbol),
+                        ready: () => {
+                            initialized = true;
+                            select();
+                        },
                     }
                 );
                 try {

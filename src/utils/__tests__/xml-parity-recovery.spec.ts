@@ -76,7 +76,7 @@ beforeEach(() => {
     jest.setSystemTime(now * 1000);
 });
 afterEach(() => jest.useRealTimers());
-it('scans regular and 1-second markets and buys eligibility only after a fresh parity formation', async () => {
+it('selects a qualifying parity market directly without a formation wait', async () => {
     const api = createApi({ neutralFirst: true });
     const pending = scanXmlParityRecovery(async () => api, 100, new AbortController().signal, jest.fn());
     await jest.advanceTimersByTimeAsync(1000);
@@ -84,7 +84,7 @@ it('scans regular and 1-second markets and buys eligibility only after a fresh p
     expect(api.disconnect).toHaveBeenCalled();
     expect(api.send.mock.calls.some(([body]) => body.buy)).toBe(false);
 });
-it('can choose Odd after Odd–Odd–Even', async () => {
+it('can choose Odd directly from qualifying percentages', async () => {
     const api = createApi({ odd: true });
     const pending = scanXmlParityRecovery(async () => api, 100, new AbortController().signal, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
@@ -269,16 +269,17 @@ it('continues healthy scans without forcing an entry when no market qualifies', 
     controller.abort();
     expect(await pending).toBeUndefined();
 });
-it('can enter a second market while the first qualifying market is still waiting for its formation', async () => {
+it('chooses the strongest supported percentage across all live market samples without waiting for a pattern', async () => {
     const api = createApi({ manual: true });
-    const controller = new AbortController();
-    const pending = scanXmlParityRecovery(async () => api, 100, controller.signal, jest.fn());
+    api.send.mockImplementation(async body =>
+        body.active_symbols
+            ? markets
+            : body.contracts_for
+              ? contracts()
+              : data(body.ticks_history === 'R_10' ? [11, 9, 11, 9, 11, 9, 11, 9, 11, 9] : counts)
+    );
+    const pending = scanXmlParityRecovery(async () => api, 100, new AbortController().signal, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
-    expect(api.send.mock.calls.filter(([body]) => body.subscribe)).toHaveLength(2);
-    api.emit(2, now - 2, 'R_10');
-    api.emit(2, now - 2, '1HZ50V');
-    api.emit(4, now - 1, '1HZ50V');
-    api.emit(1, now, '1HZ50V');
     expect(await pending).toMatchObject({ symbol: '1HZ50V', direction: 'DIGITEVEN' });
     expect(api.disconnect).toHaveBeenCalled();
 });

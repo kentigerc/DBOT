@@ -322,12 +322,12 @@ it('requires the restored normal-market live guard before releasing recovery aft
     expect(cycle.getSnapshot()).toMatchObject({ losses: 1, wins: 0, pnl: -35 });
     cycle.stop();
 });
-it('doubles XML recovery stakes and refuses stakes beyond the risk budget', async () => {
+it('uses the default 2.1 recovery multiplier and refuses stakes beyond the risk budget', async () => {
     const { cycle } = setup();
     await settle(cycle, 1, -0.35);
-    expect(cycle.recoveryStake(0.35)).toBe(0.7);
-    expect(cycle.recoveryStake(0.7)).toBe(1.4);
-    expect(cycle.recoveryStake(1.4)).toBe(2.8);
+    expect(cycle.recoveryStake(0.35)).toBe(0.74);
+    expect(cycle.recoveryStake(0.74)).toBe(1.55);
+    expect(cycle.recoveryStake(1.55)).toBe(3.26);
     expect(cycle.recoveryStake(50)).toBeUndefined();
     expect(cycle.getSnapshot().enabled).toBe(false);
 });
@@ -413,18 +413,14 @@ it('keeps recovery wait progress visible in the journal and cancels it when reco
     expect(write).toHaveBeenCalledTimes(count);
     cycle.stop();
 });
-it('keeps parity recovery active until all losses in the recovery sequence are repaid', async () => {
+it('ends XML parity recovery on its first win even if the recovery sequence remains negative', async () => {
     const { cycle } = setup();
     await settle(cycle, 1, -0.35);
     await settle(cycle, 2, -0.7);
     await settle(cycle, 3, 0.99);
-    expect(cycle.isRecovering()).toBe(true);
-    expect(cycle.getSnapshot().message).toContain('Recovery deficit $0.06');
-    expect(cycle.getSnapshot().wins).toBe(0);
-    await settle(cycle, 4, 0.06);
     expect(cycle.isRecovering()).toBe(false);
-    expect(cycle.getSnapshot().wins).toBe(0);
-    await settle(cycle, 5, 0.12);
+    expect(cycle.getSnapshot()).toMatchObject({ pnl: -6, wins: 0, losses: 0 });
+    await settle(cycle, 4, 0.12);
     expect(cycle.getSnapshot().wins).toBe(1);
     cycle.stop();
 });

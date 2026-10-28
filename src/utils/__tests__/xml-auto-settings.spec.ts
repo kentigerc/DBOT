@@ -1,6 +1,6 @@
 import { DEFAULT_XML_AUTO_SETTINGS, validateXmlAutoSettings } from '../xml-auto-settings';
 it('uses the current defaults and takes an immutable copy of session settings', () => {
-    expect(DEFAULT_XML_AUTO_SETTINGS).toEqual({ stake: 0.35, stopLoss: 100, takeProfit: 10, multiplier: 2 });
+    expect(DEFAULT_XML_AUTO_SETTINGS).toEqual({ stake: 0.35, stopLoss: 100, takeProfit: 10, multiplier: 2.1 });
     const draft = { stake: 1.25, stopLoss: 30, takeProfit: 10, multiplier: 3 };
     const settings = validateXmlAutoSettings(draft);
     draft.stake = 99;

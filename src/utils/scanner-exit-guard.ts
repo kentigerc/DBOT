@@ -21,7 +21,6 @@ export class ScannerExitGuard {
     private generation = 0;
     private stopQueued = false;
     private uncertain = false;
-    private deficit = 0;
     private snapshot: Snapshot = { triggered: false, phase: 'idle', losses: 0 };
     private listeners = new Set<() => void>();
     getSnapshot = () => this.snapshot;
@@ -43,7 +42,6 @@ export class ScannerExitGuard {
         this.settled.clear();
         this.stopQueued = false;
         this.uncertain = false;
-        this.deficit = 0;
         this.stop = stop;
         this.update({ triggered: false, phase: 'monitoring', losses: 0 });
     }
@@ -58,7 +56,7 @@ export class ScannerExitGuard {
     }
     private decide() {
         if (!this.snapshot.triggered || !this.active) return;
-        if (this.uncertain || this.snapshot.losses >= 4 || (!this.pending && this.deficit === 0)) {
+        if (this.uncertain || this.snapshot.losses >= 4 || (!this.pending && this.snapshot.losses === 0)) {
             this.finish();
         } else this.update({ phase: this.pending ? 'settling' : 'recovering' });
     }
@@ -115,7 +113,6 @@ export class ScannerExitGuard {
         this.pending = false;
         this.contractId = undefined;
         const profit = Number(value.profit);
-        this.deficit = Math.max(0, this.deficit - Math.round(profit * 100));
         if (profit > 0) this.uncertain = false;
         this.update({ losses: profit < 0 ? this.snapshot.losses + 1 : profit > 0 ? 0 : this.snapshot.losses });
         this.decide();

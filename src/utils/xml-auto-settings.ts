@@ -3,7 +3,7 @@ export const DEFAULT_XML_AUTO_SETTINGS: XmlAutoSettings = Object.freeze({
     stake: 0.35,
     stopLoss: 100,
     takeProfit: 10,
-    multiplier: 2,
+    multiplier: 2.1,
 });
 export function validateXmlAutoSettings(settings: XmlAutoSettings): XmlAutoSettings {
     const { stake, stopLoss, takeProfit, multiplier } = settings;
