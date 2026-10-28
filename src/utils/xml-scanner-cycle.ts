@@ -33,6 +33,7 @@ type State = {
     losses: number;
     batches: number;
     pnl: number;
+    deficit: number;
     message: string;
     recoverySearch: boolean;
 };
@@ -50,6 +51,7 @@ export class XmlScannerCycle {
         losses: 0,
         batches: 0,
         pnl: 0,
+        deficit: 0,
         message: '',
         recoverySearch: false,
     };
@@ -61,6 +63,7 @@ export class XmlScannerCycle {
     private started = false;
     private entered = false;
     private recovery = false;
+    private lastSettlementProfit?: number;
     private inFlight = false;
     private contractId?: number;
     private settled = new Set<number>();
@@ -105,6 +108,7 @@ export class XmlScannerCycle {
         this.reportJournal = reportJournal;
         this.guarded = true;
         this.started = this.entered = this.recovery = this.inFlight = false;
+        this.lastSettlementProfit = undefined;
         this.contractId = undefined;
         this.settled.clear();
         this.recoveryAfterEpoch = 0;
@@ -126,6 +130,7 @@ export class XmlScannerCycle {
             losses: 0,
             batches: 0,
             pnl: 0,
+            deficit: 0,
             message: 'Scanning both directions for an XML batch.',
         });
     }
@@ -226,7 +231,12 @@ export class XmlScannerCycle {
     recoveryStake(previousAmount: number) {
         if (!this.isRecovering()) return;
         const cents = Math.round(Number(previousAmount) * 100);
-        const stake = nextRecoveryStake(cents, this.state.settings.multiplier);
+        const stake =
+            this.lastSettlementProfit !== undefined && this.lastSettlementProfit > 0
+                ? Math.round(this.state.settings.stake * 100)
+                : this.lastSettlementProfit === 0
+                  ? cents
+                  : nextRecoveryStake(cents, this.state.settings.multiplier);
         if (
             !Number.isSafeInteger(cents) ||
             cents <= 0 ||
@@ -400,6 +410,8 @@ export class XmlScannerCycle {
         this.inFlight = false;
         const profit = Math.round(Number(value.profit) * 100);
         const pnl = this.state.pnl + profit;
+        const deficit = Math.max(0, this.state.deficit - profit);
+        this.lastSettlementProfit = profit;
         const losses = profit < 0 ? this.state.losses + 1 : profit > 0 ? 0 : this.state.losses;
         const wins = profit < 0 || this.recovery ? 0 : profit > 0 ? this.state.wins + 1 : this.state.wins;
         if (profit < 0) {
@@ -410,16 +422,17 @@ export class XmlScannerCycle {
             this.rejectedRecoveryMarkets.clear();
             const lossEpoch = Number(value.exit_tick_time ?? value.exit_spot_time ?? value.sell_time);
             this.recoveryAfterEpoch = Math.max(this.lastEpoch, Number.isFinite(lossEpoch) ? lossEpoch : 0);
-        } else if (profit > 0) this.recovery = false;
+        } else if (profit > 0) this.recovery = deficit > 0;
         this.update({
             pnl,
+            deficit,
             losses,
             wins,
             ...(active && profit < 0 ? { phase: 'running' as const, recoverySearch: false } : {}),
             message: !active
                 ? this.state.message
                 : this.recovery
-                  ? 'Waiting for XML recovery purchase.'
+                  ? `Waiting for XML recovery purchase. · Recovery deficit $${(deficit / 100).toFixed(2)}`
                   : 'Trading XML batch.',
         });
         if (!active) return;

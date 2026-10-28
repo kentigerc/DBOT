@@ -413,14 +413,34 @@ it('keeps recovery wait progress visible in the journal and cancels it when reco
     expect(write).toHaveBeenCalledTimes(count);
     cycle.stop();
 });
-it('ends XML parity recovery on its first win even if the recovery sequence remains negative', async () => {
+it('spreads an unpaid XML recovery deficit over base-stake trades until it clears', async () => {
     const { cycle } = setup();
     await settle(cycle, 1, -0.35);
-    await settle(cycle, 2, -0.7);
+    await settle(cycle, 2, -0.74);
     await settle(cycle, 3, 0.99);
+    expect(cycle.isRecovering()).toBe(true);
+    expect(cycle.getSnapshot()).toMatchObject({ pnl: -10, deficit: 10, wins: 0, losses: 0 });
+    expect(cycle.recoveryStake(1.55)).toBe(0.35);
+    await settle(cycle, 4, 0.04);
+    expect(cycle.getSnapshot().deficit).toBe(6);
+    expect(cycle.isRecovering()).toBe(true);
+    expect(cycle.recoveryStake(0.35)).toBe(0.35);
+    await settle(cycle, 5, -0.35);
+    expect(cycle.getSnapshot().deficit).toBe(41);
+    expect(cycle.recoveryStake(0.35)).toBe(0.74);
+    await settle(cycle, 6, 0.65);
     expect(cycle.isRecovering()).toBe(false);
-    expect(cycle.getSnapshot()).toMatchObject({ pnl: -6, wins: 0, losses: 0 });
-    await settle(cycle, 4, 0.12);
+    expect(cycle.getSnapshot()).toMatchObject({ deficit: 0, wins: 0 });
+    await settle(cycle, 7, 0.12);
     expect(cycle.getSnapshot().wins).toBe(1);
+    cycle.stop();
+});
+it('retains the last stake after a void recovery instead of multiplying it', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, -0.35);
+    await settle(cycle, 2, 0);
+    expect(cycle.isRecovering()).toBe(true);
+    expect(cycle.getSnapshot().deficit).toBe(35);
+    expect(cycle.recoveryStake(0.74)).toBe(0.74);
     cycle.stop();
 });

@@ -292,6 +292,7 @@ export default function MarketScanner({
                 <p role='status'>
                     {auto.message} · Batch wins {auto.wins}/3 · Batches {auto.batches} · Session P/L{' '}
                     {(auto.pnl / 100).toFixed(2)}
+                    {auto.deficit > 0 && ` · Recovery deficit $${(auto.deficit / 100).toFixed(2)}`}
                 </p>
             )}
             <p role='status' aria-live='polite'>

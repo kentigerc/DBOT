@@ -131,7 +131,7 @@ it('stops conservatively if a pre-trigger settlement has an unknown result', asy
     await Promise.resolve();
     expect(stop).toHaveBeenCalledTimes(1);
 });
-it('honours a pending market-protection stop on the first recovery win even with an unpaid deficit', async () => {
+it('keeps a pending market-protection stop in recovery until the deficit clears', async () => {
     const guard = new ScannerExitGuard(),
         stop = jest.fn();
     guard.begin(stop);
@@ -140,7 +140,11 @@ it('honours a pending market-protection stop on the first recovery win even with
     guard.trigger();
     settle(guard, 3, 0.99);
     await Promise.resolve();
-    expect(guard.getSnapshot()).toMatchObject({ phase: 'stopped', losses: 0 });
+    expect(guard.getSnapshot()).toMatchObject({ phase: 'recovering', losses: 0 });
+    expect(stop).not.toHaveBeenCalled();
+    settle(guard, 4, 0.06);
+    await Promise.resolve();
+    expect(guard.getSnapshot().phase).toBe('stopped');
     expect(stop).toHaveBeenCalledTimes(1);
     expect(guard.purchase()).toBe(false);
 });
