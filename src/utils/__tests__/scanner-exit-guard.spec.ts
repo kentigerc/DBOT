@@ -131,3 +131,19 @@ it('stops conservatively if a pre-trigger settlement has an unknown result', asy
     await Promise.resolve();
     expect(stop).toHaveBeenCalledTimes(1);
 });
+it('keeps recovering after a partial win and stops only when the full deficit clears', async () => {
+    const guard = new ScannerExitGuard(),
+        stop = jest.fn();
+    guard.begin(stop);
+    settle(guard, 1, -0.35);
+    settle(guard, 2, -0.7);
+    guard.trigger();
+    settle(guard, 3, 0.99);
+    await Promise.resolve();
+    expect(stop).not.toHaveBeenCalled();
+    expect(guard.getSnapshot()).toMatchObject({ phase: 'recovering', losses: 0 });
+    settle(guard, 4, 0.06);
+    await Promise.resolve();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(guard.purchase()).toBe(false);
+});

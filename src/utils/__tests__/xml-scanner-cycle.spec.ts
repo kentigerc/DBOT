@@ -413,3 +413,18 @@ it('keeps recovery wait progress visible in the journal and cancels it when reco
     expect(write).toHaveBeenCalledTimes(count);
     cycle.stop();
 });
+it('keeps parity recovery active until all losses in the recovery sequence are repaid', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, -0.35);
+    await settle(cycle, 2, -0.7);
+    await settle(cycle, 3, 0.99);
+    expect(cycle.isRecovering()).toBe(true);
+    expect(cycle.getSnapshot().message).toContain('Recovery deficit $0.06');
+    expect(cycle.getSnapshot().wins).toBe(0);
+    await settle(cycle, 4, 0.06);
+    expect(cycle.isRecovering()).toBe(false);
+    expect(cycle.getSnapshot().wins).toBe(0);
+    await settle(cycle, 5, 0.12);
+    expect(cycle.getSnapshot().wins).toBe(1);
+    cycle.stop();
+});

@@ -61,6 +61,7 @@ export class XmlScannerCycle {
     private started = false;
     private entered = false;
     private recovery = false;
+    private recoveryDeficit = 0;
     private inFlight = false;
     private contractId?: number;
     private settled = new Set<number>();
@@ -105,6 +106,7 @@ export class XmlScannerCycle {
         this.reportJournal = reportJournal;
         this.guarded = true;
         this.started = this.entered = this.recovery = this.inFlight = false;
+        this.recoveryDeficit = 0;
         this.contractId = undefined;
         this.settled.clear();
         this.recoveryAfterEpoch = 0;
@@ -402,6 +404,7 @@ export class XmlScannerCycle {
         const pnl = this.state.pnl + profit;
         const losses = profit < 0 ? this.state.losses + 1 : profit > 0 ? 0 : this.state.losses;
         const wins = profit < 0 || this.recovery ? 0 : profit > 0 ? this.state.wins + 1 : this.state.wins;
+        this.recoveryDeficit = Math.max(0, this.recoveryDeficit - profit);
         if (profit < 0) {
             this.recovery = true;
             // Keep the selected market and original entry: XML recovery continues
@@ -411,7 +414,7 @@ export class XmlScannerCycle {
             this.rejectedRecoveryMarkets.clear();
             const lossEpoch = Number(value.exit_tick_time ?? value.exit_spot_time ?? value.sell_time);
             this.recoveryAfterEpoch = Math.max(this.lastEpoch, Number.isFinite(lossEpoch) ? lossEpoch : 0);
-        } else if (profit > 0) this.recovery = false;
+        } else if (profit > 0) this.recovery = this.recoveryDeficit > 0;
         this.update({
             pnl,
             losses,
@@ -420,7 +423,7 @@ export class XmlScannerCycle {
             message: !active
                 ? this.state.message
                 : this.recovery
-                  ? 'Waiting for XML recovery purchase.'
+                  ? `Recovery deficit $${(this.recoveryDeficit / 100).toFixed(2)} · Waiting for XML recovery purchase.`
                   : 'Trading XML batch.',
         });
         if (!active) return;
