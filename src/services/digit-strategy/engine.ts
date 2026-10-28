@@ -331,9 +331,8 @@ export class DigitStrategyEngine {
                     const info = await this.request({ contracts_for: row.symbol });
                     const available = info.contracts_for?.available || [];
                     const required = [
-                        'DIGITOVER',
-                        'DIGITUNDER',
-                        ...(settings.strategy === 'over2-under7' ? [] : ['DIGITDIFF']),
+                        ...(settings.strategy === 'even-odd' ? [] : ['DIGITOVER', 'DIGITUNDER']),
+                        ...(settings.strategy === undefined ? ['DIGITDIFF'] : []),
                         ...(settings.recoveryMode.startsWith('parity') ? ['DIGITEVEN', 'DIGITODD'] : []),
                     ];
                     if (
@@ -520,7 +519,7 @@ export class DigitStrategyEngine {
                 (!signal.formation || fresh.epoch === signal.epoch)
             );
         }
-        if (signal.recovery) {
+        if (signal.recovery || this.state.settings.strategy === 'even-odd') {
             const s = recoverySignal(market, this.state.recovery, this.state.settings, this.now());
             return (
                 s?.direction === signal.direction &&

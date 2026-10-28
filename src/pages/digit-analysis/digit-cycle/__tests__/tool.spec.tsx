@@ -158,3 +158,17 @@ it('shows the full journal newest first with contract details and coloured net r
     expect(rows[1].querySelector('.is-profit')).toHaveTextContent('$0.67');
     expect(table.querySelectorAll('th')).toHaveLength(9);
 });
+
+it('starts the standalone Even/Odd tool with independent identity and one-tick settings', async () => {
+    render(<DigitCycle parity />);
+    expect(screen.getByRole('heading', { name: 'EVEN / ODD STRATEGY' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: '2 ticks' })).toBeNull();
+    expect(screen.queryByText('Batch wins')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
+    await waitFor(() =>
+        expect(client.start).toHaveBeenCalledWith(
+            expect.objectContaining({ strategy: 'even-odd', duration: 1, recoveryMode: 'parity_percentage' }),
+            undefined
+        )
+    );
+});

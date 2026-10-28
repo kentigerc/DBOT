@@ -121,10 +121,10 @@ export default function AnalysisTool() {
                     <span aria-hidden='true'>›_</span> Execution terminal
                 </button>
             </header>
-            {state.settings.strategy === 'over2-under7' && (
+            {state.settings.strategy !== undefined && (
                 <p className='analysis-tool__hint'>
-                    This account’s session belongs to the HIT AND RUN STRATEGY in Digit Analysis. Stop and reset the
-                    stopped session before switching strategies.
+                    This account’s session belongs to the strategy in Digit Analysis. Stop and reset the stopped session
+                    before switching strategies.
                 </p>
             )}
             {!session.authenticated && (
@@ -296,7 +296,7 @@ export default function AnalysisTool() {
                                 {state.streak ? 'Recovery active' : 'Normal entries'}
                             </div>
                             <p>
-                                {state.settings.strategy === 'over2-under7' && state.settings.hitRecovery !== 'analysis'
+                                {state.settings.strategy !== undefined && state.settings.hitRecovery !== 'analysis'
                                     ? 'Custom recovery'
                                     : RECOVERY_MODES[state.settings.recoveryMode]}
                             </p>

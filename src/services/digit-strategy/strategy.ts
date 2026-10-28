@@ -15,7 +15,7 @@ export const RECOVERY_MODES = {
 } as const;
 export type RecoveryMode = keyof typeof RECOVERY_MODES;
 export type Settings = {
-    strategy?: 'over2-under7';
+    strategy?: 'over2-under7' | 'even-odd';
     hitRecovery?: 'same_contract' | 'analysis';
     stake: number;
     maxLosses: number;
@@ -52,7 +52,10 @@ export function cents(value: unknown) {
 export function validateSettings(s: Settings) {
     if (s.hitRecovery !== undefined && !['same_contract', 'analysis'].includes(s.hitRecovery))
         throw new Error('Invalid recovery method.');
-    if (s.strategy !== undefined && s.strategy !== 'over2-under7') throw new Error('Invalid trading strategy.');
+    if (s.strategy !== undefined && !['over2-under7', 'even-odd'].includes(s.strategy))
+        throw new Error('Invalid trading strategy.');
+    if (s.strategy === 'even-odd' && (s.recoveryMode !== 'parity_percentage' || s.duration !== 1))
+        throw new Error('Even/Odd uses parity recovery and one-tick contracts.');
     for (const key of ['stake', 'maxStake', 'stopLoss', 'takeProfit'] as const) {
         const v = s[key];
         if (
@@ -282,6 +285,16 @@ export function chooseSignal(
     now: number,
     random = Math.random
 ): Signal | undefined {
+    if (config.strategy === 'even-odd') {
+        const selected = chooseSignal(
+            markets,
+            { ...state, streak: Math.max(1, state.streak) },
+            { ...config, strategy: undefined, recoveryMode: 'parity_percentage' },
+            now,
+            random
+        );
+        return selected ? { ...selected, recovery: state.streak > 0 } : undefined;
+    }
     if (config.strategy === 'over2-under7') {
         if (config.hitRecovery === 'analysis' && state.streak)
             return chooseSignal(markets, state, { ...config, strategy: undefined }, now, random);

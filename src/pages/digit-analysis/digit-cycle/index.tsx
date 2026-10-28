@@ -5,14 +5,20 @@ import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
 import './digit-cycle.scss';
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-const defaults = (): Settings => ({ ...DEFAULT_SETTINGS, strategy: 'over2-under7', hitRecovery: 'analysis' });
-export default function DigitCycle() {
+const defaults = (parity = false): Settings => ({
+    ...DEFAULT_SETTINGS,
+    strategy: parity ? 'even-odd' : 'over2-under7',
+    hitRecovery: 'analysis',
+});
+export default function DigitCycle({ parity = false }: { parity?: boolean }) {
+    const strategy = parity ? 'even-odd' : 'over2-under7';
+    const titleId = parity ? 'even-odd-title' : 'digit-cycle-title';
     const state = useSyncExternalStore(digitStrategyEngine.subscribe, digitStrategyEngine.getSnapshot);
-    const [draft, setDraft] = useState(defaults);
+    const [draft, setDraft] = useState(() => defaults(parity));
     const [error, setError] = useState('');
     const [contractId, setContractId] = useState('');
     const [session, setSession] = useState(getDerivSession());
-    const own = state.settings.strategy === 'over2-under7';
+    const own = state.settings.strategy === strategy;
     const policyRecovery = own && state.streak > 0 && state.settings.hitRecovery === 'analysis';
     const busy = state.active || !!state.pending;
     const history = state.trades.length > 0;
@@ -35,10 +41,10 @@ export default function DigitCycle() {
             if (action === 'stop') await digitStrategyEngine.stop();
             else if (action === 'reset') {
                 await digitStrategyEngine.reset();
-                setDraft(defaults());
+                setDraft(defaults(parity));
             } else {
                 if (!own && (busy || history))
-                    throw new Error('Stop and reset the Analysis Tool session before switching tools.');
+                    throw new Error('Stop and reset the existing strategy session before switching tools.');
                 await digitStrategyEngine.start(
                     own && locked ? state.settings : draft,
                     own && state.pending && !state.pending.contractId ? Number(contractId) || undefined : undefined
@@ -73,9 +79,9 @@ export default function DigitCycle() {
         </label>
     );
     return (
-        <section className='digit-cycle' aria-labelledby='digit-cycle-title'>
-            <h2 id='digit-cycle-title'>HIT AND RUN STRATEGY</h2>
-            <p>Trading Under 7 and Over 2 · Even/Odd recovery.</p>
+        <section className='digit-cycle' aria-labelledby={titleId}>
+            <h2 id={titleId}>{parity ? 'EVEN / ODD STRATEGY' : 'HIT AND RUN STRATEGY'}</h2>
+            <p>{parity ? 'Trading Even and Odd · 1 tick.' : 'Trading Under 7 and Over 2 · Even/Odd recovery.'}</p>
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
@@ -96,11 +102,11 @@ export default function DigitCycle() {
                         }
                     >
                         <option value={1}>1 tick</option>
-                        <option value={2}>2 ticks</option>
+                        {!parity && <option value={2}>2 ticks</option>}
                     </select>
                 </label>
             </div>
-            {!own && (busy || history) && <p>Existing Analysis Tool session.</p>}
+            {!own && (busy || history) && <p>Another strategy owns the current session.</p>}
             {own && state.pending && !state.pending.contractId && (
                 <label>
                     Unconfirmed contract ID from Deriv history
@@ -138,7 +144,7 @@ export default function DigitCycle() {
                             ['Wins / Losses', `${state.wins} / ${state.losses}`],
                             ['Loss streak', `${state.streak} / ${state.settings.maxLosses}`],
                             ['Next stake', money(state.stake)],
-                            ['Batch wins', `${state.batch} / 3`],
+                            ...(!parity ? [['Batch wins', `${state.batch} / 3`]] : []),
                         ].map(([label, value]) => (
                             <div
                                 key={label}
@@ -171,7 +177,7 @@ export default function DigitCycle() {
                             )
                             .map(market => {
                                 const candidates =
-                                    !policyRecovery && market.ready && !state.recovery.lockedSymbol
+                                    !parity && !policyRecovery && market.ready && !state.recovery.lockedSymbol
                                         ? cycleDirections(market.digits, market.latest)
                                         : [];
                                 return (
@@ -179,19 +185,23 @@ export default function DigitCycle() {
                                         <h3>{market.name}</h3>
                                         <p>
                                             {market.status} · Last digit: {market.latest ?? '—'} ·{' '}
-                                            {policyRecovery
-                                                ? `Recovery · ${RECOVERY_MODES[state.settings.recoveryMode]}`
-                                                : state.recovery.lockedSymbol === market.symbol
-                                                  ? `${state.streak ? 'Recovering' : 'Trading batch'} · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'}`
-                                                  : candidates.length
-                                                    ? candidates
-                                                          .map(direction =>
-                                                              direction === 'DIGITOVER'
-                                                                  ? 'Over 2 entry ready'
-                                                                  : 'Under 7 entry ready'
-                                                          )
-                                                          .join(', ')
-                                                    : 'Waiting for entry conditions'}
+                                            {parity
+                                                ? state.streak
+                                                    ? 'Recovering · Even/Odd'
+                                                    : 'Monitoring Even/Odd'
+                                                : policyRecovery
+                                                  ? `Recovery · ${RECOVERY_MODES[state.settings.recoveryMode]}`
+                                                  : state.recovery.lockedSymbol === market.symbol
+                                                    ? `${state.streak ? 'Recovering' : 'Trading batch'} · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'}`
+                                                    : candidates.length
+                                                      ? candidates
+                                                            .map(direction =>
+                                                                direction === 'DIGITOVER'
+                                                                    ? 'Over 2 entry ready'
+                                                                    : 'Under 7 entry ready'
+                                                            )
+                                                            .join(', ')
+                                                      : 'Waiting for entry conditions'}
                                         </p>
                                         <p>
                                             Even{' '}

@@ -55,7 +55,11 @@ analysis = createAnalysisService(handleAuth, {
     onTrade: (account, state, packet) =>
         admin.trade(
             account.account_id,
-            state.settings.strategy === 'over2-under7' ? 'hit_and_run' : 'analysis_tool',
+            state.settings.strategy === 'even-odd'
+                ? 'even_odd'
+                : state.settings.strategy === 'over2-under7'
+                  ? 'hit_and_run'
+                  : 'analysis_tool',
             packet
         ),
 });

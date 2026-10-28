@@ -599,3 +599,30 @@ it('excludes markets that do not offer one-tick Even/Odd recovery contracts', as
     expect(engine.getSnapshot().error).toMatch(/No supported/);
     expect(broker.buys).toHaveLength(0);
 });
+
+it('executes standalone parity entries and martingale recovery without over/under trades', async () => {
+    const broker = new FakeBroker();
+    const send = broker.send;
+    broker.send = jest.fn(async body => {
+        if (body.ticks_history) {
+            const digits = [...Array<number>(600).fill(0), ...Array<number>(400).fill(1)];
+            return {
+                pip_size: 2,
+                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
+            };
+        }
+        return send(body);
+    });
+    const { engine } = await setup({ strategy: 'even-odd', recoveryMode: 'parity_percentage' }, broker);
+    expect(broker.buys).toHaveLength(1);
+    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.35 });
+    expect(broker.buys[0].parameters.barrier).toBeUndefined();
+    await jest.advanceTimersByTimeAsync(1000);
+    broker.emit({ tick: { symbol: 'R_100', quote: 100.02, epoch: 1004, pip_size: 2 } });
+    broker.settle(-0.35);
+    await jest.advanceTimersByTimeAsync(150);
+    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.74 });
+    engine.stop();
+    broker.settle(0.65);
+    expect(engine.getSnapshot()).toMatchObject({ active: false, stake: 35, wins: 1, losses: 1 });
+});

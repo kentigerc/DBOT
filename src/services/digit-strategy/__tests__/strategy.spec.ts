@@ -209,3 +209,28 @@ describe('percentage-based Even/Odd recovery', () => {
         expect(chooseSignal([even, odd], recovery, DEFAULT_SETTINGS, 14000)).toBeUndefined();
     });
 });
+
+describe('standalone Even/Odd strategy', () => {
+    const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'even-odd' };
+    const state = { streak: 0, countAfter: 0, pauseUntil: 0 };
+    it('selects the strongest qualifying parity market for normal trades and recovery', () => {
+        const even = market([120, 80, 120, 80, 120, 80, 120, 80, 120, 80]);
+        const odd = market([70, 130, 70, 130, 70, 130, 70, 130, 70, 130]);
+        odd.symbol = 'R_50';
+        const normal = chooseSignal([even, odd], state, settings, 10000);
+        expect(normal).toMatchObject({ symbol: 'R_50', direction: 'DIGITODD', recovery: false });
+        expect(normal?.barrier).toBeUndefined();
+        expect(chooseSignal([even], { ...state, streak: 1 }, settings, 10000)).toMatchObject({
+            direction: 'DIGITEVEN',
+            recovery: true,
+        });
+    });
+    it('waits on balanced or stale data and rejects incompatible settings', () => {
+        const balanced = market(Array(10).fill(100));
+        expect(chooseSignal([balanced], state, settings, 10000)).toBeUndefined();
+        const even = market([120, 80, 120, 80, 120, 80, 120, 80, 120, 80]);
+        expect(chooseSignal([even], state, settings, 14000)).toBeUndefined();
+        expect(() => validateSettings({ ...settings, duration: 2 })).toThrow();
+        expect(() => validateSettings(settings)).not.toThrow();
+    });
+});

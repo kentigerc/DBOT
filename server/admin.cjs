@@ -9,6 +9,7 @@ const TOOLS = new Set([
     'free_bots',
     'analysis_tool',
     'hit_and_run',
+    'even_odd',
 ]);
 const day = at => new Date(at).toISOString().slice(0, 10);
 function reportRange(url) {

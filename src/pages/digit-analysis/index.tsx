@@ -203,6 +203,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                 }}
             />
             <DigitCycle />
+            <DigitCycle parity />
             <p className='digit-analysis__note'>
                 Percentages describe the selected rolling sample of past ticks. They do not predict the next digit or
                 guarantee a trading outcome.
