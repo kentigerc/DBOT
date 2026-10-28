@@ -367,12 +367,14 @@ function createAuthHandler({
                 const saved = await browserSession(req, res);
                 if (!saved?.access_token) return json(res, 200, { authenticated: false, accounts: [] });
                 const accounts = await getAccounts(saved.access_token);
+                const adminAccounts = accounts
+                    .filter(account => account.status === 'active' && adminAccountIds.includes(account.account_id))
+                    .map(account => account.account_id);
                 return json(res, 200, {
                     authenticated: true,
                     accounts,
-                    isAdmin: accounts.some(
-                        account => account.status === 'active' && adminAccountIds.includes(account.account_id)
-                    ),
+                    isAdmin: adminAccounts.length > 0,
+                    adminAccounts,
                     expiresAt: saved.expires,
                     renewable: !!readCookie(req, REFRESH_COOKIE),
                 });

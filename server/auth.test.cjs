@@ -383,7 +383,9 @@ test('admin reporting authorization is restricted to provider-verified allowlist
     const app = await fixture(t, { handler: { adminAccountIds: ['DOT100'] } });
     assert.equal((await app.request('/api/auth/login?admin=1')).status, 401);
     await app.authenticated();
-    assert.equal((await (await app.request('/api/session')).json()).isAdmin, true);
+    const ownerSession = await (await app.request('/api/session')).json();
+    assert.equal(ownerSession.isAdmin, true);
+    assert.deepEqual(ownerSession.adminAccounts, ['DOT100']);
     const tradingCookie = app.cookies.get('neto_session');
     const login = await app.request('/api/auth/login?admin=1');
     const url = new URL(login.headers.get('location'));
@@ -397,7 +399,9 @@ test('admin reporting authorization is restricted to provider-verified allowlist
     assert.ok(app.cookies.get('neto_reporting'));
     const other = await fixture(t, { handler: { adminAccountIds: ['OTHER-OWNER'] } });
     await other.authenticated();
-    assert.equal((await (await other.request('/api/session')).json()).isAdmin, false);
+    const otherSession = await (await other.request('/api/session')).json();
+    assert.equal(otherSession.isAdmin, false);
+    assert.deepEqual(otherSession.adminAccounts, []);
     assert.equal((await other.request('/api/auth/login?admin=1')).status, 403);
 });
 test('regular login from admin returns to admin without requesting reporting privileges', async t => {
