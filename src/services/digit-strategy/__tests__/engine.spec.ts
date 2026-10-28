@@ -637,15 +637,22 @@ it('uses initial formation then recovers directly on the losing volatility until
     broker.settle(-0.7);
     await tick(9);
     expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 1.4 });
-    broker.settle(0.99);
+    broker.settle(0.8);
     expect(engine.getSnapshot().recovery).toMatchObject({
-        deficit: 6,
+        deficit: 25,
         lockedSymbol: 'R_100',
         lockedDirection: 'DIGITEVEN',
     });
     await tick(9);
-    expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 2.8 });
+    expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
+    broker.settle(0.1);
+    expect(engine.getSnapshot()).toMatchObject({
+        stake: 35,
+        recovery: { deficit: 15, lockedSymbol: 'R_100', lockedDirection: 'DIGITEVEN' },
+    });
+    await tick(9);
+    expect(broker.buys[4].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
     engine.stop();
-    broker.settle(0.06);
+    broker.settle(0.15);
     expect(engine.getSnapshot()).toMatchObject({ active: false, stake: 35, recovery: { deficit: 0 } });
 });

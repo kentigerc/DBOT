@@ -751,7 +751,7 @@ export class DigitStrategyEngine {
         if (profit < -p.stake || profit > payout - p.stake)
             throw new Error('Settlement profit is outside the purchased contract bounds.');
         const streak = profit < 0 ? this.state.streak + 1 : profit > 0 ? 0 : this.state.streak;
-        let next =
+        const next =
             profit < 0
                 ? nextRecoveryStake(p.stake, this.state.settings.multiplier)
                 : profit > 0
@@ -822,7 +822,10 @@ export class DigitStrategyEngine {
                       }
                     : {}),
             };
-            if (deficit > 0 && profit > 0) next = nextRecoveryStake(p.stake, this.state.settings.multiplier);
+            // A win resets stake even when recovery still has an unpaid balance.
+            // Keep the recovery lock and repay that balance across subsequent trades.
+            if (deficit > 0 && profit > 0)
+                this.log(`Recovery deficit $${(deficit / 100).toFixed(2)} · Next stake $${(next / 100).toFixed(2)}.`);
             batch = 0;
             pause = false;
         }
