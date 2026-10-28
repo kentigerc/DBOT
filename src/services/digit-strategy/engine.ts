@@ -812,7 +812,7 @@ export class DigitStrategyEngine {
                 deficit,
                 pauseUntil: 0,
                 countAfter: deficit > 0 ? (wasRecovering ? this.state.recovery.countAfter : this.now()) : this.now(),
-                ...(deficit > 0 && p.signal.recovery
+                ...(deficit > 0
                     ? {
                           lockedSymbol: p.signal.symbol,
                           lockedDirection: p.signal.direction,

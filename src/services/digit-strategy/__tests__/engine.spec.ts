@@ -600,7 +600,7 @@ it('excludes markets that do not offer one-tick Even/Odd recovery contracts', as
     expect(broker.buys).toHaveLength(0);
 });
 
-it('uses XML-style formation, locked recovery and full-deficit completion in standalone parity', async () => {
+it('uses initial formation then recovers directly on the losing volatility until its deficit clears', async () => {
     const broker = new FakeBroker();
     const send = broker.send;
     broker.send = jest.fn(async body => {
@@ -628,9 +628,8 @@ it('uses XML-style formation, locked recovery and full-deficit completion in sta
     broker.settle(-0.35);
     await jest.advanceTimersByTimeAsync(150);
     expect(broker.buys).toHaveLength(1);
-    await tick(2);
-    await tick(4);
-    await tick(1);
+    expect(engine.getSnapshot().recovery).toMatchObject({ lockedSymbol: 'R_100', lockedDirection: 'DIGITEVEN' });
+    await tick(9); // No new formation is required after the initial loss.
     expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.7 });
     broker.settle(-0.7);
     await tick(9);
