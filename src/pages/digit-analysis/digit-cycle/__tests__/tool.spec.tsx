@@ -38,7 +38,7 @@ it('exposes the requested settings and starts the named strategy only on RUN', a
         expect(client.start).toHaveBeenCalledWith(
             expect.objectContaining({
                 strategy: 'over2-under7',
-                duration: 1,
+                duration: 2,
                 multiplier: 3,
                 stake: 0.35,
                 maxLosses: 10,
