@@ -162,7 +162,7 @@ it('shows the full journal newest first with contract details and coloured net r
 it('starts the standalone Even/Odd tool with the selected tick duration', async () => {
     render(<DigitCycle parity />);
     expect(screen.getByRole('heading', { name: 'EVEN / ODD STRATEGY' })).toBeTruthy();
-    expect((screen.getByLabelText('Contract duration') as HTMLSelectElement).value).toBe('2');
+    expect((screen.getByLabelText('Contract duration') as HTMLSelectElement).value).toBe('1');
     fireEvent.change(screen.getByLabelText('Contract duration'), { target: { value: '5' } });
     expect(screen.queryByRole('option', { name: '6 ticks' })).toBeNull();
     expect(screen.queryByText('Batch wins')).toBeNull();
