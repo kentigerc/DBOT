@@ -167,7 +167,12 @@ it('starts the standalone Even/Odd tool with independent identity and one-tick s
     fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
     await waitFor(() =>
         expect(client.start).toHaveBeenCalledWith(
-            expect.objectContaining({ strategy: 'even-odd', duration: 1, recoveryMode: 'parity_percentage' }),
+            expect.objectContaining({
+                strategy: 'even-odd',
+                duration: 1,
+                recoveryMode: 'parity_percentage',
+                multiplier: 2,
+            }),
             undefined
         )
     );

@@ -217,6 +217,8 @@ describe('standalone Even/Odd strategy', () => {
         const even = market([120, 80, 120, 80, 120, 80, 120, 80, 120, 80]);
         const odd = market([70, 130, 70, 130, 70, 130, 70, 130, 70, 130]);
         odd.symbol = 'R_50';
+        even.digits.splice(-3, 3, 2, 4, 1);
+        odd.digits.splice(-3, 3, 1, 3, 2);
         const normal = chooseSignal([even, odd], state, settings, 10000);
         expect(normal).toMatchObject({ symbol: 'R_50', direction: 'DIGITODD', recovery: false });
         expect(normal?.barrier).toBeUndefined();
@@ -233,4 +235,30 @@ describe('standalone Even/Odd strategy', () => {
         expect(() => validateSettings({ ...settings, duration: 2 })).toThrow();
         expect(() => validateSettings(settings)).not.toThrow();
     });
+});
+
+it('locks standalone recovery through percentage drift and partial wins, but requires its first fresh formation', () => {
+    const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'even-odd' };
+    const m = market([120, 80, 120, 80, 120, 80, 120, 80, 120, 80]);
+    const state = { streak: 1, deficit: 35, countAfter: 9999, pauseUntil: 0 };
+    expect(chooseSignal([m], state, settings, 10000)).toBeUndefined();
+    m.digits.splice(-3, 3, 2, 4, 1);
+    expect(chooseSignal([m], state, settings, 10000)).toMatchObject({
+        direction: 'DIGITEVEN',
+        recovery: true,
+        formation: true,
+    });
+    expect(chooseSignal([m], { ...state, countAfter: 10000 }, settings, 10000)).toBeUndefined();
+    m.digits = Array(1000).fill(1);
+    expect(
+        chooseSignal(
+            [m],
+            { ...state, streak: 0, deficit: 6, lockedSymbol: m.symbol, lockedDirection: 'DIGITEVEN' },
+            settings,
+            10000
+        )
+    ).toMatchObject({ direction: 'DIGITEVEN', recovery: true, formation: false });
+    expect(
+        chooseSignal([m], { ...state, lockedSymbol: m.symbol, lockedDirection: 'DIGITEVEN' }, settings, 14000)
+    ).toBeUndefined();
 });

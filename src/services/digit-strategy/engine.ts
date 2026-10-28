@@ -494,7 +494,8 @@ export class DigitStrategyEngine {
                     this.state.recovery.lockedSymbol &&
                     !(this.state.settings.hitRecovery === 'analysis' && this.state.streak)
                         ? 'Waiting for fresh data on selected market'
-                        : this.state.streak
+                        : this.state.streak ||
+                            (this.state.settings.strategy === 'even-odd' && (this.state.recovery.deficit || 0) > 0)
                           ? this.state.settings.recoveryMode === 'parity_percentage'
                               ? 'Scanning recovery opportunities'
                               : 'Scanning recovery opportunities'
@@ -519,7 +520,21 @@ export class DigitStrategyEngine {
                 (!signal.formation || fresh.epoch === signal.epoch)
             );
         }
-        if (signal.recovery || this.state.settings.strategy === 'even-odd') {
+        if (this.state.settings.strategy === 'even-odd') {
+            const fresh = chooseSignal(
+                [...this.markets.values()],
+                this.state.recovery,
+                this.state.settings,
+                this.now(),
+                this.deps.random
+            );
+            return (
+                fresh?.symbol === signal.symbol &&
+                fresh.direction === signal.direction &&
+                (!signal.formation || fresh.epoch === signal.epoch)
+            );
+        }
+        if (signal.recovery) {
             const s = recoverySignal(market, this.state.recovery, this.state.settings, this.now());
             return (
                 s?.direction === signal.direction &&
@@ -671,12 +686,14 @@ export class DigitStrategyEngine {
                 recovery: {
                     ...this.state.recovery,
                     lockedSymbol:
-                        this.state.settings.recoveryMode === 'parity' ||
-                        (this.state.settings.recoveryMode === 'parity_percentage' &&
-                            (this.state.settings.strategy !== 'over2-under7' ||
-                                this.state.settings.hitRecovery === 'analysis'))
-                            ? undefined
-                            : p.signal.symbol,
+                        this.state.settings.strategy === 'even-odd'
+                            ? p.signal.symbol
+                            : this.state.settings.recoveryMode === 'parity' ||
+                                (this.state.settings.recoveryMode === 'parity_percentage' &&
+                                    (this.state.settings.strategy !== 'over2-under7' ||
+                                        this.state.settings.hitRecovery === 'analysis'))
+                              ? undefined
+                              : p.signal.symbol,
                     lockedDirection: p.signal.direction,
                     countAfter: 0,
                 },
@@ -731,7 +748,7 @@ export class DigitStrategyEngine {
         if (profit < -p.stake || profit > payout - p.stake)
             throw new Error('Settlement profit is outside the purchased contract bounds.');
         const streak = profit < 0 ? this.state.streak + 1 : profit > 0 ? 0 : this.state.streak;
-        const next =
+        let next =
             profit < 0
                 ? nextRecoveryStake(p.stake, this.state.settings.multiplier)
                 : profit > 0
@@ -786,6 +803,25 @@ export class DigitStrategyEngine {
                 recoveryLosses = 0;
             }
             if (pause) this.log('Three-win batch complete. Returning to fresh market analysis after five seconds.');
+        }
+        if (this.state.settings.strategy === 'even-odd') {
+            const deficit = Math.max(0, (this.state.recovery.deficit || 0) - profit);
+            const wasRecovering = (this.state.recovery.deficit || 0) > 0;
+            recovery = {
+                streak,
+                deficit,
+                pauseUntil: 0,
+                countAfter: deficit > 0 ? (wasRecovering ? this.state.recovery.countAfter : this.now()) : this.now(),
+                ...(deficit > 0 && p.signal.recovery
+                    ? {
+                          lockedSymbol: p.signal.symbol,
+                          lockedDirection: p.signal.direction,
+                      }
+                    : {}),
+            };
+            if (deficit > 0 && profit > 0) next = nextRecoveryStake(p.stake, this.state.settings.multiplier);
+            batch = 0;
+            pause = false;
         }
         const pnl = this.state.pnl + profit,
             peak = Math.max(this.state.peak, pnl);

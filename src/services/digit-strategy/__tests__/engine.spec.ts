@@ -600,7 +600,7 @@ it('excludes markets that do not offer one-tick Even/Odd recovery contracts', as
     expect(broker.buys).toHaveLength(0);
 });
 
-it('executes standalone parity entries and martingale recovery without over/under trades', async () => {
+it('uses XML-style formation, locked recovery and full-deficit completion in standalone parity', async () => {
     const broker = new FakeBroker();
     const send = broker.send;
     broker.send = jest.fn(async body => {
@@ -613,16 +613,37 @@ it('executes standalone parity entries and martingale recovery without over/unde
         }
         return send(body);
     });
-    const { engine } = await setup({ strategy: 'even-odd', recoveryMode: 'parity_percentage' }, broker);
-    expect(broker.buys).toHaveLength(1);
+    const { engine } = await setup({ strategy: 'even-odd', recoveryMode: 'parity_percentage', multiplier: 2 }, broker);
+    let epoch = 1003;
+    const tick = async (digit: number) => {
+        await jest.advanceTimersByTimeAsync(1000);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
+        await jest.advanceTimersByTimeAsync(150);
+    };
+    expect(broker.buys).toHaveLength(0);
+    await tick(2);
+    await tick(4);
+    await tick(1);
     expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.35 });
-    expect(broker.buys[0].parameters.barrier).toBeUndefined();
-    await jest.advanceTimersByTimeAsync(1000);
-    broker.emit({ tick: { symbol: 'R_100', quote: 100.02, epoch: 1004, pip_size: 2 } });
     broker.settle(-0.35);
     await jest.advanceTimersByTimeAsync(150);
-    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.74 });
+    expect(broker.buys).toHaveLength(1);
+    await tick(2);
+    await tick(4);
+    await tick(1);
+    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.7 });
+    broker.settle(-0.7);
+    await tick(9);
+    expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 1.4 });
+    broker.settle(0.99);
+    expect(engine.getSnapshot().recovery).toMatchObject({
+        deficit: 6,
+        lockedSymbol: 'R_100',
+        lockedDirection: 'DIGITEVEN',
+    });
+    await tick(9);
+    expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 2.8 });
     engine.stop();
-    broker.settle(0.65);
-    expect(engine.getSnapshot()).toMatchObject({ active: false, stake: 35, wins: 1, losses: 1 });
+    broker.settle(0.06);
+    expect(engine.getSnapshot()).toMatchObject({ active: false, stake: 35, recovery: { deficit: 0 } });
 });

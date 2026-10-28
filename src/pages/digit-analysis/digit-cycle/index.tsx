@@ -7,6 +7,7 @@ import './digit-cycle.scss';
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const defaults = (parity = false): Settings => ({
     ...DEFAULT_SETTINGS,
+    ...(parity ? { multiplier: 2 } : {}),
     strategy: parity ? 'even-odd' : 'over2-under7',
     hitRecovery: 'analysis',
 });
@@ -19,7 +20,8 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
     const [contractId, setContractId] = useState('');
     const [session, setSession] = useState(getDerivSession());
     const own = state.settings.strategy === strategy;
-    const policyRecovery = own && state.streak > 0 && state.settings.hitRecovery === 'analysis';
+    const policyRecovery =
+        own && (state.streak > 0 || (state.recovery.deficit || 0) > 0) && state.settings.hitRecovery === 'analysis';
     const busy = state.active || !!state.pending;
     const history = state.trades.length > 0;
     const locked = busy || history;
@@ -144,7 +146,9 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                             ['Wins / Losses', `${state.wins} / ${state.losses}`],
                             ['Loss streak', `${state.streak} / ${state.settings.maxLosses}`],
                             ['Next stake', money(state.stake)],
-                            ...(!parity ? [['Batch wins', `${state.batch} / 3`]] : []),
+                            ...(parity
+                                ? [['Recovery deficit', money(state.recovery.deficit || 0)]]
+                                : [['Batch wins', `${state.batch} / 3`]]),
                         ].map(([label, value]) => (
                             <div
                                 key={label}

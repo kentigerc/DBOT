@@ -171,6 +171,7 @@ export type Signal = {
 };
 export type RecoveryState = {
     streak: number;
+    deficit?: number;
     batchMarket?: string;
     batchDirection?: Direction;
     previous?: Direction;
@@ -286,14 +287,33 @@ export function chooseSignal(
     random = Math.random
 ): Signal | undefined {
     if (config.strategy === 'even-odd') {
-        const selected = chooseSignal(
-            markets,
-            { ...state, streak: Math.max(1, state.streak) },
-            { ...config, strategy: undefined, recoveryMode: 'parity_percentage' },
-            now,
-            random
-        );
-        return selected ? { ...selected, recovery: state.streak > 0 } : undefined;
+        const recovering = (state.deficit || 0) > 0 || state.streak > 0;
+        if (recovering && state.lockedSymbol && state.lockedDirection) {
+            const market = markets.find(m => m.symbol === state.lockedSymbol);
+            return market?.ready(now) ? signalOn(market, state.lockedDirection, undefined, true) : undefined;
+        }
+        const candidates = markets.flatMap(m => {
+            if (!m.ready(now)) return [];
+            const direction = parityRecoveryDirection(m.frequencies().map(d => d.count));
+            if (!direction) return [];
+            const parity = direction === 'DIGITEVEN' ? 0 : 1;
+            const tail = m.digits.slice(-3);
+            if (
+                tail[0] % 2 !== parity ||
+                tail[1] % 2 !== parity ||
+                tail[2] % 2 === parity ||
+                !m.arrivals.slice(-3).every(at => at > (state.countAfter || 0))
+            )
+                return [];
+            return [signalOn(m, direction, undefined, recovering, true)];
+        });
+        const share = (s: Signal) =>
+            markets
+                .find(m => m.symbol === s.symbol)!
+                .frequencies()
+                .filter(d => d.digit % 2 === (s.direction === 'DIGITEVEN' ? 0 : 1))
+                .reduce((n, d) => n + d.count, 0);
+        return candidates.sort((a, b) => share(b) - share(a))[0];
     }
     if (config.strategy === 'over2-under7') {
         if (config.hitRecovery === 'analysis' && state.streak)
