@@ -83,7 +83,7 @@ export function validateSettings(s: Settings) {
         throw new Error('Formation count must be an integer from 1 to 1000.');
     if (
         !(s.strategy === 'even-odd'
-            ? Number.isInteger(s.duration) && s.duration >= 1 && s.duration <= 10
+            ? Number.isInteger(s.duration) && s.duration >= 1 && s.duration <= 5
             : [1, 2].includes(s.duration)) ||
         !(s.recoveryMode in RECOVERY_MODES)
     )

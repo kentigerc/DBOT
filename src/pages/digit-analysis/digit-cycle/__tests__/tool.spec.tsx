@@ -163,6 +163,7 @@ it('starts the standalone Even/Odd tool with the selected tick duration', async 
     render(<DigitCycle parity />);
     expect(screen.getByRole('heading', { name: 'EVEN / ODD STRATEGY' })).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Contract duration'), { target: { value: '5' } });
+    expect(screen.queryByRole('option', { name: '6 ticks' })).toBeNull();
     expect(screen.queryByText('Batch wins')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
     await waitFor(() =>

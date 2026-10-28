@@ -107,7 +107,7 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                             setDraft(previous => ({ ...previous, duration: Number(event.target.value) }))
                         }
                     >
-                        {Array.from({ length: parity ? 10 : 2 }, (_, i) => i + 1).map(ticks => (
+                        {Array.from({ length: parity ? 5 : 2 }, (_, i) => i + 1).map(ticks => (
                             <option key={ticks} value={ticks}>
                                 {ticks} {ticks === 1 ? 'tick' : 'ticks'}
                             </option>
