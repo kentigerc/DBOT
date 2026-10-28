@@ -1,4 +1,5 @@
 import { parityRecoveryDirection } from '@/services/digit-strategy/strategy';
+import { observeVolatilityMarkets } from './live-volatility-markets';
 import { lastDigit } from '@/pages/digit-analysis/digits';
 export type RecoveryTick = {
     symbol?: string;
@@ -215,8 +216,7 @@ export async function scanXmlParityRecovery(
     status: (message: string) => void
 ): Promise<ParityRecovery | undefined> {
     let api: Api | undefined;
-    let failures = 0,
-        round = 0;
+    let failures = 0;
     const request = async (body: Record<string, unknown>) => {
         if (signal.aborted) throw new Error('Recovery cancelled');
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -252,80 +252,83 @@ export async function scanXmlParityRecovery(
             try {
                 api = await createApi();
                 if (signal.aborted) return;
-                const response = await request({ active_symbols: 'brief' });
-                const markets = (response.active_symbols || []).filter(
-                    m => /^(R_\d+|1HZ\d+V)$/.test(m.symbol) && m.exchange_is_open && !m.is_trading_suspended
-                );
-                if (!markets.length) throw new Error('No recovery markets available');
-                while (!signal.aborted) {
-                    round++;
-                    let liveSamples = 0;
-                    for (const [index, market] of markets.entries()) {
-                        if (signal.aborted) return;
-                        status(
-                            `Searching recovery markets · ${index + 1}/${markets.length} · Round ${round} · ${market.display_name || market.symbol}`
-                        );
-                        let found = false;
-                        try {
-                            const data = await request({
-                                ticks_history: market.symbol,
-                                style: 'ticks',
-                                end: 'latest',
-                                count: sampleSize,
-                            });
-                            const prices = data.history?.prices;
-                            const epoch = Number(data.history?.times?.slice(-1)[0]);
-                            if (
-                                !Array.isArray(prices) ||
-                                prices.length < sampleSize ||
-                                !Number.isInteger(data.pip_size) ||
-                                !fresh(epoch)
-                            )
-                                continue;
-                            const digits = prices.slice(-sampleSize).map(price => lastDigit(price, data.pip_size!));
-                            if (digits.some(d => d === null)) continue;
-                            liveSamples++;
-                            const counts = Array<number>(10).fill(0);
-                            digits.forEach(d => counts[d!]++);
-                            const direction = parityRecoveryDirection(counts);
-                            if (!direction) continue;
-                            const available = await request({ contracts_for: market.symbol });
-                            const supported = (available.contracts_for?.available || []).some(
-                                c =>
-                                    c.contract_type === direction &&
-                                    c.expiry_type === 'tick' &&
-                                    /^\d+t$/.test(c.min_contract_duration) &&
-                                    parseInt(c.min_contract_duration, 10) <= 1 &&
-                                    /^\d+t$/.test(c.max_contract_duration) &&
-                                    parseInt(c.max_contract_duration, 10) >= 1
-                            );
-                            if (supported && !signal.aborted && fresh(epoch)) {
-                                const plan = await waitForXmlParityFormation(
-                                    api,
-                                    request,
-                                    market.symbol,
-                                    direction,
-                                    sampleSize,
-                                    signal,
-                                    status
-                                );
-                                if (plan) {
-                                    found = true;
-                                    return plan;
-                                }
-                            }
-                        } catch (error) {
-                            if (signal.aborted) return;
-                            throw error;
-                        } finally {
-                            if (!found && !signal.aborted) await pause();
+                const observer = new AbortController();
+                const abort = () => observer.abort();
+                signal.addEventListener('abort', abort, { once: true });
+                const candidates = new Map<string, { direction: 'DIGITEVEN' | 'DIGITODD'; pattern: number[] }>();
+                const supported = new Map<string, Set<string>>();
+                let selected = false;
+                let resolvePlan!: (plan: ParityRecovery) => void;
+                const plan = new Promise<ParityRecovery>(resolve => {
+                    resolvePlan = resolve;
+                });
+                const watching = observeVolatilityMarkets(
+                    api,
+                    sampleSize,
+                    observer.signal,
+                    sample => {
+                        if (selected || signal.aborted) return;
+                        failures = 0;
+                        const counts = Array<number>(10).fill(0);
+                        sample.digits.forEach(d => counts[d]++);
+                        const direction = parityRecoveryDirection(counts);
+                        const symbol = sample.market.symbol;
+                        if (!direction || !supported.get(symbol)?.has(direction)) {
+                            candidates.delete(symbol);
+                            return;
                         }
+                        let candidate = candidates.get(symbol);
+                        if (!candidate || candidate.direction !== direction) {
+                            candidate = { direction, pattern: [] };
+                            candidates.set(symbol, candidate);
+                            status(`Waiting for recovery entry · ${symbol} · Other markets remain live.`);
+                            return;
+                        }
+                        if (!sample.live) return;
+                        candidate.pattern = [...candidate.pattern, sample.digits[sample.digits.length - 1] % 2].slice(
+                            -3
+                        );
+                        const chosen = direction === 'DIGITEVEN' ? 0 : 1;
+                        if (
+                            candidate.pattern.length === 3 &&
+                            candidate.pattern[0] === chosen &&
+                            candidate.pattern[1] === chosen &&
+                            candidate.pattern[2] !== chosen
+                        ) {
+                            selected = true;
+                            status(`Recovery entry ready · ${symbol}`);
+                            resolvePlan({ symbol, direction, epoch: sample.epoch });
+                        }
+                    },
+                    message => status(`Searching recovery markets · ${message}`),
+                    {
+                        prepare: async market => {
+                            const response = await request({ contracts_for: market.symbol });
+                            const types = new Set(
+                                (response.contracts_for?.available || [])
+                                    .filter(
+                                        c =>
+                                            ['DIGITEVEN', 'DIGITODD'].includes(c.contract_type) &&
+                                            c.expiry_type === 'tick' &&
+                                            /^\d+t$/.test(c.min_contract_duration) &&
+                                            parseInt(c.min_contract_duration, 10) <= 1 &&
+                                            /^\d+t$/.test(c.max_contract_duration) &&
+                                            parseInt(c.max_contract_duration, 10) >= 1
+                                    )
+                                    .map(c => c.contract_type)
+                            );
+                            supported.set(market.symbol, types);
+                            return types.size > 0;
+                        },
+                        stale: symbol => candidates.delete(symbol),
                     }
-                    if (!liveSamples) throw new Error('No fresh recovery samples');
-                    failures = 0;
-                    status(
-                        `Recovery scan complete · ${liveSamples}/${markets.length} live samples · No qualifying entry yet.`
-                    );
+                );
+                try {
+                    return await Promise.race([plan, watching.then(() => undefined)]);
+                } finally {
+                    observer.abort();
+                    signal.removeEventListener('abort', abort);
+                    await watching.catch(() => {});
                 }
             } catch {
                 if (signal.aborted) return;

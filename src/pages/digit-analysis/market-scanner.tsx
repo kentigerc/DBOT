@@ -4,7 +4,8 @@ import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/a
 import { getDerivAccount } from '@/utils/deriv-session';
 import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
-import { digitFrequencies, lastDigit } from './digits';
+import { observeVolatilityMarkets } from '@/utils/live-volatility-markets';
+import { digitFrequencies } from './digits';
 import { evaluateScan, ScanSide } from './scanner';
 
 type Market = { symbol: string; display_name: string; submarket?: string };
@@ -82,63 +83,25 @@ export default function MarketScanner({
         const controller = new AbortController();
         const { signal } = controller;
         let api: Api | undefined;
-        const request = async (payload: Parameters<Api['send']>[0]) => {
-            let timeout: ReturnType<typeof setTimeout> | undefined;
-            let cancel: () => void = () => {};
-            try {
-                return await Promise.race([
-                    api!.send(payload),
-                    new Promise<never>((_, reject) => {
-                        cancel = () => reject(new Error('Scan stopped.'));
-                        signal.addEventListener('abort', cancel, { once: true });
-                        if (signal.aborted) cancel();
-                        timeout = setTimeout(() => reject(new Error('Market data request timed out.')), 15000);
-                    }),
-                ]);
-            } finally {
-                clearTimeout(timeout);
-                signal.removeEventListener('abort', cancel);
-            }
-        };
         const run = async () => {
-            let round = 0;
             while (!signal.aborted) {
                 try {
-                    setMessage('Connecting to market data…');
+                    setMessage('Connecting to live Volatility feeds…');
                     api = await generateDerivApiInstance({ publicOnly: true });
                     if (signal.aborted) {
                         api.disconnect();
                         return;
                     }
-                    const response = await request({ active_symbols: 'brief' });
-                    if (signal.aborted) return;
-                    const markets: Market[] = (response.active_symbols || []).filter(
-                        (market: Market & { exchange_is_open: number; is_trading_suspended: number }) =>
-                            /^(R_\d+|1HZ\d+V)$/.test(market.symbol) &&
-                            market.exchange_is_open &&
-                            !market.is_trading_suspended
-                    );
-                    if (!markets.length) throw new Error('No available Volatility markets.');
-                    // Keep polling in paced rounds; no tick subscriptions or trading requests.
-                    round++;
-                    for (const [index, market] of markets.entries()) {
-                        if (signal.aborted) return;
-                        setMessage(`Scanning ${index + 1}/${markets.length} · Round ${round} · ${market.display_name}`);
-                        try {
-                            const history = await request({
-                                ticks_history: market.symbol,
-                                style: 'ticks',
-                                end: 'latest',
-                                count: sampleSize,
-                            });
-                            if (signal.aborted) return;
-                            if (!Array.isArray(history.history?.prices) || !Number.isInteger(history.pip_size))
-                                throw new Error('Missing history');
-                            const digits = (history.history.prices as number[])
-                                .map(price => lastDigit(price, history.pip_size))
-                                .filter((digit): digit is number => digit !== null)
-                                .slice(-sampleSize);
-                            if (digits.length !== sampleSize) throw new Error('Incomplete history');
+                    await observeVolatilityMarkets(
+                        api,
+                        sampleSize,
+                        signal,
+                        value => {
+                            const market = {
+                                ...value.market,
+                                display_name: value.market.display_name || value.market.symbol,
+                            };
+                            const { digits, epoch } = value;
                             // Evaluate both directions against the same snapshot and API request.
                             const snapshot = { ...market, digits, checkedAt: Date.now() };
                             const evaluations = (['over', 'under'] as const).map(side => ({
@@ -153,8 +116,6 @@ export default function MarketScanner({
                                 const recovery = evaluations.find(
                                     result => result.side === automatic.match?.side && result.entryReady
                                 );
-                                const times = history.history.times;
-                                const epoch = Array.isArray(times) ? Number(times[times.length - 1]) : NaN;
                                 if (
                                     recovery &&
                                     Number.isFinite(epoch) &&
@@ -215,20 +176,15 @@ export default function MarketScanner({
                                 ),
                                 ...matches,
                             ]);
-                        } catch {
-                            if (signal.aborted) return;
-                            setResults(previous =>
-                                previous.filter(
-                                    item => item.symbol !== market.symbol && Date.now() - item.checkedAt < 60000
-                                )
-                            );
-                            setPreview(previous => (previous?.symbol === market.symbol ? undefined : previous));
-                            setMessage(`${market.display_name}: data unavailable; retrying next round.`);
+                        },
+                        setMessage,
+                        {
+                            stale: symbol => {
+                                setResults(previous => previous.filter(item => item.symbol !== symbol));
+                                setPreview(previous => (previous?.symbol === symbol ? undefined : previous));
+                            },
                         }
-                        await delay(1000, signal);
-                    }
-                    await delay(2000, signal);
-                    // Refresh availability each round as well as every market's snapshot.
+                    );
                 } catch (error) {
                     if (signal.aborted) return;
                     setResults([]);
@@ -236,11 +192,11 @@ export default function MarketScanner({
                     setMessage(
                         `${error instanceof Error ? error.message : 'Market connection unavailable.'} Retrying in 5 seconds…`
                     );
-                    await delay(5000, signal);
                 } finally {
                     api?.disconnect();
                     api = undefined;
                 }
+                if (!signal.aborted) await delay(5000, signal);
             }
         };
         void run();
@@ -253,8 +209,8 @@ export default function MarketScanner({
         <section className='digit-scanner' aria-labelledby='digit-scanner-title'>
             <h2 id='digit-scanner-title'>Over / Under market scanner</h2>
             <p>
-                Scans Volatility markets using the latest {sampleSize.toLocaleString()} ticks. Matches are refreshed on
-                each pass.
+                Scans Volatility markets using the latest {sampleSize.toLocaleString()} ticks. All supported markets are
+                observed live at the same time.
             </p>
             <div className='digit-scanner__controls'>
                 {(

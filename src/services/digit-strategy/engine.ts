@@ -316,7 +316,7 @@ export class DigitStrategyEngine {
             if (this.state.pending?.contractId) await this.watch(this.state.pending.contractId);
             if (!this.state.active || !this.state.wantsRun) return;
             this.update({ phase: 'Discovering markets' });
-            this.log('Scanning volatility indices and verifying one/two-tick digit contracts.');
+            this.log('Connecting live Volatility feeds and verifying the selected digit contracts.');
             const active = await this.request({ active_symbols: 'brief' });
             const symbols = (active.active_symbols || []).filter(
                 (m: Packet) =>
@@ -325,65 +325,71 @@ export class DigitStrategyEngine {
                     m.exchange_is_open === 1 &&
                     !m.is_trading_suspended
             );
-            for (const row of symbols) {
-                if (!this.state.active || !this.state.wantsRun || generation !== this.generation) break;
-                try {
-                    const info = await this.request({ contracts_for: row.symbol });
-                    const available = info.contracts_for?.available || [];
-                    const required = [
-                        ...(settings.strategy === 'even-odd' ? [] : ['DIGITOVER', 'DIGITUNDER']),
-                        ...(settings.strategy === undefined ? ['DIGITDIFF'] : []),
-                        ...(settings.recoveryMode.startsWith('parity') ? ['DIGITEVEN', 'DIGITODD'] : []),
-                    ];
-                    if (
-                        !required.every(type =>
-                            available.some((r: Packet) => {
-                                const lo = /^(\d+)(t?)$/.exec(String(r.min_contract_duration)),
-                                    hi = /^(\d+)(t?)$/.exec(String(r.max_contract_duration));
-                                return (
-                                    r.contract_type === type &&
-                                    r.expiry_type === 'tick' &&
-                                    lo &&
-                                    hi &&
-                                    +lo[1] <=
-                                        (settings.strategy !== 'even-odd' &&
-                                        settings.recoveryMode === 'parity_percentage' &&
-                                        ['DIGITEVEN', 'DIGITODD'].includes(type)
-                                            ? 1
-                                            : settings.duration) &&
-                                    +hi[1] >=
-                                        (settings.strategy !== 'even-odd' &&
-                                        settings.recoveryMode === 'parity_percentage' &&
-                                        ['DIGITEVEN', 'DIGITODD'].includes(type)
-                                            ? 1
-                                            : settings.duration)
-                                );
-                            })
+            let cursor = 0;
+            const initialize = async () => {
+                while (cursor < symbols.length) {
+                    const row = symbols[cursor++];
+                    if (!this.state.active || !this.state.wantsRun || generation !== this.generation) break;
+                    try {
+                        const info = await this.request({ contracts_for: row.symbol });
+                        if (generation !== this.generation || !this.state.active || !this.state.wantsRun) return;
+                        const available = info.contracts_for?.available || [];
+                        const required = [
+                            ...(settings.strategy === 'even-odd' ? [] : ['DIGITOVER', 'DIGITUNDER']),
+                            ...(settings.strategy === undefined ? ['DIGITDIFF'] : []),
+                            ...(settings.recoveryMode.startsWith('parity') ? ['DIGITEVEN', 'DIGITODD'] : []),
+                        ];
+                        if (
+                            !required.every(type =>
+                                available.some((r: Packet) => {
+                                    const lo = /^(\d+)(t?)$/.exec(String(r.min_contract_duration)),
+                                        hi = /^(\d+)(t?)$/.exec(String(r.max_contract_duration));
+                                    return (
+                                        r.contract_type === type &&
+                                        r.expiry_type === 'tick' &&
+                                        lo &&
+                                        hi &&
+                                        +lo[1] <=
+                                            (settings.strategy !== 'even-odd' &&
+                                            settings.recoveryMode === 'parity_percentage' &&
+                                            ['DIGITEVEN', 'DIGITODD'].includes(type)
+                                                ? 1
+                                                : settings.duration) &&
+                                        +hi[1] >=
+                                            (settings.strategy !== 'even-odd' &&
+                                            settings.recoveryMode === 'parity_percentage' &&
+                                            ['DIGITEVEN', 'DIGITODD'].includes(type)
+                                                ? 1
+                                                : settings.duration)
+                                    );
+                                })
+                            )
                         )
-                    )
-                        continue;
-                    this.queues.set(row.symbol, []);
-                    const h = await this.request({
-                        ticks_history: row.symbol,
-                        count: 1000,
-                        end: 'latest',
-                        style: 'ticks',
-                        subscribe: 1,
-                    });
-                    const m = new DigitMarket(row.symbol, h.pip_size, row.display_name);
-                    if (!Array.isArray(h.history?.prices) || h.history.prices.length !== h.history.times?.length)
-                        throw new Error('Invalid history.');
-                    h.history.prices.forEach((price: number, i: number) => m.add(price, h.history.times[i]));
-                    this.markets.set(row.symbol, m);
-                    (this.queues.get(row.symbol) || []).forEach(tick => m.add(tick.quote, tick.epoch, this.now()));
-                    this.queues.delete(row.symbol);
-                    this.log(`${row.display_name}: ${m.digits.length} ticks loaded.`);
-                } catch {
-                    this.queues.delete(row.symbol);
-                    this.log(`${row.display_name}: unavailable, excluded.`, 'warn');
+                            continue;
+                        this.queues.set(row.symbol, []);
+                        const h = await this.request({
+                            ticks_history: row.symbol,
+                            count: 1000,
+                            end: 'latest',
+                            style: 'ticks',
+                            subscribe: 1,
+                        });
+                        if (generation !== this.generation || !this.state.active || !this.state.wantsRun) return;
+                        const m = new DigitMarket(row.symbol, h.pip_size, row.display_name);
+                        if (!Array.isArray(h.history?.prices) || h.history.prices.length !== h.history.times?.length)
+                            throw new Error('Invalid history.');
+                        h.history.prices.forEach((price: number, i: number) => m.add(price, h.history.times[i]));
+                        this.markets.set(row.symbol, m);
+                        (this.queues.get(row.symbol) || []).forEach(tick => m.add(tick.quote, tick.epoch, this.now()));
+                        this.queues.delete(row.symbol);
+                        this.log(`${row.display_name}: ${m.digits.length} ticks loaded.`);
+                    } catch {
+                        this.queues.delete(row.symbol);
+                        this.log(`${row.display_name}: unavailable, excluded.`, 'warn');
+                    }
                 }
-                await new Promise(resolve => setTimeout(resolve, 125));
-            }
+            };
+            await Promise.all(Array.from({ length: Math.min(3, symbols.length) }, initialize));
             if (!this.state.wantsRun || !this.state.active) {
                 if (!this.state.pending) this.finish('Stopped');
                 return;

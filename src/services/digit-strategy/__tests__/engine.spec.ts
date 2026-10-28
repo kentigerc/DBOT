@@ -656,3 +656,43 @@ it('uses initial formation then recovers directly on the losing volatility until
     broker.settle(0.15);
     expect(engine.getSnapshot()).toMatchObject({ active: false, stake: 35, recovery: { deficit: 0 } });
 });
+
+it('initializes other market feeds while an earlier contract-capability request is still pending', async () => {
+    const broker = new FakeBroker(),
+        send = broker.send;
+    const info = await send({ contracts_for: 'R_100' });
+    let release!: () => void;
+    broker.send = jest.fn(async body => {
+        if (body.active_symbols)
+            return {
+                active_symbols: ['R_100', 'R_50', '1HZ50V'].map(symbol => ({
+                    symbol,
+                    display_name: `Volatility ${symbol}`,
+                    market: 'synthetic_index',
+                    exchange_is_open: 1,
+                })),
+            };
+        if (body.contracts_for === 'R_100')
+            return new Promise(resolve => {
+                release = () => resolve(info);
+            });
+        return send(body);
+    });
+    const engine = new DigitStrategyEngine({
+        createApi: async () => broker,
+        account: () => account,
+        builderRunning: () => false,
+        now: () => Date.now(),
+        storage: localStorage,
+    });
+    const starting = engine.start(DEFAULT_SETTINGS);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(broker.send.mock.calls.some(([body]) => body.ticks_history === 'R_50')).toBe(true);
+    expect(broker.send.mock.calls.some(([body]) => body.ticks_history === '1HZ50V')).toBe(true);
+    expect(broker.send.mock.calls.some(([body]) => body.ticks_history === 'R_100')).toBe(false);
+    engine.stop();
+    release();
+    await starting;
+    expect(engine.getSnapshot().active).toBe(false);
+    expect(broker.buys).toHaveLength(0);
+});

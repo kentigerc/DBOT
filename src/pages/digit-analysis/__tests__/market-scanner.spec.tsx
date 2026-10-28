@@ -12,19 +12,47 @@ const markets = [
 ];
 const history = (counts: number[]) => ({
     pip_size: 2,
-    history: { prices: counts.flatMap((n, digit) => Array<number>(n).fill(100 + digit / 100)) },
+    history: {
+        prices: counts.flatMap((n, digit) => Array<number>(n).fill(100 + digit / 100)),
+        times: [Date.now() / 1000 - 1],
+    },
 });
 const over = history([9, 9, 9, 8, 10, 10, 11, 11, 11, 12]);
 const under = history([12, 11, 11, 11, 10, 10, 8, 9, 9, 9]);
-const neutral = history(Array(10).fill(10));
-const createApi = () => ({
-    send: jest
-        .fn()
-        .mockImplementation(async request =>
-            request.active_symbols ? { active_symbols: markets } : request.ticks_history === 'R_100' ? over : under
-        ),
-    disconnect: jest.fn(),
-});
+function streamApi(send: jest.Mock) {
+    let listener: ((event: { data: { tick: unknown } }) => void) | undefined;
+    return {
+        send,
+        disconnect: jest.fn(),
+        connection: new EventTarget(),
+        onMessage: () => ({
+            subscribe: (callback: typeof listener) => {
+                listener = callback;
+                return {
+                    unsubscribe: () => {
+                        listener = undefined;
+                    },
+                };
+            },
+        }),
+        emit: (digit: number, symbol = 'R_100') =>
+            listener?.({ data: { tick: { symbol, quote: 100 + digit / 100, epoch: Date.now() / 1000, pip_size: 2 } } }),
+    };
+}
+const createApi = () =>
+    streamApi(
+        jest.fn().mockImplementation(async request =>
+            request.active_symbols
+                ? { active_symbols: markets }
+                : {
+                      ...(request.ticks_history === 'R_100' ? over : under),
+                      history: {
+                          ...(request.ticks_history === 'R_100' ? over : under).history,
+                          times: [Date.now() / 1000 - 1],
+                      },
+                  }
+        )
+    );
 beforeEach(() => jest.clearAllMocks());
 afterEach(() => jest.useRealTimers());
 it('automatically scans, shows circles and suggests Over Punisher without starting trades', async () => {
@@ -33,13 +61,13 @@ it('automatically scans, shows circles and suggests Over Punisher without starti
     const select = jest.fn(),
         load = jest.fn().mockReturnValue(true);
     render(<MarketScanner sampleSize={100} onSelect={select} onLoad={load} />);
-    await screen.findByText('Suggested bot:', { exact: false });
+    await screen.findAllByText('Suggested bot:', { exact: false });
     expect(screen.getByText('Over Punisher')).toBeTruthy();
     expect(screen.getByLabelText('Scanner digit percentages').children).toHaveLength(10);
     expect(screen.queryByRole('button', { name: 'SCAN' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'View digits' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'View digits' })[0]);
     expect(select).toHaveBeenCalledWith('R_100');
-    fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load Bot' })[0]);
     expect(load).toHaveBeenCalledWith('over', 'R_100', 'random_index', [9, 9, 9, 8, 10, 10, 11, 11, 11, 12]);
     expect(screen.getByRole('button', { name: 'PAUSE' })).toBeTruthy();
     expect(api.send.mock.calls.every(([request]) => request.active_symbols || request.ticks_history)).toBe(true);
@@ -62,34 +90,33 @@ it('finds Over and Under in the same pass without a selector and loads the right
     ).toBe(false);
     expect(api.send.mock.calls.filter(([request]) => request.ticks_history).length).toBe(2);
 });
-it('keeps rescanning and removes a market when conditions no longer match', async () => {
+it('updates a live market and removes a match without polling history again', async () => {
     jest.useFakeTimers();
-    let matches = true;
-    const api = {
-        send: jest
+    const api = streamApi(
+        jest
             .fn()
             .mockImplementation(async request =>
-                request.active_symbols ? { active_symbols: markets.slice(0, 1) } : matches ? over : neutral
-            ),
-        disconnect: jest.fn(),
-    };
+                request.active_symbols
+                    ? { active_symbols: markets.slice(0, 1) }
+                    : { ...over, history: { ...over.history, times: [Date.now() / 1000 - 1] } }
+            )
+    );
     connect.mockResolvedValue(api);
     render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={jest.fn()} />);
     await act(async () => {});
     expect(screen.getByRole('button', { name: 'Load Bot' })).toBeTruthy();
-    matches = false;
     await act(async () => {
-        await jest.advanceTimersByTimeAsync(3000);
+        api.emit(2);
     });
     expect(screen.queryByRole('button', { name: 'Load Bot' })).toBeNull();
-    expect(api.send.mock.calls.filter(([request]) => request.ticks_history).length).toBe(2);
+    expect(api.send.mock.calls.filter(([request]) => request.ticks_history)).toHaveLength(1);
 });
 it('pauses inactive tabs and ignores late responses', async () => {
     let resolve!: (value: unknown) => void;
     const pending = new Promise(value => {
         resolve = value;
     });
-    const api = { send: jest.fn().mockReturnValue(pending), disconnect: jest.fn() };
+    const api = streamApi(jest.fn().mockReturnValue(pending));
     connect.mockResolvedValue(api);
     const props = { sampleSize: 100, onSelect: jest.fn(), onLoad: jest.fn() };
     const { rerender } = render(<MarketScanner {...props} active />);
@@ -108,8 +135,8 @@ it('shows login or running-bot errors from the loader without navigating or stop
         throw new Error('Log in with Deriv to load a NetoAcademy bot.');
     });
     render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} />);
-    await screen.findByRole('button', { name: 'Load Bot' });
-    fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
+    await screen.findAllByRole('button', { name: 'Load Bot' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load Bot' })[0]);
     expect(screen.getByRole('alert').textContent).toContain('Log in with Deriv');
     expect(screen.getByRole('button', { name: 'PAUSE' })).toBeTruthy();
 });
@@ -117,14 +144,14 @@ it('resets matches when sample size changes and reconnects automatically', async
     connect.mockResolvedValue(createApi());
     const props = { onSelect: jest.fn(), onLoad: jest.fn() };
     const { rerender } = render(<MarketScanner {...props} sampleSize={100} />);
-    await screen.findByRole('button', { name: 'Load Bot' });
+    await screen.findAllByRole('button', { name: 'Load Bot' });
     rerender(<MarketScanner {...props} sampleSize={500} />);
     expect(screen.queryByRole('button', { name: 'Load Bot' })).toBeNull();
     await waitFor(() => expect(connect).toHaveBeenCalledTimes(2));
 });
 it('reconnects automatically after a market service error', async () => {
     jest.useFakeTimers();
-    const offline = { send: jest.fn().mockRejectedValue(new Error('offline')), disconnect: jest.fn() };
+    const offline = streamApi(jest.fn().mockRejectedValue(new Error('offline')));
     connect.mockResolvedValueOnce(offline).mockResolvedValue(createApi());
     render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={jest.fn()} />);
     await act(async () => {});
@@ -132,35 +159,37 @@ it('reconnects automatically after a market service error', async () => {
     await act(async () => {
         await jest.advanceTimersByTimeAsync(5000);
     });
-    expect(screen.getByRole('button', { name: 'Load Bot' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Load Bot' }).length).toBeGreaterThan(0);
     expect(connect).toHaveBeenCalledTimes(2);
     expect(offline.disconnect).toHaveBeenCalled();
 });
-it('replaces an Over match with Under when the same market changes direction', async () => {
+it('replaces Over with Under as a subscribed market changes direction', async () => {
     jest.useFakeTimers();
-    let nextHistory = over;
-    const api = {
-        send: jest
+    const api = streamApi(
+        jest
             .fn()
             .mockImplementation(async request =>
-                request.active_symbols ? { active_symbols: markets.slice(0, 1) } : nextHistory
-            ),
-        disconnect: jest.fn(),
-    };
+                request.active_symbols
+                    ? { active_symbols: markets.slice(0, 1) }
+                    : { ...over, history: { ...over.history, times: [Date.now() / 1000 - 1] } }
+            )
+    );
     connect.mockResolvedValue(api);
     const load = jest.fn().mockReturnValue(true);
     render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} />);
     await act(async () => {});
     expect(screen.getByText('Over Punisher')).toBeTruthy();
-    nextHistory = under;
     await act(async () => {
-        await jest.advanceTimersByTimeAsync(3000);
+        for (const price of under.history.prices) {
+            await jest.advanceTimersByTimeAsync(1000);
+            api.emit(Math.round((price - 100) * 100));
+        }
     });
     expect(screen.queryByText('Over Punisher')).toBeNull();
     expect(screen.getByText('Under Punisher')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Load Bot' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
     expect(load).toHaveBeenCalledWith('under', 'R_100', 'random_index', [12, 11, 11, 11, 10, 10, 8, 9, 9, 9]);
+    expect(api.send.mock.calls.filter(([request]) => request.ticks_history)).toHaveLength(1);
 });
 
 it('loads exactly one matched XML automatically only after the user enables Auto', async () => {
@@ -175,14 +204,15 @@ it('loads exactly one matched XML automatically only after the user enables Auto
         balance: 10000,
     });
     const check = jest.spyOn(locks, 'checkServerAnalysis').mockResolvedValue(false);
-    connect.mockResolvedValue(createApi());
+    const api = createApi();
+    connect.mockResolvedValue(api);
     const load = jest.fn().mockReturnValue(true);
     const start = (settings: { stake: number; stopLoss: number; takeProfit: number; multiplier: number }) =>
         xmlScannerCycle.start('TEST-DEMO', 100, jest.fn(), undefined, settings);
     const { rerender } = render(
         <MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} onAutoStart={start} />
     );
-    await screen.findByRole('button', { name: 'Load Bot' });
+    await screen.findAllByRole('button', { name: 'Load Bot' });
     expect(load).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText('Stake ($)'), { target: { value: '0.75' } });
     fireEvent.change(screen.getByLabelText('Session stop loss ($)'), { target: { value: '25' } });
@@ -190,6 +220,9 @@ it('loads exactly one matched XML automatically only after the user enables Auto
     fireEvent.change(screen.getByLabelText('Martingale (×)'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'START XML AUTO' }));
     await waitFor(() => expect(xmlScannerCycle.getSnapshot().enabled).toBe(true));
+    await act(async () => {
+        api.emit(0);
+    });
     expect(xmlScannerCycle.getSnapshot().settings).toEqual({ stake: 0.75, stopLoss: 25, takeProfit: 5, multiplier: 3 });
     expect(screen.getByLabelText('Stake ($)')).toBeDisabled();
     // A fresh pass continues even while the Builder section is in front.

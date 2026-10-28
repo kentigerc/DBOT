@@ -253,12 +253,32 @@ it('continues healthy scans without forcing an entry when no market qualifies', 
     const api = createApi();
     const controller = new AbortController();
     const status = jest.fn();
-    api.send.mockImplementation(async body => (body.active_symbols ? markets : data(Array(10).fill(10))));
+    api.send.mockImplementation(async body =>
+        body.active_symbols ? markets : body.contracts_for ? contracts() : data(Array(10).fill(10))
+    );
     const create = jest.fn().mockResolvedValue(api);
     const pending = scanXmlParityRecovery(create, 100, controller.signal, status);
-    await jest.advanceTimersByTimeAsync(8000);
+    await jest.advanceTimersByTimeAsync(0);
+    for (let i = 1; i <= 8; i++) {
+        await jest.advanceTimersByTimeAsync(1000);
+        api.emit(i % 2, now + i, 'R_10');
+        api.emit(i % 2, now + i, '1HZ50V');
+    }
     expect(create).toHaveBeenCalledTimes(1);
-    expect(status).toHaveBeenCalledWith(expect.stringContaining('2/2 live samples · No qualifying entry yet'));
+    expect(status).toHaveBeenCalledWith(expect.stringContaining('2/2 Volatility markets live'));
     controller.abort();
     expect(await pending).toBeUndefined();
+});
+it('can enter a second market while the first qualifying market is still waiting for its formation', async () => {
+    const api = createApi({ manual: true });
+    const controller = new AbortController();
+    const pending = scanXmlParityRecovery(async () => api, 100, controller.signal, jest.fn());
+    await jest.advanceTimersByTimeAsync(0);
+    expect(api.send.mock.calls.filter(([body]) => body.subscribe)).toHaveLength(2);
+    api.emit(2, now - 2, 'R_10');
+    api.emit(2, now - 2, '1HZ50V');
+    api.emit(4, now - 1, '1HZ50V');
+    api.emit(1, now, '1HZ50V');
+    expect(await pending).toMatchObject({ symbol: '1HZ50V', direction: 'DIGITEVEN' });
+    expect(api.disconnect).toHaveBeenCalled();
 });
