@@ -188,7 +188,11 @@ export async function observeVolatilityMarkets(
         if (initialized && !live) finish(new Error('No fresh live Volatility feeds.'));
         else if (Date.now() - lastStatus >= 5000) {
             lastStatus = Date.now();
-            status(`Observing ${live}/${feeds.size} Volatility markets live · All feeds checked as ticks arrive.`);
+            status(
+                feeds.size
+                    ? `Observing ${live}/${feeds.size} Volatility markets live · All feeds checked as ticks arrive.`
+                    : 'Loading simultaneous market feeds…'
+            );
         }
         if (initialized && live && !finished) {
             for (const feed of feeds.values()) {

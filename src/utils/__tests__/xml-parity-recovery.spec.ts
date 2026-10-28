@@ -283,3 +283,102 @@ it('chooses the strongest supported percentage across all live market samples wi
     expect(await pending).toMatchObject({ symbol: '1HZ50V', direction: 'DIGITEVEN' });
     expect(api.disconnect).toHaveBeenCalled();
 });
+it('retains all live feeds between recovery attempts and reselects without reloading histories', async () => {
+    const api = createApi({ manual: true });
+    const create = jest.fn().mockResolvedValue(api);
+    let active = true;
+    let changed!: () => void;
+    const unsubscribe = jest.fn();
+    const scope = {
+        key: 700,
+        valid: () => active,
+        subscribe: (listener: () => void) => {
+            changed = listener;
+            return unsubscribe;
+        },
+    };
+    const first = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(await first).toMatchObject({ symbol: 'R_10', direction: 'DIGITEVEN' });
+    expect(api.disconnect).not.toHaveBeenCalled();
+    const requests = api.send.mock.calls.length;
+    // The first market becomes weaker while no selection is pending. All feeds
+    // must continue to update so the next attempt immediately chooses the second.
+    api.emit(1, now, 'R_10');
+    expect(await scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope)).toMatchObject({
+        symbol: '1HZ50V',
+        direction: 'DIGITEVEN',
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(api.send.mock.calls.length).toBe(requests);
+    active = false;
+    changed();
+    expect(api.disconnect).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(jest.getTimerCount()).toBe(0);
+});
+it('cancels a pending selection without destroying the session feeds, then releases them on session STOP', async () => {
+    const api = createApi({ manual: true });
+    api.send.mockImplementation(async body =>
+        body.active_symbols ? markets : body.contracts_for ? contracts() : data(Array(10).fill(10))
+    );
+    const create = jest.fn().mockResolvedValue(api);
+    let active = true;
+    let changed!: () => void;
+    const scope = {
+        key: 701,
+        valid: () => active,
+        subscribe: (listener: () => void) => {
+            changed = listener;
+            return jest.fn();
+        },
+    };
+    const attempt = new AbortController();
+    const pending = scanXmlParityRecovery(create, 100, attempt.signal, jest.fn(), scope);
+    await jest.advanceTimersByTimeAsync(0);
+    attempt.abort();
+    expect(await pending).toBeUndefined();
+    expect(api.disconnect).not.toHaveBeenCalled();
+    const waiting = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
+    active = false;
+    changed();
+    expect(await waiting).toBeUndefined();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(api.disconnect).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(jest.getTimerCount()).toBe(0);
+});
+it('discards cached candidates immediately on disconnect before reconnecting all feeds', async () => {
+    const firstApi = createApi({ manual: true }),
+        replacement = createApi({ manual: true });
+    const create = jest.fn().mockResolvedValueOnce(firstApi).mockResolvedValue(replacement);
+    let active = true;
+    let changed!: () => void;
+    const scope = {
+        key: 702,
+        valid: () => active,
+        subscribe: (listener: () => void) => {
+            changed = listener;
+            return () => {};
+        },
+    };
+    const first = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(await first).toBeDefined();
+    firstApi.connection.dispatchEvent(new Event('close'));
+    let resolved = false;
+    const next = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope).then(plan => {
+        resolved = true;
+        return plan;
+    });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(resolved).toBe(false);
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(await next).toMatchObject({ symbol: 'R_10' });
+    expect(create).toHaveBeenCalledTimes(2);
+    active = false;
+    changed();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(jest.getTimerCount()).toBe(0);
+});

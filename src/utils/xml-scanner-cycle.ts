@@ -60,6 +60,7 @@ export class XmlScannerCycle {
     private reportJournal?: (message: string) => void;
     private recoveryJournal?: ReturnType<typeof startXmlRecoveryProgress>;
     private guarded = false;
+    private sessionSequence = 0;
     private started = false;
     private entered = false;
     private recovery = false;
@@ -101,6 +102,7 @@ export class XmlScannerCycle {
         if (!accountId || ![100, 500, 1000].includes(sampleSize))
             throw new Error('Select an active Deriv account and sample size.');
         const validatedSettings = validateXmlAutoSettings(settings);
+        this.sessionSequence++;
         clearTimeout(this.timer);
         this.stopBot = stopBot;
         this.recoveryJournal?.stop();
@@ -224,6 +226,14 @@ export class XmlScannerCycle {
             });
             resolve(true);
         }
+    }
+    recoveryScope() {
+        const key = this.sessionSequence;
+        return {
+            key,
+            valid: () => this.state.enabled && this.sessionSequence === key,
+            subscribe: this.subscribe,
+        };
     }
     isRecovering() {
         return this.state.enabled && this.recovery;

@@ -40,7 +40,8 @@ export default Engine =>
                             () => generateDerivApiInstance({ publicOnly: true }),
                             1000,
                             controller.signal,
-                            message => xmlScannerCycle.recoveryStatus(message)
+                            message => xmlScannerCycle.recoveryStatus(message),
+                            xmlScannerCycle.recoveryScope()
                         );
                         if (!plan || !valid()) return;
                         // Recheck the original market's live guard after the recovery scan.

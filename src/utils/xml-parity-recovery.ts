@@ -209,16 +209,54 @@ export async function refreshXmlParityRecovery(
     }
 }
 
-// Match HIT AND RUN: select the strongest qualifying parity percentage without
-// a formation wait. The caller repeats this selection after every recovery loss.
-export async function scanXmlParityRecovery(
-    createApi: () => Promise<Api>,
-    sampleSize: number,
-    signal: AbortSignal,
-    status: (message: string) => void
-): Promise<ParityRecovery | undefined> {
+export type XmlRecoveryScope = {
+    key: number;
+    valid: () => boolean;
+    subscribe: (listener: () => void) => () => void;
+};
+
+type RecoveryScanner = ReturnType<typeof createRecoveryScanner>;
+let retained: { key: number; sampleSize: number; scanner: RecoveryScanner; unsubscribe: () => void } | undefined;
+
+// Keep every recovery feed warm for the active XML Auto session. Each purchase
+// reselects the best current percentage without repeating discovery/history loads.
+function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number) {
+    const lifetime = new AbortController();
+    const signal = lifetime.signal;
     let api: Api | undefined;
-    let failures = 0;
+    let initialized = false,
+        failures = 0;
+    let fatal: Error | undefined;
+    let message = 'Loading simultaneous recovery feeds…';
+    const candidates = new Map<string, { plan: ParityRecovery; share: number }>();
+    let waiter:
+        | {
+              resolve: (plan?: ParityRecovery) => void;
+              reject: (reason: Error) => void;
+              status: (text: string) => void;
+              cleanup: () => void;
+          }
+        | undefined;
+    const settle = (plan?: ParityRecovery, error?: Error) => {
+        const waiting = waiter;
+        waiter = undefined;
+        waiting?.cleanup();
+        if (error) waiting?.reject(error);
+        else waiting?.resolve(plan);
+    };
+    const status = (text: string) => {
+        message = text;
+        waiter?.status(text);
+    };
+    const select = () => {
+        if (!waiter || !initialized || signal.aborted || fatal) return;
+        const best = [...candidates.values()]
+            .filter(c => freshVolatilityEpoch(c.plan.epoch))
+            .sort((a, b) => b.share - a.share)[0];
+        if (!best) return;
+        waiter.status(`Recovery entry ready · ${best.plan.symbol}`);
+        settle({ ...best.plan });
+    };
     const request = async (body: Record<string, unknown>) => {
         if (signal.aborted) throw new Error('Recovery cancelled');
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -249,43 +287,38 @@ export async function scanXmlParityRecovery(
             signal.addEventListener('abort', done, { once: true });
             if (signal.aborted) done();
         });
-    try {
+    const run = async () => {
         while (!signal.aborted) {
+            initialized = false;
+            candidates.clear();
+            let unwatch = () => {};
             try {
+                status('Loading simultaneous recovery feeds…');
                 api = await createApi();
                 if (signal.aborted) return;
-                const observer = new AbortController();
-                const abort = () => observer.abort();
-                signal.addEventListener('abort', abort, { once: true });
-                const candidates = new Map<string, { plan: ParityRecovery; share: number }>();
-                let initialized = false;
-                const supported = new Map<string, Set<string>>();
-                let selected = false;
-                let resolvePlan!: (plan: ParityRecovery) => void;
-                const plan = new Promise<ParityRecovery>(resolve => {
-                    resolvePlan = resolve;
-                });
-                const select = () => {
-                    if (!initialized || selected || signal.aborted) return;
-                    const best = [...candidates.values()]
-                        .filter(candidate => freshVolatilityEpoch(candidate.plan.epoch))
-                        .sort((a, b) => b.share - a.share)[0];
-                    if (!best) return;
-                    selected = true;
-                    status(`Recovery entry ready · ${best.plan.symbol}`);
-                    resolvePlan(best.plan);
+                const connection = api.connection;
+                const unavailable = () => {
+                    initialized = false;
+                    candidates.clear();
                 };
-                const watching = observeVolatilityMarkets(
+                connection?.addEventListener('close', unavailable);
+                connection?.addEventListener('error', unavailable);
+                unwatch = () => {
+                    connection?.removeEventListener('close', unavailable);
+                    connection?.removeEventListener('error', unavailable);
+                };
+                const supported = new Map<string, Set<string>>();
+                await observeVolatilityMarkets(
                     api,
                     sampleSize,
-                    observer.signal,
+                    signal,
                     sample => {
-                        if (selected || signal.aborted) return;
-                        failures = 0;
+                        if (signal.aborted) return;
+                        if (sample.live) failures = 0;
                         const counts = Array<number>(10).fill(0);
                         sample.digits.forEach(d => counts[d]++);
-                        const direction = parityRecoveryDirection(counts);
-                        const symbol = sample.market.symbol;
+                        const direction = parityRecoveryDirection(counts),
+                            symbol = sample.market.symbol;
                         if (!direction || !supported.get(symbol)?.has(direction)) {
                             candidates.delete(symbol);
                             return;
@@ -300,7 +333,7 @@ export async function scanXmlParityRecovery(
                         });
                         select();
                     },
-                    message => status(`Searching recovery markets · ${message}`),
+                    text => status(`Searching recovery markets · ${text}`),
                     {
                         prepare: async market => {
                             const response = await request({ contracts_for: market.symbol });
@@ -327,26 +360,96 @@ export async function scanXmlParityRecovery(
                         },
                     }
                 );
-                try {
-                    return await Promise.race([plan, watching.then(() => undefined)]);
-                } finally {
-                    observer.abort();
-                    signal.removeEventListener('abort', abort);
-                    await watching.catch(() => {});
-                }
             } catch {
                 if (signal.aborted) return;
+                initialized = false;
+                candidates.clear();
                 failures++;
-                if (failures >= 3)
-                    throw new Error('Recovery data unavailable after three attempts. No recovery order was submitted.');
+                if (failures >= 3) {
+                    fatal = new Error(
+                        'Recovery data unavailable after three attempts. No recovery order was submitted.'
+                    );
+                    settle(undefined, fatal);
+                    return;
+                }
                 status(`Recovery data reconnecting · Attempt ${failures}/3 · No purchase submitted.`);
                 await pause();
             } finally {
+                unwatch();
                 api?.disconnect();
                 api = undefined;
             }
         }
-    } finally {
-        api?.disconnect();
+    };
+    void run();
+    return {
+        next(attempt: AbortSignal, report: (text: string) => void): Promise<ParityRecovery | undefined> {
+            if (attempt.aborted || signal.aborted) return Promise.resolve(undefined);
+            if (fatal) return Promise.reject(fatal);
+            if (waiter) return Promise.reject(new Error('A recovery selection is already pending.'));
+            return new Promise((resolve, reject) => {
+                const abort = () => settle();
+                waiter = {
+                    resolve,
+                    reject,
+                    status: report,
+                    cleanup: () => attempt.removeEventListener('abort', abort),
+                };
+                attempt.addEventListener('abort', abort, { once: true });
+                report(message);
+                select();
+            });
+        },
+        stop() {
+            lifetime.abort();
+            settle();
+            api?.disconnect();
+            api = undefined;
+        },
+    };
+}
+
+export async function scanXmlParityRecovery(
+    createApi: () => Promise<Api>,
+    sampleSize: number,
+    signal: AbortSignal,
+    status: (message: string) => void,
+    scope?: XmlRecoveryScope
+): Promise<ParityRecovery | undefined> {
+    if (signal.aborted || (scope && !scope.valid())) return;
+    if (!scope) {
+        const scanner = createRecoveryScanner(createApi, sampleSize);
+        try {
+            return await scanner.next(signal, status);
+        } finally {
+            scanner.stop();
+        }
     }
+    if (retained && (retained.key !== scope.key || retained.sampleSize !== sampleSize)) {
+        retained.scanner.stop();
+        retained.unsubscribe();
+        retained = undefined;
+    }
+    if (!retained) {
+        const entry = {
+            key: scope.key,
+            sampleSize,
+            scanner: createRecoveryScanner(createApi, sampleSize),
+            unsubscribe: () => {},
+        };
+        retained = entry;
+        entry.unsubscribe = scope.subscribe(() => {
+            if (scope.valid()) return;
+            entry.scanner.stop();
+            entry.unsubscribe();
+            if (retained === entry) retained = undefined;
+        });
+        if (!scope.valid()) {
+            entry.scanner.stop();
+            entry.unsubscribe();
+            retained = undefined;
+            return;
+        }
+    }
+    return retained.scanner.next(signal, status);
 }

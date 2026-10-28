@@ -97,7 +97,12 @@ it('overrides only XML Auto recovery with a 1-tick parity order on the selected 
         expect.any(Function),
         1000,
         expect.any(AbortSignal),
-        expect.any(Function)
+        expect.any(Function),
+        expect.objectContaining({
+            key: expect.any(Number),
+            valid: expect.any(Function),
+            subscribe: expect.any(Function),
+        })
     );
 });
 it('STOP cancels parity selection before any recovery purchase is submitted', async () => {
@@ -124,7 +129,7 @@ it('STOP cancels parity selection before any recovery purchase is submitted', as
     await pending;
     expect(api_base.api.send).not.toHaveBeenCalled();
 });
-it('scans anew after every recovery loss and can switch both volatility and parity', async () => {
+it('reselects after every recovery loss and can switch both volatility and parity', async () => {
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
     jest.spyOn(xmlScannerCycle, 'isRecovering').mockReturnValue(true);
     jest.spyOn(xmlScannerCycle, 'valid').mockReturnValue(true);

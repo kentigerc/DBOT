@@ -444,3 +444,24 @@ it('retains the last stake after a void recovery instead of multiplying it', asy
     expect(cycle.recoveryStake(0.74)).toBe(0.74);
     cycle.stop();
 });
+it('keeps the recovery-feed scope alive across XML batches but invalidates it on STOP or a new session', async () => {
+    jest.useFakeTimers();
+    const { cycle } = setup();
+    const scope = cycle.recoveryScope();
+    const generation = cycle.getSnapshot().generation;
+    for (let id = 1; id <= 3; id++) await settle(cycle, id, 0.12);
+    jest.runAllTicks();
+    cycle.runnerStopped();
+    jest.advanceTimersByTime(5000);
+    expect(scope.valid()).toBe(true);
+    const next = cycle.claim(match)!;
+    expect(next).not.toBe(generation);
+    expect(scope.valid()).toBe(true);
+    expect(cycle.recoveryScope().key).toBe(scope.key);
+    cycle.stop();
+    expect(scope.valid()).toBe(false);
+    cycle.start('TEST-DEMO', 100, jest.fn());
+    expect(cycle.recoveryScope().key).not.toBe(scope.key);
+    expect(scope.valid()).toBe(false);
+    cycle.stop();
+});
