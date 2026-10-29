@@ -56,6 +56,7 @@ export async function observeVolatilityMarkets(
     const pending = new AbortController();
     const requestSignal = pending.signal;
     let failure: Error | undefined;
+    let lastFeedFailure: unknown;
     let finished = false,
         initialized = false,
         cursor = 0;
@@ -171,7 +172,8 @@ export async function observeVolatilityMarkets(
             publish(feed, false);
             feed.queue.forEach(tick => accept(feed, tick));
             feed.queue = [];
-        } catch {
+        } catch (error) {
+            lastFeedFailure = error;
             if (!finished && !signal.aborted) {
                 invalidate(feed);
                 feed.retryAt = Date.now() + 5000;
@@ -185,7 +187,7 @@ export async function observeVolatilityMarkets(
         if (finished) return;
         for (const feed of feeds.values()) if (feed.ready && Date.now() - feed.arrival > 6000) invalidate(feed);
         const live = [...feeds.values()].filter(f => f.ready && !f.failed).length;
-        if (initialized && !live) finish(new Error('No fresh live Volatility feeds.'));
+        if (initialized && !live) finish(new Error('All live Volatility feeds became stale.'));
         else if (Date.now() - lastStatus >= 5000) {
             lastStatus = Date.now();
             status(
@@ -237,7 +239,7 @@ export async function observeVolatilityMarkets(
         initialized = true;
         if (!finished && !signal.aborted) options.ready?.();
         if (!finished && ![...feeds.values()].some(f => f.ready && !f.failed))
-            throw new Error('No fresh live Volatility feeds.');
+            throw Object.assign(new Error('No fresh live Volatility feeds.'), { cause: lastFeedFailure });
         await done;
     } catch (error) {
         if (!signal.aborted) throw failure || error;

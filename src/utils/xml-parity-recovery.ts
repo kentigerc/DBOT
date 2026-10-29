@@ -220,6 +220,27 @@ let retained: { key: number; sampleSize: number; scanner: RecoveryScanner; unsub
 
 // Keep every recovery feed warm for the active XML Auto session. Each purchase
 // reselects the best current percentage without repeating discovery/history loads.
+function recoveryDataReason(error: unknown, depth = 0): string {
+    if (depth > 2) return 'market data request failed';
+    const value = error as
+        | { code?: unknown; error?: { code?: unknown }; cause?: unknown; message?: unknown }
+        | undefined;
+    const code = value?.error?.code ?? value?.code;
+    if (typeof code === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(code)) return `provider ${code}`;
+    if (value?.cause) return recoveryDataReason(value.cause, depth + 1);
+    const reasons: Record<string, string> = {
+        'No fresh live Volatility feeds.': 'fresh market histories unavailable',
+        'All live Volatility feeds became stale.': 'live market ticks stalled',
+        'No available Volatility markets.': 'no available Volatility markets',
+        'Live market connection unavailable.': 'market data connection closed',
+        'Market data request timed out.': 'market data request timed out',
+        'Recovery market request timed out': 'market capability request timed out',
+        'Invalid market history.': 'incomplete or stale market history',
+        'Invalid market digits.': 'invalid market prices',
+    };
+    return (typeof value?.message === 'string' && reasons[value.message]) || 'market data request failed';
+}
+
 function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number) {
     const lifetime = new AbortController();
     const signal = lifetime.signal;
@@ -360,19 +381,20 @@ function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number
                         },
                     }
                 );
-            } catch {
+            } catch (error) {
                 if (signal.aborted) return;
+                const reason = recoveryDataReason(error);
                 initialized = false;
                 candidates.clear();
                 failures++;
                 if (failures >= 3) {
                     fatal = new Error(
-                        'Recovery data unavailable after three attempts. No recovery order was submitted.'
+                        `Recovery data unavailable after three attempts (${reason}). No recovery order was submitted.`
                     );
                     settle(undefined, fatal);
                     return;
                 }
-                status(`Recovery data reconnecting · Attempt ${failures}/3 · No purchase submitted.`);
+                status(`Recovery data reconnecting · Attempt ${failures}/3 · ${reason} · No purchase submitted.`);
                 await pause();
             } finally {
                 unwatch();
@@ -385,7 +407,13 @@ function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number
     return {
         next(attempt: AbortSignal, report: (text: string) => void): Promise<ParityRecovery | undefined> {
             if (attempt.aborted || signal.aborted) return Promise.resolve(undefined);
-            if (fatal) return Promise.reject(fatal);
+            if (fatal) {
+                // An idle feed failure must not poison a later authorized recovery.
+                // Start a new bounded connection attempt; never reuse failed samples.
+                fatal = undefined;
+                failures = 0;
+                void run();
+            }
             if (waiter) return Promise.reject(new Error('A recovery selection is already pending.'));
             return new Promise((resolve, reject) => {
                 const abort = () => settle();

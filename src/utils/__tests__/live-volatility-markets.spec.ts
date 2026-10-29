@@ -79,7 +79,7 @@ it('removes stale feeds while healthy markets keep updating, and fails when all 
         controller = new AbortController(),
         stale = jest.fn();
     const pending = observeVolatilityMarkets(api, 100, controller.signal, jest.fn(), jest.fn(), { stale });
-    const result = expect(pending).rejects.toThrow('No fresh');
+    const result = expect(pending).rejects.toThrow('became stale');
     await jest.advanceTimersByTimeAsync(5000);
     api.tick('R_10', 4);
     await jest.advanceTimersByTimeAsync(2000);

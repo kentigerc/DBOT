@@ -382,3 +382,45 @@ it('discards cached candidates immediately on disconnect before reconnecting all
     await jest.advanceTimersByTimeAsync(0);
     expect(jest.getTimerCount()).toBe(0);
 });
+it('retries fresh connections for a new recovery after the idle cache exhausted its retry budget', async () => {
+    const api = createApi({ manual: true }),
+        restored = createApi({ manual: true });
+    const create = jest
+        .fn()
+        .mockResolvedValueOnce(api)
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValue(restored);
+    let active = true,
+        changed!: () => void;
+    const scope = {
+        key: 703,
+        valid: () => active,
+        subscribe: (listener: () => void) => {
+            changed = listener;
+            return () => {};
+        },
+    };
+    const first = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(await first).toBeDefined();
+    // No recovery order is waiting when the feed closes and its idle retries fail.
+    api.connection.dispatchEvent(new Event('close'));
+    await jest.advanceTimersByTimeAsync(3000);
+    expect(create).toHaveBeenCalledTimes(3);
+    const next = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(await next).toMatchObject({ symbol: 'R_10' });
+    expect(create).toHaveBeenCalledTimes(4);
+    active = false;
+    changed();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(jest.getTimerCount()).toBe(0);
+});
+it('reports a safe provider error code without exposing raw provider messages', async () => {
+    const create = jest.fn().mockRejectedValue({ error: { code: 'RateLimit', message: 'private-detail' } });
+    const pending = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn());
+    const rejected = expect(pending).rejects.toThrow('provider RateLimit');
+    await jest.advanceTimersByTimeAsync(3000);
+    await rejected;
+});
