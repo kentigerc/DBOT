@@ -189,6 +189,7 @@ const OPTIONS: [Direction, string?][] = [
     ['DIGITOVER', '0'],
     ['DIGITOVER', '1'],
     ['DIGITOVER', '2'],
+    ['DIGITUNDER', '7'],
     ['DIGITUNDER', '9'],
     ['DIGITUNDER', '8'],
     ['DIGITDIFF'],

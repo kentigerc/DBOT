@@ -264,3 +264,15 @@ it('locks standalone recovery through percentage drift and partial wins, but req
         chooseSignal([m], { ...state, lockedSymbol: m.symbol, lockedDirection: 'DIGITEVEN' }, settings, 14000)
     ).toBeUndefined();
 });
+
+it('includes Under 7 in Analysis Tool entries only when its digit is neither most nor least frequent', () => {
+    const m = market();
+    const state = { streak: 0, countAfter: 0, pauseUntil: 0, previous: 'DIGITOVER' as const };
+    expect(chooseSignal([m], state, DEFAULT_SETTINGS, 10000, () => 0)).toMatchObject({
+        direction: 'DIGITUNDER',
+        barrier: '7',
+        recovery: false,
+    });
+    m.digits = Array(1000).fill(7);
+    expect(chooseSignal([m], state, DEFAULT_SETTINGS, 10000, () => 0)).toBeUndefined();
+});
