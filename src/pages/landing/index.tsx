@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { getDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/deriv-session';
 import { affiliate_signup_url } from '@/utils/site-config';
 import UsageTracker from '@/components/usage-tracker';
 import './landing.scss';
+const LiveChart = lazy(() => import('./components/live-chart'));
 const PLATFORM = '/platform#bot_builder';
 const tools = [
     {
@@ -174,17 +175,19 @@ export default function Landing() {
                             <span aria-hidden='true' /> Live markets
                         </h2>
                         <span className='nl-live-chart__provider'>Charts by Deriv</span>
-                        <a href='/platform#deriv_charts'>
+                        <a href='/platform#chart'>
                             Open chart workspace <Arrow diagonal />
                         </a>
                     </div>
-                    <iframe
-                        title='Deriv live market chart'
-                        src='https://charts.deriv.com/deriv?hide-signup=true'
-                        sandbox='allow-scripts allow-same-origin allow-forms allow-downloads'
-                        referrerPolicy='strict-origin-when-cross-origin'
-                        allowFullScreen
-                    />
+                    <Suspense
+                        fallback={
+                            <div className='nl-smart-chart__status' role='status'>
+                                Loading chart…
+                            </div>
+                        }
+                    >
+                        <LiveChart darkMode={darkMode} />
+                    </Suspense>
                 </section>
                 <section className='nl-hero'>
                     <div className='nl-hero__glow' aria-hidden='true' />

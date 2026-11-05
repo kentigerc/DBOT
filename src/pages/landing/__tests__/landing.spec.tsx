@@ -8,6 +8,12 @@ jest.mock('@/utils/deriv-session', () => ({
     startDerivLogin: jest.fn(),
 }));
 jest.mock('@/components/usage-tracker', () => () => null);
+jest.mock('../components/live-chart', () => ({
+    __esModule: true,
+    default: ({ darkMode }: { darkMode: boolean }) => (
+        <div data-testid='native-chart' data-theme={darkMode ? 'dark' : 'light'} />
+    ),
+}));
 const show = (path = '/') =>
     render(
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -82,14 +88,13 @@ it('persists the selected theme across landing visits and applies it to the shar
     expect(document.querySelector('.neto-landing--light')).toBeNull();
 });
 
-it('embeds the live Deriv chart directly below the top bar without resetting it on theme changes', () => {
+it('shows native Charts below the top bar and updates its theme without using Tradingview', async () => {
     show();
-    const chart = screen.getByTitle('Deriv live market chart');
-    expect(chart.getAttribute('src')).toBe('https://charts.deriv.com/deriv?hide-signup=true');
+    const chart = await screen.findByTestId('native-chart');
     expect(document.querySelector('#nl-main')?.firstElementChild?.getAttribute('aria-label')).toBe('Live Deriv charts');
-    expect(screen.getByRole('link', { name: /Open chart workspace/ }).getAttribute('href')).toBe(
-        '/platform#deriv_charts'
-    );
+    expect(screen.getByRole('link', { name: /Open chart workspace/ }).getAttribute('href')).toBe('/platform#chart');
+    expect(document.querySelector('iframe')).toBeNull();
     fireEvent.click(screen.getByRole('switch', { name: 'Dark mode' }));
-    expect(screen.getByTitle('Deriv live market chart')).toBe(chart);
+    expect(screen.getByTestId('native-chart')).toBe(chart);
+    expect(chart.getAttribute('data-theme')).toBe('light');
 });
