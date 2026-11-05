@@ -84,11 +84,6 @@ const AppHeader = observer(() => {
     const accounts = session.accounts.filter(account => account.status === 'active');
     const activeAccount =
         accounts.find(account => account.account_id === localStorage.getItem('neto.account_id')) || accounts[0];
-    const showAdmin =
-        session.authenticated &&
-        session.isAdmin === true &&
-        !!activeAccount &&
-        session.adminAccounts?.includes(activeAccount.account_id) === true;
     const balance = Number(client?.is_logged_in ? client.balance : activeAccount?.balance);
     const currency = activeAccount?.currency || '';
     const formattedBalance = Number.isFinite(balance)
@@ -100,7 +95,6 @@ const AppHeader = observer(() => {
             <nav aria-label='Main navigation'>
                 <Link to='/platform#bot_builder'>Bot Builder</Link>
                 <Link to='/free-bots'>Trading Bots</Link>
-                {showAdmin && <Link to='/admin'>Admin</Link>}
                 <button
                     type='button'
                     className='neto-header__theme-toggle'

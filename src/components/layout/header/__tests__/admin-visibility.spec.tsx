@@ -45,10 +45,10 @@ const show = (data: DerivSession) => {
         </MemoryRouter>
     );
 };
-it('shows Admin only for the selected server-confirmed owner account', () => {
+it('keeps Admin out of navigation even for the owner demo account', () => {
     localStorage.setItem('neto.account_id', owner.account_id);
     show(session());
-    expect(screen.getByRole('link', { name: 'Admin' }).getAttribute('href')).toBe('/admin');
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
 });
 it.each([
     session({ authenticated: false }),
@@ -65,10 +65,22 @@ it('hides Admin when a different account is selected, even if the owner account 
     show(session({ accounts: [owner, visitor] }));
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
 });
-it('removes the owner link immediately when the session changes to another user', () => {
-    show(session());
-    expect(screen.getByRole('link', { name: 'Admin' })).toBeTruthy();
-    (getDerivSession as jest.Mock).mockReturnValue(session({ accounts: [visitor], isAdmin: false, adminAccounts: [] }));
+it('keeps Admin hidden when switching between demo and real accounts', () => {
+    const real = { ...owner, account_id: 'CR123456', account_type: 'real' as const };
+    const accounts = [owner, real];
+    const data = session({ accounts, adminAccounts: accounts.map(account => account.account_id) });
+    localStorage.setItem('neto.account_id', owner.account_id);
+    show(data);
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+    localStorage.setItem('neto.account_id', real.account_id);
     act(() => window.dispatchEvent(new Event('neto-session')));
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Bot Builder' })).toBeTruthy();
+    localStorage.setItem('neto.account_id', owner.account_id);
+    act(() => window.dispatchEvent(new Event('neto-session')));
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+});
+it('keeps Admin hidden for non-owner real accounts', () => {
+    show(session({ accounts: [{ ...visitor, account_type: 'real' }], isAdmin: false, adminAccounts: [] }));
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
 });
