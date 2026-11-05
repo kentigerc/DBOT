@@ -507,11 +507,15 @@ export class DigitStrategyEngine {
                     this.state.recovery.lockedSymbol &&
                     !(this.state.settings.hitRecovery === 'analysis' && this.state.streak)
                         ? 'Waiting for fresh data on selected market'
-                        : this.state.streak ||
-                            (this.state.settings.strategy === 'even-odd' && (this.state.recovery.deficit || 0) > 0)
-                          ? this.state.settings.recoveryMode === 'parity_percentage'
-                              ? 'Scanning recovery opportunities'
-                              : 'Scanning recovery opportunities'
+                        : (
+                                this.state.settings.strategy === 'momentum-70'
+                                    ? (this.state.recovery.momentumPending ??
+                                      (this.state.streak > 0 || (this.state.recovery.deficit || 0) > 0))
+                                    : this.state.streak ||
+                                      (this.state.settings.strategy === 'even-odd' &&
+                                          (this.state.recovery.deficit || 0) > 0)
+                            )
+                          ? 'Scanning recovery opportunities'
                           : 'Waiting for eligible digit entry',
             });
             return;
@@ -771,7 +775,7 @@ export class DigitStrategyEngine {
         if (profit < -p.stake || profit > payout - p.stake)
             throw new Error('Settlement profit is outside the purchased contract bounds.');
         const streak = profit < 0 ? this.state.streak + 1 : profit > 0 ? 0 : this.state.streak;
-        const next =
+        let next =
             profit < 0
                 ? nextRecoveryStake(p.stake, this.state.settings.multiplier)
                 : profit > 0
@@ -828,24 +832,22 @@ export class DigitStrategyEngine {
             if (pause) this.log('Three-win batch complete. Returning to fresh market analysis after five seconds.');
         }
         if (this.state.settings.strategy === 'momentum-70') {
-            const deficit = Math.max(0, (this.state.recovery.deficit || 0) - profit);
+            const momentumPending = !p.signal.recovery && profit < 0;
             batch = profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
-            pause = batch >= 3 && deficit === 0;
+            pause = batch >= 3 && !momentumPending;
             recovery = {
                 streak,
-                deficit,
+                momentumPending,
+                deficit: momentumPending ? -profit : 0,
                 previous: p.signal.recovery ? this.state.recovery.previous : p.signal.direction,
                 countAfter: this.now(),
                 pauseUntil: pause ? this.now() + 5000 : 0,
-                ...(deficit > 0
-                    ? {
-                          lockedDirection: p.signal.direction,
-                          ...(p.signal.recovery || this.state.recovery.recoveryLocked
-                              ? { lockedSymbol: p.signal.symbol, recoveryLocked: true }
-                              : {}),
-                      }
-                    : {}),
+                ...(momentumPending ? { lockedDirection: p.signal.direction } : {}),
             };
+            if (p.signal.recovery) {
+                next = cents(this.state.settings.stake);
+                this.log('Recovery attempt complete. Returning to normal entries at the starting stake.');
+            }
             recoveryLosses = 0;
             for (const market of this.markets.values()) market.resetMomentum();
             if (pause) this.log('Three-win batch complete. Returning to live market analysis after five seconds.');

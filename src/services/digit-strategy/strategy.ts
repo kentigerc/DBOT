@@ -234,6 +234,7 @@ export type RecoveryState = {
     batchDirection?: Direction;
     previous?: Direction;
     recoveryLocked?: boolean;
+    momentumPending?: boolean;
     lockedSymbol?: string;
     lockedDirection?: Direction;
     countAfter: number;
@@ -340,7 +341,7 @@ export function cycleSignal(m: DigitMarket, state: RecoveryState, now: number): 
         : undefined;
 }
 export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
-    const recovering = state.streak > 0 || (state.deficit || 0) > 0;
+    const recovering = state.momentumPending ?? (state.streak > 0 || (state.deficit || 0) > 0);
     if (!m.ready(now) || now < state.pauseUntil) return;
     if (recovering && state.recoveryLocked) {
         if (m.symbol !== state.lockedSymbol || !['DIGITOVER', 'DIGITUNDER'].includes(state.lockedDirection || ''))

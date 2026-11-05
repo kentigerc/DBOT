@@ -194,3 +194,11 @@ it.each([
     expect(m.recoveryMomentum.DIGITOVER.percentage).toBe(over3);
     expect(m.recoveryMomentum.DIGITUNDER.percentage).toBe(under6);
 });
+it('does not repeat recovery solely because a losing recovery left a consecutive-loss streak', () => {
+    const f = feed();
+    [3, 4, 8].forEach(d => f.tick(d));
+    expect(momentumSignal(f.m, { ...state, streak: 2, momentumPending: false }, f.now())).toMatchObject({
+        barrier: '1',
+        recovery: false,
+    });
+});

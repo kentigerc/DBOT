@@ -14,7 +14,8 @@ const money = (amount: number) => `$${(amount / 100).toFixed(2)}`;
 export default function Momentum() {
     const state = useSyncExternalStore(digitStrategyEngine.subscribe, digitStrategyEngine.getSnapshot);
     const own = state.settings.strategy === 'momentum-70';
-    const recovering = own && (state.streak > 0 || (state.recovery.deficit || 0) > 0);
+    const recovering =
+        own && (state.recovery.momentumPending ?? (state.streak > 0 || (state.recovery.deficit || 0) > 0));
     const [draft, setDraft] = useState(defaults);
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
@@ -250,7 +251,7 @@ export default function Momentum() {
                         <h3>
                             {focus?.name || 'All supported Volatility markets'}{' '}
                             <small>
-                                {own && (state.streak || (state.recovery.deficit || 0) > 0)
+                                {recovering
                                     ? state.recovery.recoveryLocked
                                         ? 'Locked recovery market'
                                         : 'Scanning recovery markets'
