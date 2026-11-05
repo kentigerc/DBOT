@@ -1285,3 +1285,98 @@ body.neto-landing-page {
         }
     }
 }
+
+.neto-landing {
+    .nl-about {
+        display: grid;
+        grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+        gap: clamp(35px, 6vw, 95px);
+        align-items: center;
+        border-top: 1px solid var(--nl-line);
+        &__profile {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: clamp(25px, 3vw, 45px);
+            border: 1px solid var(--nl-line);
+            border-radius: 8px;
+            background: linear-gradient(135deg, #ff8c790c, transparent 65%);
+            position: relative;
+            overflow: hidden;
+            &::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background-image:
+                    linear-gradient(var(--nl-line) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--nl-line) 1px, transparent 1px);
+                background-size: 40px 40px;
+                opacity: 0.2;
+                pointer-events: none;
+            }
+        }
+        &__label {
+            color: var(--nl-muted);
+            font-size: 9px;
+            letter-spacing: 1.8px;
+        }
+        &__monogram {
+            font-size: clamp(95px, 11vw, 160px);
+            line-height: 1;
+            letter-spacing: -9px;
+            font-weight: 500;
+            margin: 35px 0;
+            span {
+                color: var(--nl-red);
+            }
+        }
+        &__identity {
+            h3 {
+                font-size: 27px;
+                font-weight: 500;
+                letter-spacing: -0.7px;
+            }
+            p {
+                color: var(--nl-muted);
+                font-size: 13px;
+                margin-top: 4px;
+            }
+        }
+        &__signature {
+            color: var(--nl-muted);
+            font-size: 10px;
+            margin-top: 30px;
+            padding-top: 18px;
+            border-top: 1px solid var(--nl-line);
+            width: 100%;
+        }
+        &__story {
+            h2 {
+                margin: 20px 0 28px;
+            }
+            > p:not(.nl-eyebrow) {
+                color: var(--nl-muted);
+                font-size: 14px;
+                line-height: 1.9;
+                margin: 18px 0;
+                max-width: 650px;
+            }
+            a {
+                margin-top: 12px;
+            }
+        }
+    }
+    @media (max-width: 760px) {
+        .nl-about {
+            grid-template-columns: 1fr;
+            gap: 35px;
+        }
+        .nl-about__profile {
+            padding: 28px;
+        }
+        .nl-about__monogram {
+            font-size: 96px;
+            margin-block: 22px;
+        }
+    }
+}

@@ -107,6 +107,7 @@ export default function Landing() {
                 <nav aria-label='Landing page navigation'>
                     <a href='#toolkit'>The toolkit</a>
                     <a href='#how-it-works'>How it works</a>
+                    <a href='#about'>About</a>
                     <a href='#questions'>Questions</a>
                 </nav>
                 <div className='nl-nav__actions'>
@@ -445,6 +446,42 @@ export default function Landing() {
                         ))}
                     </ol>
                 </section>
+                <section className='nl-about nl-section' id='about' aria-labelledby='nl-about-heading'>
+                    <div className='nl-about__profile'>
+                        <span className='nl-about__label'>THE PERSON BEHIND THE PLATFORM</span>
+                        <span className='nl-about__monogram' aria-hidden='true'>
+                            N<span>.</span>
+                        </span>
+                        <div className='nl-about__identity'>
+                            <h3>Neto</h3>
+                            <p>Founder &amp; DevOps Engineer</p>
+                        </div>
+                        <span className='nl-about__signature'>Built with experience. Designed with purpose.</span>
+                    </div>
+                    <div className='nl-about__story'>
+                        <p className='nl-eyebrow'>ABOUT NETOACADEMY</p>
+                        <h2 id='nl-about-heading'>
+                            Engineering experience.
+                            <br />
+                            <span>A more approachable workspace.</span>
+                        </h2>
+                        <p>
+                            NetoAcademy was created by Neto, a seasoned DevOps engineer with years of experience working
+                            with companies around the world. His background in building and operating technology systems
+                            shapes the platform’s focus on practical tools, thoughtful design and a clear user
+                            experience.
+                        </p>
+                        <p>
+                            His vision is to make automated trading tools more accessible, including to people who are
+                            just beginning to learn about trading. NetoAcademy brings visual bot building, market
+                            analysis and automation into one connected Deriv workspace, helping users explore
+                            strategies, understand their settings and practise at their own pace.
+                        </p>
+                        <a className='nl-text-link' href={PLATFORM}>
+                            Explore the workspace <Arrow diagonal />
+                        </a>
+                    </div>
+                </section>
                 <section className='nl-principle nl-section'>
                     <div className='nl-principle__symbol' aria-hidden='true'>
                         N<span>.</span>
@@ -538,6 +575,7 @@ export default function Landing() {
                 <div className='nl-footer__links'>
                     <a href={PLATFORM}>Trading platform</a>
                     <a href='/free-bots'>Trading bots</a>
+                    <a href='#about'>About NetoAcademy</a>
                     <a href='#questions'>Questions</a>
                     <a href='https://deriv.com' target='_blank' rel='noopener noreferrer'>
                         Deriv <Arrow diagonal />
