@@ -81,3 +81,15 @@ it('persists the selected theme across landing visits and applies it to the shar
     expect(document.body.classList.contains('theme--dark')).toBe(true);
     expect(document.querySelector('.neto-landing--light')).toBeNull();
 });
+
+it('embeds the live Deriv chart directly below the top bar without resetting it on theme changes', () => {
+    show();
+    const chart = screen.getByTitle('Deriv live market chart');
+    expect(chart.getAttribute('src')).toBe('https://charts.deriv.com/deriv?hide-signup=true');
+    expect(document.querySelector('#nl-main')?.firstElementChild?.getAttribute('aria-label')).toBe('Live Deriv charts');
+    expect(screen.getByRole('link', { name: /Open chart workspace/ }).getAttribute('href')).toBe(
+        '/platform#deriv_charts'
+    );
+    fireEvent.click(screen.getByRole('switch', { name: 'Dark mode' }));
+    expect(screen.getByTitle('Deriv live market chart')).toBe(chart);
+});

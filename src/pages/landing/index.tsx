@@ -168,6 +168,24 @@ export default function Landing() {
                 </div>
             </header>
             <main id='nl-main'>
+                <section className='nl-live-chart' aria-label='Live Deriv charts'>
+                    <div className='nl-live-chart__toolbar'>
+                        <h2>
+                            <span aria-hidden='true' /> Live markets
+                        </h2>
+                        <span className='nl-live-chart__provider'>Charts by Deriv</span>
+                        <a href='/platform#deriv_charts'>
+                            Open chart workspace <Arrow diagonal />
+                        </a>
+                    </div>
+                    <iframe
+                        title='Deriv live market chart'
+                        src='https://charts.deriv.com/deriv?hide-signup=true'
+                        sandbox='allow-scripts allow-same-origin allow-forms allow-downloads'
+                        referrerPolicy='strict-origin-when-cross-origin'
+                        allowFullScreen
+                    />
+                </section>
                 <section className='nl-hero'>
                     <div className='nl-hero__glow' aria-hidden='true' />
                     <div className='nl-hero__copy'>

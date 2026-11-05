@@ -1198,3 +1198,63 @@ body.neto-landing-page {
         }
     }
 }
+
+.neto-landing .nl-live-chart {
+    width: 100%;
+    min-width: 0;
+    border-bottom: 1px solid var(--nl-line);
+    &__toolbar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 12px 5%;
+        h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            margin: 0;
+            span {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #659568;
+            }
+        }
+        a {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+            font-size: 12px;
+        }
+    }
+    &__provider {
+        color: var(--nl-muted);
+        font-size: 11px;
+    }
+    iframe {
+        display: block;
+        width: 100%;
+        height: clamp(480px, 62vh, 720px);
+        height: clamp(480px, 62dvh, 720px);
+        border: 0;
+        background: #fff;
+    }
+    @media (max-width: 760px) {
+        &__toolbar {
+            padding-inline: 6%;
+            gap: 10px;
+        }
+        &__provider {
+            display: none;
+        }
+        &__toolbar a {
+            font-size: 11px;
+        }
+        iframe {
+            height: 540px;
+        }
+    }
+}
