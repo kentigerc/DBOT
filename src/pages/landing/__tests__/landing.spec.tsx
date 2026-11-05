@@ -28,6 +28,7 @@ function Location() {
 }
 beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
     (getDerivSession as jest.Mock).mockReturnValue({ authenticated: false, accounts: [] });
     (refreshDerivSession as jest.Mock).mockResolvedValue({ authenticated: false, accounts: [] });
 });
@@ -62,4 +63,21 @@ it('keeps landing-page section anchors on the landing page and includes risk dis
     expect(screen.getByRole('heading', { level: 1 })).toBeTruthy();
     expect(screen.getByText(/Trading involves risk/)).toBeTruthy();
     expect(screen.getByText(/independent third-party platform and is not operated by Deriv/)).toBeTruthy();
+});
+
+it('persists the selected theme across landing visits and applies it to the shared platform theme', () => {
+    const { unmount } = show();
+    const toggle = screen.getByRole('switch', { name: 'Dark mode' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(toggle);
+    expect(localStorage.getItem('theme')).toBe('light');
+    expect(document.body.classList.contains('theme--light')).toBe(true);
+    expect(document.querySelector('.neto-landing--light')).toBeTruthy();
+    unmount();
+    show();
+    expect(screen.getByRole('switch', { name: 'Dark mode' }).getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(screen.getByRole('switch', { name: 'Dark mode' }));
+    expect(localStorage.getItem('theme')).toBe('dark');
+    expect(document.body.classList.contains('theme--dark')).toBe(true);
+    expect(document.querySelector('.neto-landing--light')).toBeNull();
 });

@@ -55,6 +55,18 @@ export default function Landing() {
     const location = useLocation();
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
+    const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') !== 'light');
+    useEffect(() => {
+        document.body.classList.toggle('theme--dark', darkMode);
+        document.body.classList.toggle('theme--light', !darkMode);
+    }, [darkMode]);
+    useEffect(() => {
+        const syncTheme = (event: StorageEvent) => {
+            if (event.key === 'theme' || event.key === null) setDarkMode(localStorage.getItem('theme') !== 'light');
+        };
+        window.addEventListener('storage', syncTheme);
+        return () => window.removeEventListener('storage', syncTheme);
+    }, []);
     useEffect(() => {
         const oldTitle = document.title;
         document.body.classList.add('neto-landing-page');
@@ -79,7 +91,7 @@ export default function Landing() {
     ];
     if (legacy.includes(location.hash.slice(1))) return <Navigate replace to={`/platform${location.hash}`} />;
     return (
-        <div className='neto-landing'>
+        <div className={`neto-landing${darkMode ? '' : ' neto-landing--light'}`}>
             <UsageTracker />
             <a className='nl-skip' href='#nl-main'>
                 Skip to content
@@ -97,6 +109,40 @@ export default function Landing() {
                     <a href='#questions'>Questions</a>
                 </nav>
                 <div className='nl-nav__actions'>
+                    <button
+                        type='button'
+                        className='nl-theme-toggle'
+                        role='switch'
+                        aria-label='Dark mode'
+                        aria-checked={darkMode}
+                        title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                        onClick={() => {
+                            const next = !darkMode;
+                            localStorage.setItem('theme', next ? 'dark' : 'light');
+                            setDarkMode(next);
+                        }}
+                    >
+                        <svg
+                            aria-hidden='true'
+                            width='18'
+                            height='18'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeWidth='1.5'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                        >
+                            {darkMode ? (
+                                <>
+                                    <circle cx='12' cy='12' r='4' />
+                                    <path d='M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5' />
+                                </>
+                            ) : (
+                                <path d='M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z' />
+                            )}
+                        </svg>
+                    </button>
                     {session.authenticated ? (
                         <span className='nl-connected'>
                             <i /> Account connected

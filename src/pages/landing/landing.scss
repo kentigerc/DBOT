@@ -1048,3 +1048,153 @@ body.neto-landing-page {
         }
     }
 }
+
+.neto-landing {
+    .nl-theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border: 1px solid var(--nl-line);
+        border-radius: 50%;
+        background: transparent;
+        color: var(--nl-ink);
+        &:hover {
+            border-color: var(--nl-red);
+            color: var(--nl-red);
+        }
+    }
+    &--light {
+        color-scheme: light;
+        --nl-bg: #faf9f6;
+        --nl-line: #24282524;
+        --nl-ink: #222723;
+        --nl-muted: #5e675f;
+        --nl-red: #c93633;
+        .nl-nav {
+            background: #faf9f6ed;
+        }
+        .nl-nav nav,
+        .nl-eyebrow,
+        .nl-login,
+        .nl-connected,
+        .nl-hero__copy > p,
+        .nl-hero__foot,
+        .nl-provider,
+        .nl-provider b,
+        .nl-hero__index,
+        .nl-strip > span,
+        .nl-strip p,
+        .nl-section h2 span,
+        .nl-section__heading > p:last-child,
+        .nl-tool-card__top,
+        .nl-tool-card__top > span + span,
+        .nl-tool-card > p:not(.nl-eyebrow),
+        .nl-tool-card__link,
+        .nl-start > div > p:not(.nl-eyebrow),
+        .nl-start li p,
+        .nl-principle p:not(.nl-eyebrow),
+        .nl-faq details p,
+        .nl-faq summary span,
+        .nl-final > span,
+        .nl-footer > div > p,
+        .nl-footer__links,
+        .nl-footer__legal > span {
+            color: #566055;
+        }
+        .nl-nav nav a:hover {
+            color: var(--nl-red);
+        }
+        .nl-nav__launch,
+        .nl-brand__mark {
+            border-color: var(--nl-line);
+        }
+        .nl-nav__launch:hover {
+            background: var(--nl-ink);
+            color: #fff;
+        }
+        .nl-hero h1 em,
+        .nl-final h2 em,
+        .nl-start li > span,
+        .nl-principle a,
+        .nl-faq__signup {
+            color: #b83b30;
+        }
+        .nl-button:not(.nl-button--red) {
+            background: #222723;
+            color: #fff;
+        }
+        .nl-button:not(.nl-button--red):hover {
+            background: #41493e;
+        }
+        .nl-tool-card {
+            background: #fff;
+            border-color: var(--nl-line);
+        }
+        .nl-tool-card:hover {
+            border-color: #b83b30;
+        }
+        .nl-tool-card__art,
+        .nl-digit-art span {
+            color: #4d6943;
+        }
+        .nl-digit-art span {
+            border-color: #4d694350;
+        }
+        .nl-digit-art span:nth-child(7) {
+            color: #b83b30;
+            border-color: #b83b30;
+        }
+        .nl-start li,
+        .nl-faq details,
+        .nl-faq details:first-child,
+        .nl-principle,
+        .nl-footer,
+        .nl-footer__legal {
+            border-color: var(--nl-line);
+        }
+        .nl-principle {
+            background: #edf0e8;
+        }
+        .nl-principle__symbol {
+            color: #83946b60;
+        }
+        .nl-principle__symbol span {
+            color: #b85b39;
+        }
+        .nl-footer {
+            background: #f0f1eb;
+        }
+    }
+    @media (max-width: 760px) {
+        .nl-nav__actions {
+            gap: 8px;
+        }
+        .nl-nav__launch {
+            padding: 10px;
+        }
+        .nl-theme-toggle {
+            width: 36px;
+            height: 36px;
+        }
+    }
+    @media (max-width: 360px) {
+        .nl-nav {
+            padding-inline: 4%;
+        }
+        .nl-brand {
+            font-size: 15px;
+            gap: 6px;
+        }
+        .nl-brand__mark {
+            padding-right: 6px;
+            font-size: 20px;
+        }
+        .nl-nav__launch svg {
+            display: none;
+        }
+    }
+}
