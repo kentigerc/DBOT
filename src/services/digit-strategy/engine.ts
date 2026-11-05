@@ -570,15 +570,6 @@ export class DigitStrategyEngine {
     }
     private async execute(signal: Signal) {
         this.busy = true;
-        if (this.state.settings.strategy === 'momentum-70' && signal.recovery && !this.state.recovery.recoveryLocked)
-            this.update({
-                recovery: {
-                    ...this.state.recovery,
-                    lockedSymbol: signal.symbol,
-                    lockedDirection: signal.direction,
-                    recoveryLocked: true,
-                },
-            });
         this.update({ selected: signal, phase: 'Quoting' });
         try {
             const parameters: Packet = {

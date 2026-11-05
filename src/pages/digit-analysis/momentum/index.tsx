@@ -19,6 +19,11 @@ export default function Momentum() {
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
     const [reconcile, setReconcile] = useState('');
+    const [previewIndex, setPreviewIndex] = useState(0);
+    useEffect(() => {
+        const timer = window.setInterval(() => setPreviewIndex(i => i + 1), 2000);
+        return () => window.clearInterval(timer);
+    }, []);
     const busy = state.active || !!state.pending,
         locked = busy || state.trades.length > 0;
     useEffect(() => {
@@ -77,10 +82,13 @@ export default function Momentum() {
               m => !recovering || !state.recovery.recoveryLocked || m.symbol === state.recovery.lockedSymbol
           )
         : [];
+    const previews = markets.filter(m => m.ready);
     const focus =
-        markets.find(m => m.symbol === state.recovery.lockedSymbol) ||
-        markets.find(m => m.symbol === state.selected?.symbol) ||
-        markets[0];
+        state.recovery.recoveryLocked && recovering
+            ? markets.find(m => m.symbol === state.recovery.lockedSymbol)
+            : previews.length
+              ? previews[previewIndex % previews.length]
+              : markets[0];
     const trades = own ? [...state.trades].reverse() : [];
     return (
         <section className={`momentum${recovering ? ' momentum--recovering' : ''}`} aria-labelledby='momentum-title'>
@@ -153,6 +161,13 @@ export default function Momentum() {
                         </strong>
                     </div>
                     {own && state.error && <p role='alert'>{state.error}</p>}
+                    {own && (
+                        <p className='momentum__scan-status' role='status'>
+                            {recovering && state.recovery.recoveryLocked
+                                ? `Recovery locked · ${state.recovery.lockedSymbol}`
+                                : `Scanning all markets · ${markets.filter(m => m.ready).length}/${markets.length} live · Preview rotates every 2 seconds`}
+                        </p>
+                    )}
                     {own && (state.recovery.deficit || 0) > 0 && (
                         <p className='momentum__balance' role='status'>
                             Recovery balance <strong>{money(state.recovery.deficit || 0)}</strong> · Waiting for the
@@ -259,14 +274,14 @@ export default function Momentum() {
                                             <td>
                                                 {(
                                                     (recovering ? m.recoveryMomentum : m.momentum)?.DIGITOVER
-                                                        .percentage || 0
+                                                        ?.percentage || 0
                                                 ).toFixed(1)}
                                                 %
                                             </td>
                                             <td>
                                                 {(
                                                     (recovering ? m.recoveryMomentum : m.momentum)?.DIGITUNDER
-                                                        .percentage || 0
+                                                        ?.percentage || 0
                                                 ).toFixed(1)}
                                                 %
                                             </td>

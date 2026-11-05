@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
 import { empty } from '@/services/digit-strategy/engine';
 import { DEFAULT_SETTINGS } from '@/services/digit-strategy/strategy';
@@ -90,4 +90,32 @@ it('shows the actual recovery barrier in the journal and indicates the locked re
     expect(screen.getByText('UNDER 5')).toBeTruthy();
     expect(screen.getByText('Over 4 · Recovery')).toBeTruthy();
     expect(screen.getByText('Locked recovery market')).toBeTruthy();
+});
+
+it('rotates the preview across live markets during the recovery search rather than appearing locked', () => {
+    jest.useFakeTimers();
+    try {
+        const m = (symbol: string, name: string) => ({
+            symbol,
+            name,
+            ready: true,
+            status: 'Live',
+            momentum: {},
+            recoveryMomentum: {},
+        });
+        client.getSnapshot.mockReturnValue({
+            ...empty(),
+            settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' },
+            recovery: { streak: 1, deficit: 35, countAfter: 0, pauseUntil: 0 },
+            markets: [m('R_10', 'Volatility 10 Index'), m('R_50', 'Volatility 50 Index')],
+        });
+        render(<Momentum />);
+        expect(screen.getByText(/Scanning all markets · 2\/2 live/)).toBeTruthy();
+        expect(screen.getByRole('heading', { name: /Volatility 10 Index/ })).toBeTruthy();
+        act(() => jest.advanceTimersByTime(2000));
+        expect(screen.getByRole('heading', { name: /Volatility 50 Index/ })).toBeTruthy();
+        expect(screen.queryByText('Locked recovery market')).toBeNull();
+    } finally {
+        jest.useRealTimers();
+    }
 });

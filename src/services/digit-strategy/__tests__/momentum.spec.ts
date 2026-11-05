@@ -154,7 +154,9 @@ it('selects a recovery market across the watchlist once, then ignores stronger a
     const first = market('R_10', 56),
         second = market('R_50', 60);
     const recovering = { ...state, streak: 1, deficit: 35, lockedDirection: 'DIGITOVER' as const };
-    expect(chooseSignal([first, second], recovering, settings, now)).toMatchObject({
+    expect(
+        chooseSignal([first, second], { ...recovering, lockedSymbol: 'R_10', recoveryLocked: false }, settings, now)
+    ).toMatchObject({
         symbol: 'R_50',
         barrier: '4',
         recovery: true,

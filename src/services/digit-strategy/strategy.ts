@@ -347,10 +347,9 @@ export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number
             return;
         return signalOn(m, state.lockedDirection!, state.lockedDirection === 'DIGITOVER' ? '4' : '5', true);
     }
-    if (state.lockedSymbol && state.lockedSymbol !== m.symbol) return;
     const readings = recovering ? m.recoveryMomentum : m.momentum;
     const direction = (['DIGITOVER', 'DIGITUNDER'] as const)
-        .filter(d => !state.lockedDirection || state.lockedDirection === d)
+        .filter(d => !recovering || !state.lockedDirection || state.lockedDirection === d)
         .filter(d => {
             const r = readings[d];
             return (

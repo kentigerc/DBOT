@@ -734,15 +734,13 @@ it('trades Momentum 70 in three-win batches and initially waits for a qualifying
     expect(broker.buys).toHaveLength(1);
     broker.holdQuote = true;
     await tick(7);
-    expect(engine.getSnapshot().recovery).toMatchObject({
-        recoveryLocked: true,
-        lockedSymbol: 'R_100',
-        lockedDirection: 'DIGITOVER',
-    });
+    expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
+    expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
     expect(broker.buys).toHaveLength(1);
     broker.holdQuote = false;
     broker.quoteResolve?.({ proposal: { ask_price: 0.7, payout: 1.33 } });
     await jest.advanceTimersByTimeAsync(150);
+    expect(engine.getSnapshot().recovery).toMatchObject({ recoveryLocked: true, lockedSymbol: 'R_100' });
     expect(broker.buys[1].parameters).toMatchObject({
         symbol: 'R_100',
         contract_type: 'DIGITOVER',
