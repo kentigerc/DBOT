@@ -46,7 +46,6 @@ function createAnalysisService(
         storage = fileStorage(process.env.NETO_ANALYSIS_STATE_DIR || path.join(__dirname, '../.analysis-state')),
         brokerFactory = url => createBroker(url, dispatcher),
         Engine = DigitStrategyEngine,
-        allowReal = process.env.NETO_ANALYSIS_ALLOW_REAL === 'true',
     } = {}
 ) {
     const sessions = new Map();
@@ -147,7 +146,7 @@ function createAnalysisService(
                         return json(200, {
                             ...value.engine.getSnapshot(),
                             serverExecution: true,
-                            demoOnly: !allowReal,
+                            demoOnly: false,
                         });
                     if (busy(id) || value.engine.getSnapshot().trades.length)
                         throw fail(409, 'Resolve the current server session before importing a browser purchase.');
@@ -218,22 +217,8 @@ function createAnalysisService(
                     storage.setItem(`neto.digit-strategy.v1.${id}`, JSON.stringify(restored));
                     sessions.delete(id);
                     const imported = entry(account);
-                    return json(200, { ...imported.engine.getSnapshot(), serverExecution: true, demoOnly: !allowReal });
+                    return json(200, { ...imported.engine.getSnapshot(), serverExecution: true, demoOnly: false });
                 } else if (body.action === 'start') {
-                    if (account.account_type !== 'demo' && !allowReal) {
-                        const pending = value.engine.getSnapshot().pending;
-                        if (!pending)
-                            throw fail(
-                                403,
-                                'Server trading preview supports demo accounts. Select a USD demo account.'
-                            );
-                        body.reconcileId = pending.contractId || body.reconcileId;
-                        if (!Number.isSafeInteger(body.reconcileId) || body.reconcileId <= 0)
-                            throw fail(
-                                400,
-                                'Enter the pending contract ID to reconcile this purchase. New real entries are disabled.'
-                            );
-                    }
                     if (value.engine.getSnapshot().active)
                         throw fail(409, 'This account already has an Analysis Tool running.');
                     if ((builderBuys.get(id)?.size || 0) > 0)
@@ -297,7 +282,7 @@ function createAnalysisService(
                 starting: value.starting,
                 commandError: value.commandError || '',
                 serverExecution: true,
-                demoOnly: !allowReal,
+                demoOnly: false,
             });
         } catch (error) {
             return json(error.status || 400, {

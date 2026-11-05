@@ -5,7 +5,7 @@ import { empty, type Snapshot } from './engine';
 import { type Settings } from './strategy';
 
 class ServerStrategyClient {
-    private state: Snapshot & { demoOnly?: boolean } = empty();
+    private state: Snapshot = empty();
     private listeners = new Set<() => void>();
     private account?: DerivAccount;
     private sequence = 0;

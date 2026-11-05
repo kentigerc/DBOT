@@ -133,11 +133,6 @@ export default function AnalysisTool() {
                     <button onClick={startDerivLogin}>Log in with Deriv</button>
                 </div>
             )}
-            {state.demoOnly && (
-                <p className='analysis-tool__hint'>
-                    Server preview · use a USD demo account. Devices sharing that account see the same session.
-                </p>
-            )}
             <section className='analysis-tool__panel' aria-label='Trading parameters'>
                 <div className='analysis-tool__settings'>
                     {field('Starting stake (USD)', 'stake', 0.35, 0.01)}

@@ -96,9 +96,38 @@ test('account authorization and origin checks protect status and commands', asyn
     assert.equal((await request('phone', undefined, 'another-account')).status, 403);
     assert.equal((await request('phone', { action: 'start' }, 'demo', 'https://attacker.invalid')).status, 403);
 });
-test('preview rejects real trading and fresh starts with existing open contracts', async t => {
-    const real = await fixture(t, { real: true });
-    assert.equal((await real.request('phone', { action: 'start', settings: DEFAULT_SETTINGS })).status, 403);
+for (const real of [false, true]) {
+    for (const [tool, configuration] of [
+        ['Analysis Tool', {}],
+        ['HIT AND RUN', { strategy: 'over2-under7' }],
+        ['Even / Odd', { strategy: 'even-odd' }],
+        ['Momentum', { strategy: 'momentum-70', recoveryMode: 'same_contract' }],
+    ]) {
+        test(`${tool} accepts an authorized active ${real ? 'real' : 'demo'} USD account`, async t => {
+            const previous = process.env.NETO_ANALYSIS_ALLOW_REAL;
+            process.env.NETO_ANALYSIS_ALLOW_REAL = 'false';
+            t.after(() => {
+                if (previous === undefined) delete process.env.NETO_ANALYSIS_ALLOW_REAL;
+                else process.env.NETO_ANALYSIS_ALLOW_REAL = previous;
+            });
+            const { request, service } = await fixture(t, { real });
+            const settings = { ...DEFAULT_SETTINGS, ...configuration };
+            const result = await request('phone', { action: 'start', settings });
+            assert.equal(result.status, 200);
+            await service.sessions.get('demo').task;
+            const state = (await request('laptop')).data;
+            assert.equal(state.active, true);
+            assert.equal(state.commandError, '');
+            assert.equal(state.demoOnly, false);
+            assert.equal(state.settings.strategy, settings.strategy);
+            assert.equal((await request('stranger', { action: 'start', settings })).status, 401);
+            assert.equal((await request('phone', { action: 'start', settings }, 'another-account')).status, 403);
+            await request('laptop', { action: 'stop' });
+            assert.equal((await request('phone')).data.active, false);
+        });
+    }
+}
+test('fresh starts still reject existing open contracts', async t => {
     const open = await fixture(t, { open: true });
     await open.request('phone', { action: 'start', settings: DEFAULT_SETTINGS });
     await open.service.sessions.get('demo').task;
@@ -208,7 +237,7 @@ test('Builder requests from different devices retain independent purchase locks'
     assert.equal((await request('phone', { action: 'start', settings: DEFAULT_SETTINGS })).status, 200);
     await service.sessions.get('demo').task;
 });
-test('real-account preview can reconcile a prior purchase without placing new real entries', async t => {
+test('explicit real-account reconciliation settles a prior purchase without placing new entries', async t => {
     const { DigitStrategyEngine } = require('../.server-build/engine');
     const calls = [];
     const { saved, service, request } = await fixture(t, {
@@ -255,7 +284,8 @@ test('real-account preview can reconcile a prior purchase without placing new re
         })
     );
     assert.equal(
-        (await request('phone', { action: 'start', settings: { ...DEFAULT_SETTINGS, duration: 1 } })).status,
+        (await request('phone', { action: 'start', settings: { ...DEFAULT_SETTINGS, duration: 1 }, reconcileId: 123 }))
+            .status,
         200
     );
     await service.sessions.get('demo').task;
