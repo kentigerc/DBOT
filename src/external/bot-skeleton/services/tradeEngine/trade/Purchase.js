@@ -1,3 +1,4 @@
+import { checkTradingBalance } from '@/services/digit-strategy/balance';
 import { scanXmlParityRecovery } from '@/utils/xml-parity-recovery';
 import { generateDerivApiInstance } from '../../api/appId';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
@@ -99,14 +100,17 @@ export default Engine =>
             if (this.is_proposal_subscription_required && !parityRecovery && prediction === undefined) {
                 const { id, askPrice } = this.selectProposal(contract_type);
 
-                const action = () => api_base.api.send({ buy: id, price: askPrice });
+                const action = async () => {
+                    await checkTradingBalance(
+                        body => api_base.api.send(body),
+                        purchaseOptions.currency,
+                        Number(askPrice)
+                    );
+                    contractStatus({ id: 'contract.purchase_sent', data: askPrice });
+                    return api_base.api.send({ buy: id, price: askPrice });
+                };
 
                 this.isSold = false;
-
-                contractStatus({
-                    id: 'contract.purchase_sent',
-                    data: askPrice,
-                });
 
                 if (!this.options.timeMachineEnabled) {
                     return doUntilDone(action).then(onSuccess);
@@ -135,14 +139,17 @@ export default Engine =>
                 ).then(onSuccess);
             }
             const trade_option = tradeOptionToBuy(contract_type, purchaseOptions);
-            const action = () => api_base.api.send(trade_option);
+            const action = async () => {
+                await checkTradingBalance(
+                    body => api_base.api.send(body),
+                    purchaseOptions.currency,
+                    Number(trade_option.price)
+                );
+                contractStatus({ id: 'contract.purchase_sent', data: purchaseOptions.amount });
+                return api_base.api.send(trade_option);
+            };
 
             this.isSold = false;
-
-            contractStatus({
-                id: 'contract.purchase_sent',
-                data: purchaseOptions.amount,
-            });
 
             if (!this.options.timeMachineEnabled) {
                 return doUntilDone(action).then(onSuccess);

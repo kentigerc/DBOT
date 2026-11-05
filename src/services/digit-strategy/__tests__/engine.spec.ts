@@ -5,6 +5,7 @@ jest.mock('@/external/bot-skeleton', () => ({ api_base: { is_running: false } })
 jest.mock('@/utils/deriv-session', () => ({ getDerivAccount: () => undefined }));
 jest.mock('@/utils/trading-lock', () => ({ setAnalysisTrading: jest.fn() }));
 class FakeBroker implements Broker {
+    availableBalance = 1000;
     connection = new EventTarget();
     listeners = new Set<(event: { data: Record<string, any> }) => void>();
     buys: Record<string, any>[] = [];
@@ -15,6 +16,7 @@ class FakeBroker implements Broker {
     holdQuote = false;
     quoteResolve?: (value: Record<string, any>) => void;
     send = jest.fn(async (body: Record<string, any>): Promise<Record<string, any>> => {
+        if (body.balance) return { balance: { balance: this.availableBalance, currency: 'USD' } };
         if (body.active_symbols)
             return {
                 active_symbols: [
@@ -134,6 +136,63 @@ beforeEach(() => {
 });
 afterEach(() => jest.useRealTimers());
 describe('strategy execution and exposure controls', () => {
+    it.each([0, 0.34])(
+        'does not start trading when live balance is %s, even with a stale funded account snapshot',
+        async available => {
+            const broker = new FakeBroker();
+            broker.availableBalance = available;
+            const { engine } = await setup({}, broker);
+            expect(engine.getSnapshot().active).toBe(false);
+            expect(engine.getSnapshot().phase).toMatch(/Insufficient balance/);
+            expect(broker.buys).toHaveLength(0);
+        }
+    );
+    it('allows a stake exactly equal to the available balance', async () => {
+        const broker = new FakeBroker();
+        broker.availableBalance = 0.35;
+        const { engine } = await setup({}, broker);
+        expect(broker.buys).toHaveLength(1);
+        engine.stop();
+    });
+    it('stops before an unaffordable recovery instead of repeating rejected buys', async () => {
+        const { engine, broker } = await setup();
+        broker.availableBalance = 0.5;
+        broker.settle(-0.35);
+        await jest.advanceTimersByTimeAsync(1000);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100.08, epoch: 1004, pip_size: 2 } });
+        await jest.advanceTimersByTimeAsync(150);
+        expect(engine.getSnapshot()).toMatchObject({ active: false, pending: undefined, losses: 1 });
+        expect(engine.getSnapshot().phase).toMatch(/Insufficient balance.*required USD 0.74/);
+        expect(broker.buys).toHaveLength(1);
+        await jest.advanceTimersByTimeAsync(20000);
+        expect(broker.buys).toHaveLength(1);
+    });
+    it('rechecks balance after a quote instead of relying on the startup balance', async () => {
+        const broker = new FakeBroker();
+        const send = broker.send;
+        broker.send = jest.fn(async body => {
+            const response = await send(body);
+            if (body.proposal) broker.availableBalance = 0.1;
+            return response;
+        });
+        const { engine } = await setup({}, broker);
+        expect(engine.getSnapshot().active).toBe(false);
+        expect(engine.getSnapshot().phase).toMatch(/Insufficient balance/);
+        expect(broker.buys).toHaveLength(0);
+    });
+    it('stops if Deriv rejects a buy after funds changed during the balance-to-buy interval', async () => {
+        const broker = new FakeBroker();
+        const send = broker.send;
+        broker.send = jest.fn(async body => {
+            if (body.buy) throw { error: { code: 'InsufficientBalance', message: 'Insufficient funds' } };
+            return send(body);
+        });
+        const { engine } = await setup({}, broker);
+        expect(engine.getSnapshot()).toMatchObject({ active: false, pending: undefined });
+        expect(engine.getSnapshot().phase).toMatch(/Insufficient balance/);
+        await jest.advanceTimersByTimeAsync(20000);
+        expect(broker.send.mock.calls.filter(([body]) => body.buy)).toHaveLength(1);
+    });
     it('allows only one open purchase and settles before placing another', async () => {
         const { engine, broker } = await setup();
         expect(broker.buys).toHaveLength(1);

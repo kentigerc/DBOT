@@ -1,3 +1,4 @@
+import { checkTradingBalance } from '@/services/digit-strategy/balance';
 import { validateXmlAutoSettings, type XmlAutoSettings } from '@/utils/xml-auto-settings';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
@@ -255,6 +256,16 @@ export default function MarketScanner({
                             if (!account) throw new Error('Log in with Deriv and select an account first.');
                             if (isAnalysisTrading() || (await checkServerAnalysis()))
                                 throw new Error('Stop and settle the Analysis Tool before starting XML Auto.');
+                            const balanceApi = await generateDerivApiInstance();
+                            try {
+                                await checkTradingBalance(
+                                    body => balanceApi.send(body),
+                                    account.currency,
+                                    settings.stake
+                                );
+                            } finally {
+                                balanceApi.disconnect();
+                            }
                             if (
                                 attempt !== startAttempt.current ||
                                 getDerivAccount()?.account_id !== account.account_id

@@ -1,3 +1,6 @@
+import { checkTradingBalance } from '@/services/digit-strategy/balance';
+import { xmlStartingStake } from '@/utils/xml-starting-stake';
+import { api_base } from '@/external/bot-skeleton';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { botNotification } from '@/components/bot-notification/bot-notification';
 import { notification_message } from '@/components/bot-notification/bot-notification-utils';
@@ -209,6 +212,14 @@ export default class RunPanelStore {
                 return;
             }
             try {
+                if (!api_base.api) throw new Error('Trading connection is unavailable.');
+                await checkTradingBalance(
+                    body => api_base.api.send(body),
+                    account.currency,
+                    xmlScannerCycle.getSnapshot().settings.stake
+                );
+                if (getDerivAccount()?.account_id !== account.account_id)
+                    throw new Error('Selected account changed. Start again on the selected account.');
                 xmlScannerCycle.start(
                     account.account_id,
                     restartScanner.sampleSize,
@@ -266,6 +277,24 @@ export default class RunPanelStore {
                 reason: 'The Deriv account session is not ready. Log in again before starting XML.',
             };
         }
+
+        const balanceAccount = getDerivAccount();
+        try {
+            if (!balanceAccount || !api_base.api) throw new Error('Select an active Deriv account first.');
+            const amount = xmlScannerCycle.getSnapshot().enabled
+                ? xmlScannerCycle.getSnapshot().settings.stake
+                : xmlStartingStake(this.dbot.workspace as unknown as Parameters<typeof xmlStartingStake>[0]);
+            await checkTradingBalance(body => api_base.api.send(body), balanceAccount.currency, amount ?? 0);
+            if (getDerivAccount()?.account_id !== balanceAccount.account_id)
+                throw new Error('Selected account changed. Start again on the selected account.');
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : 'Unable to verify available balance.';
+            if (this.timer) clearInterval(this.timer);
+            botNotification(reason);
+            return { started: false, reason };
+        }
+        if (scannerAuto === true && !xmlScannerCycle.canRun())
+            return { started: false, reason: 'XML Auto startup was cancelled.' };
 
         /**
          * Due to Apple's policy on cellular data usage in ios audioElement.play() should be initially called on

@@ -388,3 +388,10 @@ Analysis Tool, HIT AND RUN, Even / Odd and Momentum use the same server runner a
 This does not make every Deriv account, currency or contract eligible. Account ownership and active status, Deriv trading permissions, contract availability, balance and stake limits remain enforced. Bot Builder uses the selected account and the loaded XML's currency/contract settings. Charts and market analysis use public data. RUN is required to start trading; changing account, visiting the site or deploying does not automatically start a new session. Pending-contract reconciliation, portfolio checks, session expiry and per-account execution locks remain unchanged.
 
 Compatibility checks use simulated brokers and never submit live orders. Deployed real-account execution still depends on the user's Deriv permissions and connectivity.
+
+
+## Available-funds checks
+
+The four server strategies query the selected account's live Deriv balance before market discovery and again after quoting, before recording/sending any purchase. These checks include recovery stakes. Insufficient funds stop the session with available/required amounts. An unavailable, malformed or mismatched-currency balance also blocks new trading. Reconciling/monitoring an existing pending contract remains possible without enough balance for a new entry. Deriv remains authoritative if funds change between a balance check and purchase; an insufficient-balance rejection stops further entries rather than repeatedly retrying.
+
+XML Auto checks its selected stake before scanning starts. Bot Builder checks the current balance before starting and reads a simple literal or initially assigned stake when available; arbitrary/dynamic XML stake expressions are checked when their exact purchase amount is known. Every XML purchase, including parity recovery and proposal-ID purchases, refreshes the live balance before sending the buy. These checks use the account's currency and apply to demo and real accounts. They do not use the account menu's cached balance.

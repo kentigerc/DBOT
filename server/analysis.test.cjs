@@ -342,3 +342,33 @@ test('analytics observes only provider purchase/settlement packets rather than i
     assert.equal(observed[0][1].settings.strategy, 'over2-under7');
     assert.equal(observed[1][2].profit, 0.12);
 });
+
+for (const real of [false, true]) {
+    test(`compiled strategy refuses an unfunded ${real ? 'real' : 'demo'} account before discovering markets`, async t => {
+        const { DigitStrategyEngine } = require('../.server-build/engine');
+        const calls = [];
+        const { request, service } = await fixture(t, {
+            real,
+            Engine: DigitStrategyEngine,
+            brokerFactory: async () => ({
+                connection: new EventTarget(),
+                onMessage: () => ({ subscribe: () => ({ unsubscribe() {} }) }),
+                disconnect() {},
+                send: async body => {
+                    calls.push(body);
+                    if (body.portfolio) return { portfolio: { contracts: [] } };
+                    if (body.balance) return { balance: { balance: 0.1, currency: 'USD' } };
+                    throw new Error('No market or purchase request should be sent');
+                },
+            }),
+        });
+        assert.equal((await request('phone', { action: 'start', settings: DEFAULT_SETTINGS })).status, 200);
+        await service.sessions.get('demo').task;
+        const state = (await request('laptop')).data;
+        assert.equal(state.active, false);
+        assert.match(state.phase, /Insufficient balance/);
+        assert.equal(state.pending, undefined);
+        assert.ok(calls.some(body => body.balance));
+        assert.ok(calls.every(body => body.portfolio || body.balance));
+    });
+}

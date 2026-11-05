@@ -1,3 +1,4 @@
+import { checkTradingBalance, TradingBalanceError } from './balance';
 import { type DerivAccount } from '@/utils/deriv-session';
 import {
     cents,
@@ -318,6 +319,9 @@ export class DigitStrategyEngine {
             }
             if (this.state.pending?.contractId) await this.watch(this.state.pending.contractId);
             if (!this.state.active || !this.state.wantsRun) return;
+            if (!this.state.pending)
+                await checkTradingBalance(body => this.request(body), account.currency, this.state.stake / 100);
+            if (!this.state.active || !this.state.wantsRun || generation !== this.generation) return;
             this.update({ phase: 'Discovering markets' });
             this.log('Connecting live Volatility feeds and verifying the selected digit contracts.');
             const active = await this.request({ active_symbols: 'brief' });
@@ -609,6 +613,7 @@ export class DigitStrategyEngine {
                     breakEven: (Number(quote.ask_price) / Number(quote.payout)) * 100,
                 },
             });
+            await checkTradingBalance(body => this.request(body), 'USD', this.state.stake / 100);
             if (
                 !this.state.wantsRun ||
                 !this.state.active ||
@@ -664,6 +669,10 @@ export class DigitStrategyEngine {
                     this.persist();
                     this.disabled.set(signal.symbol, this.now() + 10000);
                     this.log(`Purchase rejected (${code}); no retry.`, 'warn');
+                    if (code === 'InsufficientBalance') {
+                        this.finish('Insufficient balance. Trading stopped before any further purchase.');
+                        return;
+                    }
                 } else {
                     this.halt(
                         'Purchase outcome is unconfirmed. No new orders. Resume the saved contract or reconcile its ID from Deriv history.'
@@ -672,6 +681,10 @@ export class DigitStrategyEngine {
                 }
             }
         } catch (error) {
+            if (error instanceof TradingBalanceError) {
+                this.finish(error.message);
+                return;
+            }
             if (this.state.pending)
                 this.halt(error instanceof Error ? error.message : 'Cannot confirm contract state.');
             else {

@@ -19,10 +19,12 @@ const history = (counts: number[]) => ({
 });
 const over = history([9, 9, 9, 8, 10, 10, 11, 11, 11, 12]);
 const under = history([12, 11, 11, 11, 10, 10, 8, 9, 9, 9]);
-function streamApi(send: jest.Mock) {
+function streamApi(send: jest.Mock, availableBalance = 1000) {
     let listener: ((event: { data: { tick: unknown } }) => void) | undefined;
     return {
-        send,
+        send: jest.fn(async request =>
+            request.balance ? { balance: { balance: availableBalance, currency: 'USD' } } : send(request)
+        ),
         disconnect: jest.fn(),
         connection: new EventTarget(),
         onMessage: () => ({
@@ -266,6 +268,28 @@ it('STOP cancels the asynchronous session check before XML Auto can start', asyn
         release(false);
     });
     expect(start).not.toHaveBeenCalled();
+    account.mockRestore();
+    check.mockRestore();
+});
+
+it('blocks XML Auto startup when the live balance cannot cover the selected stake', async () => {
+    const session = require('@/utils/deriv-session');
+    const check = jest.spyOn(require('@/utils/trading-lock'), 'checkServerAnalysis').mockResolvedValue(false);
+    const account = jest.spyOn(session, 'getDerivAccount').mockReturnValue({
+        account_id: 'TEST-REAL',
+        status: 'active',
+        account_type: 'real',
+        currency: 'USD',
+        balance: 10000,
+    });
+    const api = streamApi(jest.fn().mockResolvedValue({ active_symbols: [] }), 0.1);
+    connect.mockResolvedValue(api);
+    const start = jest.fn();
+    render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={jest.fn()} onAutoStart={start} />);
+    fireEvent.click(screen.getByRole('button', { name: 'START XML AUTO' }));
+    await screen.findByText(/Insufficient balance: available USD 0.10/);
+    expect(start).not.toHaveBeenCalled();
+    expect(api.disconnect).toHaveBeenCalled();
     account.mockRestore();
     check.mockRestore();
 });

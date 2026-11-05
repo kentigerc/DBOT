@@ -1,5 +1,6 @@
 export const unrecoverable_errors = [
     'InsufficientBalance',
+    'BalanceUnavailable',
     'CustomLimitsReached',
     'OfferingsValidationError',
     'InvalidCurrency',

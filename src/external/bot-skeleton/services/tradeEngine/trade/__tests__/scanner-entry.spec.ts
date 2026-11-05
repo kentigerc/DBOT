@@ -1,3 +1,4 @@
+jest.mock('@/services/digit-strategy/balance', () => ({ checkTradingBalance: jest.fn().mockResolvedValue(1000) }));
 import { refreshXmlParityRecovery, scanXmlParityRecovery } from '@/utils/xml-parity-recovery';
 jest.mock('@/utils/xml-parity-recovery', () => ({
     scanXmlParityRecovery: jest.fn(),
@@ -20,6 +21,7 @@ jest.mock('../../utils/helpers', () => ({
     recoverFromError: jest.fn(),
     tradeOptionToBuy: (type: string, options: unknown) => ({
         buy: 1,
+        price: (options as { amount: number }).amount,
         parameters: { ...(options as object), contract_type: type },
     }),
 }));
@@ -196,4 +198,16 @@ it('uses a freshly evaluated hosted Under 4 barrier instead of the stale Over 0 
         expect.objectContaining({ parameters: expect.objectContaining({ contract_type: 'DIGITUNDER', prediction: 4 }) })
     );
     expect(engine.tradeOptions.prediction).toBe(0);
+});
+it('does not send an XML purchase if the exact stake fails the balance check', async () => {
+    const { checkTradingBalance } = jest.requireMock('@/services/digit-strategy/balance');
+    jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
+    jest.spyOn(xmlScannerCycle, 'isRecovering').mockReturnValue(false);
+    const error = Object.assign(new Error('Insufficient balance'), { error: { code: 'InsufficientBalance' } });
+    checkTradingBalance.mockRejectedValueOnce(error);
+    (api_base.api.send as jest.Mock).mockClear();
+    const engine = new (Purchase(Base))();
+    await expect(engine.purchase('DIGITUNDER')).rejects.toBe(error);
+    expect(checkTradingBalance).toHaveBeenLastCalledWith(expect.any(Function), 'USD', 0.35);
+    expect(api_base.api.send).not.toHaveBeenCalled();
 });
