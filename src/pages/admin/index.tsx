@@ -183,7 +183,7 @@ export default function Admin() {
                     <h1>NetoAcademy analytics</h1>
                     <p>Site activity, confirmed trades and Deriv-reported commission.</p>
                 </div>
-                <a href='/#bot_builder'>Return to trading</a>
+                <a href='/platform#bot_builder'>Return to trading</a>
             </div>
             {error && (
                 <p role='alert' className='neto-admin__notice'>

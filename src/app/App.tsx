@@ -1,69 +1,65 @@
 import '../public-path';
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from 'react-router-dom';
-import ChunkLoader from '@/components/loader/chunk-loader';
-import RoutePromptDialog from '@/components/route-prompt-dialog';
 import { useOfflineDetection } from '@/hooks/useOfflineDetection';
-import { StoreProvider } from '@/hooks/useStore';
-import CallbackPage from '@/pages/callback';
-import Endpoint from '@/pages/endpoint';
-import { initializeI18n, localize, TranslationProvider } from '@deriv-com/translations';
-import CoreStoreProvider from './CoreStoreProvider';
 import './app-root.scss';
-
-const Layout = lazy(() => import('../components/layout'));
+const Landing = lazy(() => import('../pages/landing'));
+const TradingLayout = lazy(() => import('./TradingLayout'));
 const AppRoot = lazy(() => import('./app-root'));
+const CallbackPage = lazy(() => import('../pages/callback'));
+const Endpoint = lazy(() => import('../pages/endpoint'));
 const FreeBots = lazy(() => import('../pages/free-bots'));
 const Admin = lazy(() => import('../pages/admin'));
 const AnalysisTool = lazy(() => import('../pages/analysis-tool'));
-
-const { TRANSLATIONS_CDN_URL, R2_PROJECT_NAME, CROWDIN_BRANCH_NAME } = process.env;
-const i18nInstance = initializeI18n({
-    cdnUrl: `${TRANSLATIONS_CDN_URL}/${R2_PROJECT_NAME}/${CROWDIN_BRANCH_NAME}`,
-});
-
-// Simple Suspense wrapper without timeout that causes dark landing page
 const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => {
     const { isOnline } = useOfflineDetection();
-
-    const getLoadingMessage = () => {
-        if (!isOnline) return localize('Loading offline dashboard...');
-        return localize('Please wait while we connect to the server...');
-    };
-
-    return <Suspense fallback={<ChunkLoader message={getLoadingMessage()} />}>{children}</Suspense>;
-};
-
-const router = createBrowserRouter(
-    createRoutesFromElements(
-        <Route
-            path='/'
-            element={
-                <SuspenseWrapper>
-                    <TranslationProvider defaultLang='EN' i18nInstance={i18nInstance}>
-                        <StoreProvider>
-                            <RoutePromptDialog />
-                            <CoreStoreProvider>
-                                <Layout />
-                            </CoreStoreProvider>
-                        </StoreProvider>
-                    </TranslationProvider>
-                </SuspenseWrapper>
+    return (
+        <Suspense
+            fallback={
+                <div className='app-root' role='status'>
+                    {isOnline ? 'Loading NetoAcademy…' : 'Loading offline dashboard…'}
+                </div>
             }
         >
-            {/* All child routes will be passed as children to Layout */}
-            <Route index element={<AppRoot />} />
-            <Route path='endpoint' element={<Endpoint />} />
-            <Route path='callback' element={<CallbackPage />} />
-            <Route path='free-bots' element={<FreeBots />} />
-            <Route path='analysis-tool' element={<AnalysisTool />} />
-            <Route path='admin' element={<Admin />} />
-        </Route>
+            {children}
+        </Suspense>
+    );
+};
+const router = createBrowserRouter(
+    createRoutesFromElements(
+        <>
+            <Route
+                path='/'
+                element={
+                    <SuspenseWrapper>
+                        <Landing />
+                    </SuspenseWrapper>
+                }
+            />
+            <Route
+                path='/callback'
+                element={
+                    <SuspenseWrapper>
+                        <CallbackPage />
+                    </SuspenseWrapper>
+                }
+            />
+            <Route
+                element={
+                    <SuspenseWrapper>
+                        <TradingLayout />
+                    </SuspenseWrapper>
+                }
+            >
+                <Route path='/platform' element={<AppRoot />} />
+                <Route path='/endpoint' element={<Endpoint />} />
+                <Route path='/free-bots' element={<FreeBots />} />
+                <Route path='/analysis-tool' element={<AnalysisTool />} />
+                <Route path='/admin' element={<Admin />} />
+            </Route>
+        </>
     )
 );
-
-function App() {
+export default function App() {
     return <RouterProvider router={router} />;
 }
-
-export default App;

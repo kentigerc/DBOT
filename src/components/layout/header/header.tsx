@@ -98,7 +98,7 @@ const AppHeader = observer(() => {
         <header className='neto-header' ref={headerRef}>
             <AppLogo />
             <nav aria-label='Main navigation'>
-                <Link to='/#bot_builder'>Bot Builder</Link>
+                <Link to='/platform#bot_builder'>Bot Builder</Link>
                 <Link to='/free-bots'>Trading Bots</Link>
                 {showAdmin && <Link to='/admin'>Admin</Link>}
                 <button
@@ -168,7 +168,7 @@ const AppHeader = observer(() => {
                                                             return;
                                                         }
                                                         localStorage.setItem('neto.account_id', account.account_id);
-                                                        window.location.assign('/');
+                                                        window.location.reload();
                                                     }}
                                                 >
                                                     <span className='neto-header__currency-icon' aria-hidden='true'>

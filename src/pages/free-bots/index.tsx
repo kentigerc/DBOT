@@ -80,7 +80,7 @@ const FreeBots = observer(() => {
             sessionStorage.setItem('neto.pendingBot', JSON.stringify({ fileName: bot.fileName, name: bot.name }));
             window.dispatchEvent(new Event('neto-pending-bot'));
             dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
-            navigate('/#bot_builder');
+            navigate('/platform#bot_builder');
         } catch (error) {
             setError(error instanceof Error ? error.message : 'Unable to open this bot. Please try again.');
         } finally {

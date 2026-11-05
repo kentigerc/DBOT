@@ -199,7 +199,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                     );
                     window.dispatchEvent(new Event('neto-pending-bot'));
                     dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
-                    navigate('/#bot_builder');
+                    navigate('/platform#bot_builder');
                     return true;
                 }}
             />
