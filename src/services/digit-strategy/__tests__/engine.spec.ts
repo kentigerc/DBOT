@@ -841,57 +841,81 @@ it.each([0.2, -0.7, 0])(
     }
 );
 
-it('continues Under 6 at the multiplied stake after the reported Under 8 and Under 6 consecutive losses', async () => {
-    const broker = new FakeBroker(),
-        send = broker.send;
-    broker.send = jest.fn(async body => {
-        if (body.ticks_history) {
-            const digits = [...Array<number>(300).fill(9), ...Array<number>(700).fill(2)];
-            return {
-                pip_size: 2,
-                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
-            };
-        }
-        return send(body);
-    });
-    const { engine } = await setup(
-        { strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2 },
-        broker,
-        jest.requireActual('../../../../.server-build/engine.js').DigitStrategyEngine
-    );
-    let epoch = 1003;
-    const tick = async (digit: number) => {
-        await jest.advanceTimersByTimeAsync(1000);
-        broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
-        await jest.advanceTimersByTimeAsync(150);
-    };
-    await tick(2);
-    await tick(4);
-    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '8', amount: 0.35 });
-    broker.settle(-0.35);
-    await tick(2);
-    await tick(4);
-    await tick(5);
-    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '6', amount: 0.7 });
-    broker.settle(-0.7);
-    expect(engine.getSnapshot()).toMatchObject({
-        stake: 140,
-        streak: 2,
-        recovery: { momentumPending: true, recoveryLocked: true, lockedSymbol: 'R_100', lockedDirection: 'DIGITUNDER' },
-    });
-    await tick(7);
-    expect(broker.buys[2].parameters).toMatchObject({
-        symbol: 'R_100',
-        contract_type: 'DIGITUNDER',
-        barrier: '6',
-        amount: 1.4,
-    });
-    broker.settle(0.2);
-    expect(engine.getSnapshot()).toMatchObject({ stake: 35, recovery: { momentumPending: false } });
-    await tick(2);
-    await tick(4);
-    await tick(7);
-    expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '8', amount: 0.35 });
-    engine.stop();
-    broker.settle(0.06);
-});
+it.each([1, 2, 3, 4, 5])(
+    'uses %s ticks for normal trades and repeated Momentum recovery with a 2.1 multiplier',
+    async duration => {
+        const broker = new FakeBroker(),
+            send = broker.send;
+        broker.send = jest.fn(async body => {
+            if (body.ticks_history) {
+                const digits = [...Array<number>(300).fill(9), ...Array<number>(700).fill(2)];
+                return {
+                    pip_size: 2,
+                    history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
+                };
+            }
+            return send(body);
+        });
+        const { engine } = await setup(
+            { strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2.1, duration },
+            broker,
+            jest.requireActual('../../../../.server-build/engine.js').DigitStrategyEngine
+        );
+        let epoch = 1003;
+        const tick = async (digit: number) => {
+            await jest.advanceTimersByTimeAsync(1000);
+            broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
+            await jest.advanceTimersByTimeAsync(150);
+        };
+        await tick(2);
+        await tick(4);
+        expect(broker.buys[0].parameters).toMatchObject({
+            contract_type: 'DIGITUNDER',
+            barrier: '8',
+            amount: 0.35,
+            duration,
+        });
+        broker.settle(-0.35);
+        await tick(2);
+        await tick(4);
+        await tick(5);
+        expect(broker.buys[1].parameters).toMatchObject({
+            contract_type: 'DIGITUNDER',
+            barrier: '6',
+            amount: 0.74,
+            duration,
+        });
+        broker.settle(-0.74);
+        expect(engine.getSnapshot()).toMatchObject({
+            stake: 155,
+            streak: 2,
+            recovery: {
+                momentumPending: true,
+                recoveryLocked: true,
+                lockedSymbol: 'R_100',
+                lockedDirection: 'DIGITUNDER',
+            },
+        });
+        await tick(7);
+        expect(broker.buys[2].parameters).toMatchObject({
+            symbol: 'R_100',
+            contract_type: 'DIGITUNDER',
+            barrier: '6',
+            amount: 1.55,
+            duration,
+        });
+        broker.settle(0.2);
+        expect(engine.getSnapshot()).toMatchObject({ stake: 35, recovery: { momentumPending: false } });
+        await tick(2);
+        await tick(4);
+        await tick(7);
+        expect(broker.buys[3].parameters).toMatchObject({
+            contract_type: 'DIGITUNDER',
+            barrier: '8',
+            amount: 0.35,
+            duration,
+        });
+        engine.stop();
+        broker.settle(0.06);
+    }
+);

@@ -8,7 +8,8 @@ const defaults = (): Settings => ({
     strategy: 'momentum-70',
     recoveryMode: 'same_contract',
     hitRecovery: 'same_contract',
-    multiplier: 2,
+    multiplier: 2.1,
+    duration: 2,
 });
 const money = (amount: number) => `$${(amount / 100).toFixed(2)}`;
 export default function Momentum() {

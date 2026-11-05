@@ -34,8 +34,8 @@ it('starts the distinct strategy with same-contract recovery and editable risk s
                 strategy: 'momentum-70',
                 recoveryMode: 'same_contract',
                 stake: 0.5,
-                multiplier: 2,
-                duration: 1,
+                multiplier: 2.1,
+                duration: 2,
             }),
             undefined
         )
@@ -118,4 +118,14 @@ it('rotates the preview across live markets during the recovery search rather th
     } finally {
         jest.useRealTimers();
     }
+});
+
+it('passes a custom tick duration to the shared normal and recovery session settings', async () => {
+    render(<Momentum />);
+    expect((screen.getByLabelText('Duration') as HTMLSelectElement).value).toBe('2');
+    fireEvent.change(screen.getByLabelText('Duration'), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'RUN MOMENTUM' }));
+    await waitFor(() =>
+        expect(client.start).toHaveBeenCalledWith(expect.objectContaining({ duration: 4, multiplier: 2.1 }), undefined)
+    );
 });
