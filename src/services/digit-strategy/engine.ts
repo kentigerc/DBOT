@@ -50,6 +50,7 @@ type Pending = {
 };
 export type MarketView = {
     momentum?: DigitMarket['momentum'];
+    recoveryMomentum?: DigitMarket['recoveryMomentum'];
     symbol: string;
     name: string;
     price: string;
@@ -463,6 +464,7 @@ export class DigitStrategyEngine {
                         : [...m.digits].reverse().findIndex(d => d < 5),
                 digits: m.frequencies(),
                 momentum: { ...m.momentum },
+                recoveryMomentum: { ...m.recoveryMomentum },
                 status: m.ready(this.now()) ? 'Live' : m.liveTicks < 3 ? 'Warming up' : 'Stale / refilling',
             }));
             this.update({ markets, liveUntil: this.state.active ? this.now() + 15000 : 0 });
@@ -550,7 +552,7 @@ export class DigitStrategyEngine {
             return (
                 fresh?.direction === signal.direction &&
                 fresh.barrier === signal.barrier &&
-                fresh.epoch === signal.epoch
+                (!signal.formation || fresh.epoch === signal.epoch)
             );
         }
         if (signal.recovery) {
@@ -568,6 +570,15 @@ export class DigitStrategyEngine {
     }
     private async execute(signal: Signal) {
         this.busy = true;
+        if (this.state.settings.strategy === 'momentum-70' && signal.recovery && !this.state.recovery.recoveryLocked)
+            this.update({
+                recovery: {
+                    ...this.state.recovery,
+                    lockedSymbol: signal.symbol,
+                    lockedDirection: signal.direction,
+                    recoveryLocked: true,
+                },
+            });
         this.update({ selected: signal, phase: 'Quoting' });
         try {
             const parameters: Packet = {
@@ -715,6 +726,7 @@ export class DigitStrategyEngine {
                               ? undefined
                               : p.signal.symbol,
                     lockedDirection: p.signal.direction,
+                    ...(this.state.settings.strategy === 'momentum-70' ? { recoveryLocked: true } : {}),
                     countAfter: 0,
                 },
             });
@@ -831,9 +843,17 @@ export class DigitStrategyEngine {
             recovery = {
                 streak,
                 deficit,
+                previous: p.signal.recovery ? this.state.recovery.previous : p.signal.direction,
                 countAfter: this.now(),
                 pauseUntil: pause ? this.now() + 5000 : 0,
-                ...(deficit > 0 ? { lockedSymbol: p.signal.symbol, lockedDirection: p.signal.direction } : {}),
+                ...(deficit > 0
+                    ? {
+                          lockedDirection: p.signal.direction,
+                          ...(p.signal.recovery || this.state.recovery.recoveryLocked
+                              ? { lockedSymbol: p.signal.symbol, recoveryLocked: true }
+                              : {}),
+                      }
+                    : {}),
             };
             recoveryLosses = 0;
             for (const market of this.markets.values()) market.resetMomentum();

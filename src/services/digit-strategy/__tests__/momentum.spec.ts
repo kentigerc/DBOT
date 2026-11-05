@@ -72,14 +72,20 @@ it('compares both directions across markets and locks recovery to the losing mar
         symbol: 'R_50',
         direction: 'DIGITUNDER',
     });
-    const recovery = { ...state, streak: 1, lockedSymbol: 'R_10', lockedDirection: 'DIGITOVER' as const };
+    const recovery = {
+        ...state,
+        streak: 1,
+        lockedSymbol: 'R_10',
+        lockedDirection: 'DIGITOVER' as const,
+        recoveryLocked: true,
+    };
     expect(chooseSignal([over.m, under.m], recovery, settings, over.now())).toMatchObject({
         symbol: 'R_10',
         direction: 'DIGITOVER',
-        barrier: '2',
+        barrier: '4',
         recovery: true,
     });
-    expect(momentumSignal(over.m, { ...recovery, countAfter: over.now() }, over.now())).toBeUndefined();
+    expect(momentumSignal(over.m, recovery, over.now() + 4000)).toBeUndefined();
 });
 it('requires the same-contract policy and validates one-to-five tick durations', () => {
     expect(() => validateSettings(settings)).not.toThrow();
@@ -93,4 +99,70 @@ it('arms exactly at 70% when the previous sample was below the threshold', () =>
     f.tick(3);
     expect(f.m.momentum.DIGITOVER).toMatchObject({ percentage: 70, armed: true, run: 0 });
     expect(momentumSignal(f.m, state, f.now())).toBeUndefined();
+});
+it.each(['over', 'under'] as const)('waits for a rising 55%% %s recovery share and two fresh winning digits', side => {
+    let now = 1700000000000;
+    const m = new DigitMarket('R_25', 2, 'Volatility 25 Index');
+    const outside = side === 'over' ? 0 : 9,
+        inside = side === 'over' ? 8 : 2;
+    const digits = [...Array<number>(450).fill(outside), ...Array<number>(550).fill(inside)];
+    digits.forEach((digit, i) => m.add(100 + digit / 100, now / 1000 - 1000 + i));
+    const tick = (digit: number) => {
+        now += 1000;
+        m.add(100 + digit / 100, now / 1000, now);
+    };
+    for (let i = 0; i < 3; i++) tick(outside);
+    const recovering = {
+        ...state,
+        streak: 1,
+        deficit: 35,
+        lockedDirection: side === 'over' ? ('DIGITOVER' as const) : ('DIGITUNDER' as const),
+    };
+    tick(inside);
+    tick(inside);
+    expect(momentumSignal(m, recovering, now)).toBeUndefined();
+    tick(side === 'over' ? 6 : 4);
+    expect(momentumSignal(m, recovering, now)).toMatchObject({
+        barrier: side === 'over' ? '4' : '5',
+        recovery: true,
+        formation: true,
+    });
+    const locked = { ...recovering, recoveryLocked: true, lockedSymbol: 'R_25' };
+    m.recoveryMomentum.DIGITOVER.percentage = 20;
+    m.recoveryMomentum.DIGITUNDER.percentage = 20;
+    m.resetMomentum();
+    expect(momentumSignal(m, locked, now)).toMatchObject({
+        barrier: side === 'over' ? '4' : '5',
+        recovery: true,
+        formation: false,
+    });
+    const other = new DigitMarket('R_50', 2, 'Another market');
+    expect(momentumSignal(other, locked, now)).toBeUndefined();
+});
+it('selects a recovery market across the watchlist once, then ignores stronger alternatives until recovery ends', () => {
+    const now = 1700000000000;
+    const market = (symbol: string, percentage: number) => {
+        const m = new DigitMarket(symbol, 2, symbol);
+        m.digits = Array(1000).fill(8);
+        m.liveTicks = 3;
+        m.received = now;
+        m.arrivals = Array(1000).fill(now);
+        m.epochs = Array(1000).fill(now / 1000);
+        m.recoveryMomentum.DIGITOVER = { percentage, change: 0.1, run: 2, armed: true, epoch: now / 1000 };
+        return m;
+    };
+    const first = market('R_10', 56),
+        second = market('R_50', 60);
+    const recovering = { ...state, streak: 1, deficit: 35, lockedDirection: 'DIGITOVER' as const };
+    expect(chooseSignal([first, second], recovering, settings, now)).toMatchObject({
+        symbol: 'R_50',
+        barrier: '4',
+        recovery: true,
+    });
+    first.recoveryMomentum.DIGITOVER.percentage = 95;
+    second.resetMomentum();
+    second.recoveryMomentum.DIGITOVER.percentage = 20;
+    expect(
+        chooseSignal([first, second], { ...recovering, lockedSymbol: 'R_50', recoveryLocked: true }, settings, now)
+    ).toMatchObject({ symbol: 'R_50', barrier: '4', formation: false, recovery: true });
 });

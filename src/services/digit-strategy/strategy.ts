@@ -97,8 +97,12 @@ export const nextRecoveryStake = (previousCents: number, multiplier = DEFAULT_SE
 export type Frequency = { digit: number; count: number; percentage: number; most: boolean; least: boolean };
 export type MomentumReading = { percentage: number; change: number; run: number; armed: boolean; epoch: number };
 export class DigitMarket {
-    private groupCounts = { DIGITOVER: 0, DIGITUNDER: 0 };
+    private groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER4: 0, UNDER5: 0 };
     momentum: Record<'DIGITOVER' | 'DIGITUNDER', MomentumReading> = {
+        DIGITOVER: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
+        DIGITUNDER: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
+    };
+    recoveryMomentum: Record<'DIGITOVER' | 'DIGITUNDER', MomentumReading> = {
         DIGITOVER: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
         DIGITUNDER: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
     };
@@ -131,7 +135,7 @@ export class DigitMarket {
                 this.digits = [];
                 this.arrivals = [];
                 this.liveTicks = 0;
-                this.groupCounts = { DIGITOVER: 0, DIGITUNDER: 0 };
+                this.groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER4: 0, UNDER5: 0 };
                 this.resetMomentum();
                 this.gapUntil = received + 6000;
             }
@@ -146,30 +150,42 @@ export class DigitMarket {
         this.digits.push(Number(display.slice(-1)));
         this.arrivals.push(received);
         for (const list of [this.prices, this.epochs, this.digits, this.arrivals]) if (list.length > 1000) list.shift();
-        for (const direction of ['DIGITOVER', 'DIGITUNDER'] as const) {
-            const accepts = (digit: number) => (direction === 'DIGITOVER' ? digit > 2 : digit < 7);
-            const previous = this.groupCounts[direction];
+        for (const key of ['DIGITOVER', 'DIGITUNDER', 'OVER4', 'UNDER5'] as const) {
+            const recovery = key === 'OVER4' || key === 'UNDER5';
+            const direction = key === 'DIGITOVER' || key === 'OVER4' ? 'DIGITOVER' : 'DIGITUNDER';
+            const target = recovery ? this.recoveryMomentum : this.momentum;
+            const accepts = (digit: number) =>
+                key === 'OVER4'
+                    ? digit > 4
+                    : key === 'UNDER5'
+                      ? digit < 5
+                      : key === 'DIGITOVER'
+                        ? digit > 2
+                        : digit < 7;
+            const previous = this.groupCounts[key];
             const count = previous + (accepts(digit) ? 1 : 0) - (outgoing !== undefined && accepts(outgoing) ? 1 : 0);
-            this.groupCounts[direction] = count;
+            this.groupCounts[key] = count;
             const oldCount = full ? previous : undefined;
-            const reading = this.momentum[direction];
+            const reading = target[direction];
             const change = oldCount === undefined ? 0 : (count - oldCount) / 10;
             let armed = reading.armed,
                 run = reading.run;
-            if (!received || !this.ready(received) || count < 700 || change < 0) {
+            if (!received || !this.ready(received) || count < (recovery ? 550 : 700) || change < 0) {
                 armed = false;
                 run = 0;
             } else if (!armed && change > 0) {
                 armed = true;
                 run = 0;
             } else if (armed) run = accepts(this.digits[this.digits.length - 1]) ? Math.min(2, run + 1) : 0;
-            this.momentum[direction] = { percentage: count / 10, change, armed, run, epoch };
+            target[direction] = { percentage: count / 10, change, armed, run, epoch };
         }
         return true;
     }
     resetMomentum() {
-        for (const direction of ['DIGITOVER', 'DIGITUNDER'] as const)
+        for (const direction of ['DIGITOVER', 'DIGITUNDER'] as const) {
             this.momentum[direction] = { ...this.momentum[direction], armed: false, run: 0 };
+            this.recoveryMomentum[direction] = { ...this.recoveryMomentum[direction], armed: false, run: 0 };
+        }
     }
     frequencies(): Frequency[] {
         const counts = Array<number>(10).fill(0);
@@ -217,6 +233,7 @@ export type RecoveryState = {
     batchMarket?: string;
     batchDirection?: Direction;
     previous?: Direction;
+    recoveryLocked?: boolean;
     lockedSymbol?: string;
     lockedDirection?: Direction;
     countAfter: number;
@@ -323,28 +340,34 @@ export function cycleSignal(m: DigitMarket, state: RecoveryState, now: number): 
         : undefined;
 }
 export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
-    if (!m.ready(now) || now < state.pauseUntil || (state.lockedSymbol && state.lockedSymbol !== m.symbol)) return;
-    const directions = (['DIGITOVER', 'DIGITUNDER'] as const).filter(
-        direction => !state.lockedDirection || state.lockedDirection === direction
-    );
-    const direction = directions
-        .filter(direction => {
-            const reading = m.momentum[direction];
+    const recovering = state.streak > 0 || (state.deficit || 0) > 0;
+    if (!m.ready(now) || now < state.pauseUntil) return;
+    if (recovering && state.recoveryLocked) {
+        if (m.symbol !== state.lockedSymbol || !['DIGITOVER', 'DIGITUNDER'].includes(state.lockedDirection || ''))
+            return;
+        return signalOn(m, state.lockedDirection!, state.lockedDirection === 'DIGITOVER' ? '4' : '5', true);
+    }
+    if (state.lockedSymbol && state.lockedSymbol !== m.symbol) return;
+    const readings = recovering ? m.recoveryMomentum : m.momentum;
+    const direction = (['DIGITOVER', 'DIGITUNDER'] as const)
+        .filter(d => !state.lockedDirection || state.lockedDirection === d)
+        .filter(d => {
+            const r = readings[d];
             return (
-                reading.armed &&
-                reading.run >= 2 &&
-                reading.percentage >= 70 &&
-                reading.change > 0 &&
+                r.armed &&
+                r.run >= 2 &&
+                r.percentage >= (recovering ? 55 : 70) &&
+                r.change > 0 &&
                 m.arrivals.slice(-2).every(at => at > state.countAfter)
             );
         })
-        .sort((a, b) => m.momentum[b].percentage - m.momentum[a].percentage)[0];
+        .sort((a, b) => readings[b].percentage - readings[a].percentage)[0];
     return direction
         ? signalOn(
               m,
               direction,
-              direction === 'DIGITOVER' ? '2' : '7',
-              state.streak > 0 || (state.deficit || 0) > 0,
+              recovering ? (direction === 'DIGITOVER' ? '4' : '5') : direction === 'DIGITOVER' ? '2' : '7',
+              recovering,
               true
           )
         : undefined;
@@ -362,9 +385,13 @@ export function chooseSignal(
             .filter((s): s is Signal => !!s)
             .sort(
                 (a, b) =>
-                    markets.find(m => m.symbol === b.symbol)!.momentum[b.direction as 'DIGITOVER' | 'DIGITUNDER']
+                    (b.recovery
+                        ? markets.find(m => m.symbol === b.symbol)!.recoveryMomentum
+                        : markets.find(m => m.symbol === b.symbol)!.momentum)[b.direction as 'DIGITOVER' | 'DIGITUNDER']
                         .percentage -
-                    markets.find(m => m.symbol === a.symbol)!.momentum[a.direction as 'DIGITOVER' | 'DIGITUNDER']
+                    (a.recovery
+                        ? markets.find(m => m.symbol === a.symbol)!.recoveryMomentum
+                        : markets.find(m => m.symbol === a.symbol)!.momentum)[a.direction as 'DIGITOVER' | 'DIGITUNDER']
                         .percentage
             )[0];
     }

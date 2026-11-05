@@ -65,3 +65,29 @@ it('does not start a trade session for a logged-out visitor', () => {
     expect((screen.getByRole('button', { name: 'RUN MOMENTUM' }) as HTMLButtonElement).disabled).toBe(true);
     expect(client.start).not.toHaveBeenCalled();
 });
+it('shows the actual recovery barrier in the journal and indicates the locked recovery market', () => {
+    client.getSnapshot.mockReturnValue({
+        ...empty(),
+        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' },
+        recovery: { streak: 0, deficit: 15, lockedSymbol: 'R_50', lockedDirection: 'DIGITOVER', recoveryLocked: true },
+        trades: [
+            {
+                id: 'test',
+                contractId: 123,
+                market: 'R_50',
+                direction: 'DIGITOVER',
+                barrier: '4',
+                recovery: true,
+                at: 1700000000000,
+                stake: 35,
+                profit: 20,
+                status: 'Won',
+            },
+        ],
+    });
+    render(<Momentum />);
+    expect(screen.getByText('OVER 4')).toBeTruthy();
+    expect(screen.getByText('UNDER 5')).toBeTruthy();
+    expect(screen.getByText('Over 4 · Recovery')).toBeTruthy();
+    expect(screen.getByText('Locked recovery market')).toBeTruthy();
+});

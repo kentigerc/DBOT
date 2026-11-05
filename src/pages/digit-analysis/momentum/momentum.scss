@@ -230,6 +230,9 @@
             border-left: 1px solid #eef4f9;
         }
     }
+    &--recovering .momentum__meter::after {
+        left: 55%;
+    }
     &__summary {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -14,6 +14,7 @@ const money = (amount: number) => `$${(amount / 100).toFixed(2)}`;
 export default function Momentum() {
     const state = useSyncExternalStore(digitStrategyEngine.subscribe, digitStrategyEngine.getSnapshot);
     const own = state.settings.strategy === 'momentum-70';
+    const recovering = own && (state.streak > 0 || (state.recovery.deficit || 0) > 0);
     const [draft, setDraft] = useState(defaults);
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
@@ -71,21 +72,25 @@ export default function Momentum() {
             />
         </label>
     );
-    const markets = own ? state.markets : [];
+    const markets = own
+        ? state.markets.filter(
+              m => !recovering || !state.recovery.recoveryLocked || m.symbol === state.recovery.lockedSymbol
+          )
+        : [];
     const focus =
         markets.find(m => m.symbol === state.recovery.lockedSymbol) ||
         markets.find(m => m.symbol === state.selected?.symbol) ||
         markets[0];
     const trades = own ? [...state.trades].reverse() : [];
     return (
-        <section className='momentum' aria-labelledby='momentum-title'>
+        <section className={`momentum${recovering ? ' momentum--recovering' : ''}`} aria-labelledby='momentum-title'>
             <header className='momentum__heading'>
                 <div>
                     <span className='momentum__eyebrow'>LIVE MARKET DESK</span>
                     <h2 id='momentum-title'>
                         Momentum <span>70</span>
                     </h2>
-                    <p>Over 2 & Under 7 · Three-win batches · Same-contract recovery</p>
+                    <p>Over 2 & Under 7 · Three-win batches · Over 4 / Under 5 recovery</p>
                 </div>
                 <span className={`momentum__status${own && state.active ? ' is-live' : ''}`}>
                     {own && state.active ? 'LIVE SESSION' : 'READY WHEN YOU ARE'}
@@ -170,7 +175,7 @@ export default function Momentum() {
                     </div>
                     <div className='momentum__signals'>
                         {(['DIGITOVER', 'DIGITUNDER'] as const).map(direction => {
-                            const reading = focus?.momentum?.[direction];
+                            const reading = (recovering ? focus?.recoveryMomentum : focus?.momentum)?.[direction];
                             const percent = reading?.percentage || 0,
                                 change = reading?.change || 0;
                             return (
@@ -178,7 +183,15 @@ export default function Momentum() {
                                     key={direction}
                                     className={`momentum__signal ${direction === 'DIGITOVER' ? 'is-over' : 'is-under'}`}
                                 >
-                                    <span>{direction === 'DIGITOVER' ? 'OVER 2' : 'UNDER 7'}</span>
+                                    <span>
+                                        {direction === 'DIGITOVER'
+                                            ? recovering
+                                                ? 'OVER 4'
+                                                : 'OVER 2'
+                                            : recovering
+                                              ? 'UNDER 5'
+                                              : 'UNDER 7'}
+                                    </span>
                                     <strong>
                                         {percent.toFixed(1)}
                                         <small>%</small>
@@ -186,7 +199,7 @@ export default function Momentum() {
                                     <div
                                         className='momentum__meter'
                                         role='meter'
-                                        aria-label={`${direction === 'DIGITOVER' ? 'Over 2' : 'Under 7'} cumulative percentage`}
+                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Over 4' : 'Over 2') : recovering ? 'Under 5' : 'Under 7'} cumulative percentage`}
                                         aria-valuemin={0}
                                         aria-valuemax={100}
                                         aria-valuenow={percent}
@@ -223,7 +236,9 @@ export default function Momentum() {
                             {focus?.name || 'All supported Volatility markets'}{' '}
                             <small>
                                 {own && (state.streak || (state.recovery.deficit || 0) > 0)
-                                    ? 'Same-market recovery'
+                                    ? state.recovery.recoveryLocked
+                                        ? 'Locked recovery market'
+                                        : 'Scanning recovery markets'
                                     : 'Live watchlist'}
                             </small>
                         </h3>
@@ -232,8 +247,8 @@ export default function Momentum() {
                                 <thead>
                                     <tr>
                                         <th>Market</th>
-                                        <th>Over 2</th>
-                                        <th>Under 7</th>
+                                        <th>{recovering ? 'Over 4' : 'Over 2'}</th>
+                                        <th>{recovering ? 'Under 5' : 'Under 7'}</th>
                                         <th>Feed</th>
                                     </tr>
                                 </thead>
@@ -241,8 +256,20 @@ export default function Momentum() {
                                     {markets.map(m => (
                                         <tr key={m.symbol} className={m.symbol === focus?.symbol ? 'is-selected' : ''}>
                                             <td>{m.name}</td>
-                                            <td>{(m.momentum?.DIGITOVER.percentage || 0).toFixed(1)}%</td>
-                                            <td>{(m.momentum?.DIGITUNDER.percentage || 0).toFixed(1)}%</td>
+                                            <td>
+                                                {(
+                                                    (recovering ? m.recoveryMomentum : m.momentum)?.DIGITOVER
+                                                        .percentage || 0
+                                                ).toFixed(1)}
+                                                %
+                                            </td>
+                                            <td>
+                                                {(
+                                                    (recovering ? m.recoveryMomentum : m.momentum)?.DIGITUNDER
+                                                        .percentage || 0
+                                                ).toFixed(1)}
+                                                %
+                                            </td>
                                             <td>{m.ready ? 'Live' : m.status}</td>
                                         </tr>
                                     ))}
@@ -277,7 +304,9 @@ export default function Momentum() {
                                             <td>
                                                 {t.market}
                                                 <small>
-                                                    {t.direction === 'DIGITOVER' ? 'Over 2' : 'Under 7'}
+                                                    {t.direction === 'DIGITOVER'
+                                                        ? `Over ${t.barrier ?? '2'}`
+                                                        : `Under ${t.barrier ?? '7'}`}
                                                     {t.recovery ? ' · Recovery' : ''}
                                                 </small>
                                             </td>
