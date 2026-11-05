@@ -179,3 +179,45 @@ it('starts the standalone Even/Odd tool with the selected tick duration', async 
         )
     );
 });
+
+it('identifies the new parity workspace and the actual locked recovery contract', () => {
+    client.getSnapshot.mockReturnValue({
+        ...empty(),
+        active: true,
+        streak: 1,
+        settings: { ...DEFAULT_SETTINGS, strategy: 'even-odd' },
+        recovery: {
+            streak: 1,
+            deficit: 35,
+            countAfter: 0,
+            pauseUntil: 0,
+            momentumPending: true,
+            recoveryLocked: true,
+            lockedSymbol: 'R_50',
+            lockedDirection: 'DIGITUNDER',
+        },
+        markets: [
+            {
+                symbol: 'R_50',
+                name: 'Volatility 50',
+                ready: true,
+                latest: 8,
+                status: 'Live',
+                digits: Array.from({ length: 10 }, (_, digit) => ({
+                    digit,
+                    count: 100,
+                    percentage: 10,
+                    most: false,
+                    least: false,
+                })),
+            },
+        ],
+    });
+    const { container } = render(<DigitCycle parity />);
+    expect(container.querySelector('.digit-cycle--parity')).toBeTruthy();
+    expect(screen.getByText(/Recovering · Under 6/)).toBeTruthy();
+    expect(screen.queryByText(/Recovering · Even\/Odd/)).toBeNull();
+    expect(screen.getByText('Recovery status')).toBeTruthy();
+    expect(screen.getByText('Active')).toBeTruthy();
+    expect(screen.queryByText('Recovery deficit')).toBeNull();
+});

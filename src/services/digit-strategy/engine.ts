@@ -342,7 +342,8 @@ export class DigitStrategyEngine {
                         if (generation !== this.generation || !this.state.active || !this.state.wantsRun) return;
                         const available = info.contracts_for?.available || [];
                         const required = [
-                            ...(settings.strategy === 'even-odd' ? [] : ['DIGITOVER', 'DIGITUNDER']),
+                            'DIGITOVER',
+                            'DIGITUNDER',
                             ...(settings.strategy === undefined ? ['DIGITDIFF'] : []),
                             ...(settings.recoveryMode.startsWith('parity') ? ['DIGITEVEN', 'DIGITODD'] : []),
                         ];
@@ -552,6 +553,7 @@ export class DigitStrategyEngine {
             return (
                 fresh?.symbol === signal.symbol &&
                 fresh.direction === signal.direction &&
+                fresh.barrier === signal.barrier &&
                 (!signal.formation || fresh.epoch === signal.epoch)
             );
         }
@@ -734,7 +736,9 @@ export class DigitStrategyEngine {
                               ? undefined
                               : p.signal.symbol,
                     lockedDirection: p.signal.direction,
-                    ...(this.state.settings.strategy === 'momentum-70' ? { recoveryLocked: true } : {}),
+                    ...(['momentum-70', 'even-odd'].includes(this.state.settings.strategy || '')
+                        ? { recoveryLocked: ['DIGITOVER', 'DIGITUNDER'].includes(p.signal.direction) }
+                        : {}),
                     countAfter: 0,
                 },
             });
@@ -844,10 +848,12 @@ export class DigitStrategyEngine {
             }
             if (pause) this.log('Three-win batch complete. Returning to fresh market analysis after five seconds.');
         }
-        if (this.state.settings.strategy === 'momentum-70') {
+        if (['momentum-70', 'even-odd'].includes(this.state.settings.strategy || '')) {
+            const parity = this.state.settings.strategy === 'even-odd';
             const momentumPending = profit < 0 || (p.signal.recovery && profit === 0);
-            batch = profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
-            pause = batch >= 3 && !momentumPending;
+            batch =
+                parity || profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
+            pause = !parity && batch >= 3 && !momentumPending;
             recovery = {
                 streak,
                 momentumPending,
@@ -857,8 +863,10 @@ export class DigitStrategyEngine {
                 pauseUntil: pause ? this.now() + 5000 : 0,
                 ...(momentumPending
                     ? {
-                          lockedDirection: p.signal.direction,
-                          ...(p.signal.recovery ? { lockedSymbol: p.signal.symbol, recoveryLocked: true } : {}),
+                          ...(!parity || p.signal.recovery ? { lockedDirection: p.signal.direction } : {}),
+                          ...(p.signal.recovery && ['DIGITOVER', 'DIGITUNDER'].includes(p.signal.direction)
+                              ? { lockedSymbol: p.signal.symbol, recoveryLocked: true }
+                              : {}),
                       }
                     : {}),
             };
@@ -869,28 +877,6 @@ export class DigitStrategyEngine {
             recoveryLosses = 0;
             for (const market of this.markets.values()) market.resetMomentum();
             if (pause) this.log('Three-win batch complete. Returning to live market analysis after five seconds.');
-        }
-        if (this.state.settings.strategy === 'even-odd') {
-            const deficit = Math.max(0, (this.state.recovery.deficit || 0) - profit);
-            const wasRecovering = (this.state.recovery.deficit || 0) > 0;
-            recovery = {
-                streak,
-                deficit,
-                pauseUntil: 0,
-                countAfter: deficit > 0 ? (wasRecovering ? this.state.recovery.countAfter : this.now()) : this.now(),
-                ...(deficit > 0
-                    ? {
-                          lockedSymbol: p.signal.symbol,
-                          lockedDirection: p.signal.direction,
-                      }
-                    : {}),
-            };
-            // A win resets stake even when recovery still has an unpaid balance.
-            // Keep the recovery lock and repay that balance across subsequent trades.
-            if (deficit > 0 && profit > 0)
-                this.log(`Recovery deficit $${(deficit / 100).toFixed(2)} · Next stake $${(next / 100).toFixed(2)}.`);
-            batch = 0;
-            pause = false;
         }
         const pnl = this.state.pnl + profit,
             peak = Math.max(this.state.peak, pnl);

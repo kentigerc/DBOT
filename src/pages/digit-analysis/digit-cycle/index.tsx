@@ -20,6 +20,8 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
     const [contractId, setContractId] = useState('');
     const [session, setSession] = useState(getDerivSession());
     const own = state.settings.strategy === strategy;
+    const parityRecovery =
+        own && parity && (state.recovery.momentumPending ?? (state.streak > 0 || (state.recovery.deficit || 0) > 0));
     const policyRecovery =
         own && (state.streak > 0 || (state.recovery.deficit || 0) > 0) && state.settings.hitRecovery === 'analysis';
     const busy = state.active || !!state.pending;
@@ -81,13 +83,38 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
         </label>
     );
     return (
-        <section className='digit-cycle' aria-labelledby={titleId}>
-            <h2 id={titleId}>{parity ? 'EVEN / ODD STRATEGY' : 'HIT AND RUN STRATEGY'}</h2>
-            <p>
-                {parity
-                    ? `Trading Even and Odd · ${draft.duration} ${draft.duration === 1 ? 'tick' : 'ticks'}.`
-                    : 'Trading Under 7 and Over 2 · Even/Odd recovery.'}
-            </p>
+        <section className={`digit-cycle${parity ? ' digit-cycle--parity' : ''}`} aria-labelledby={titleId}>
+            {parity ? (
+                <header className='digit-cycle__parity-header'>
+                    <div>
+                        <span className='digit-cycle__eyebrow'>PARITY WORKSPACE</span>
+                        <h2 id={titleId}>EVEN / ODD STRATEGY</h2>
+                        <p>
+                            Trading Even and Odd · {draft.duration} {draft.duration === 1 ? 'tick' : 'ticks'}.
+                        </p>
+                    </div>
+                    <div className='digit-cycle__parity-mark' aria-hidden='true'>
+                        <span>
+                            E<small>EVEN</small>
+                        </span>
+                        <span>
+                            O<small>ODD</small>
+                        </span>
+                    </div>
+                </header>
+            ) : (
+                <>
+                    <h2 id={titleId}>HIT AND RUN STRATEGY</h2>
+                    <p>Trading Under 7 and Over 2 · Even/Odd recovery.</p>
+                </>
+            )}
+            {parity && (
+                <div className='digit-cycle__setup-heading'>
+                    <h3>Your trading setup</h3>
+                    <span>Stake, duration &amp; session limits</span>
+                </div>
+            )}
+
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
                 {field('Martingale multiplier', 'multiplier', 1)}
@@ -154,7 +181,7 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                             ['Loss streak', `${state.streak} / ${state.settings.maxLosses}`],
                             ['Next stake', money(state.stake)],
                             ...(parity
-                                ? [['Recovery deficit', money(state.recovery.deficit || 0)]]
+                                ? [['Recovery status', parityRecovery ? 'Active' : 'Ready']]
                                 : [['Batch wins', `${state.batch} / 3`]]),
                         ].map(([label, value]) => (
                             <div
@@ -184,21 +211,32 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                     <div className='digit-cycle__markets'>
                         {state.markets
                             .filter(
-                                market => !state.recovery.lockedSymbol || market.symbol === state.recovery.lockedSymbol
+                                market =>
+                                    (parity && parityRecovery && !state.recovery.recoveryLocked) ||
+                                    !state.recovery.lockedSymbol ||
+                                    market.symbol === state.recovery.lockedSymbol
                             )
                             .map(market => {
                                 const candidates =
                                     !parity && !policyRecovery && market.ready && !state.recovery.lockedSymbol
                                         ? cycleDirections(market.digits, market.latest)
                                         : [];
+                                const evenShare = market.digits
+                                    .filter(d => d.digit % 2 === 0)
+                                    .reduce((sum, d) => sum + d.percentage, 0);
+                                const oddShare = market.digits
+                                    .filter(d => d.digit % 2 !== 0)
+                                    .reduce((sum, d) => sum + d.percentage, 0);
                                 return (
                                     <article key={market.symbol}>
                                         <h3>{market.name}</h3>
                                         <p>
                                             {market.status} · Last digit: {market.latest ?? '—'} ·{' '}
                                             {parity
-                                                ? state.streak
-                                                    ? 'Recovering · Even/Odd'
+                                                ? parityRecovery
+                                                    ? state.recovery.recoveryLocked
+                                                        ? `Recovering · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 3' : 'Under 6'}`
+                                                        : 'Searching recovery entries'
                                                     : 'Monitoring Even/Odd'
                                                 : policyRecovery
                                                   ? `Recovery · ${RECOVERY_MODES[state.settings.recoveryMode]}`
@@ -227,6 +265,12 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                                                 .toFixed(1)}
                                             %
                                         </p>
+                                        {parity && (
+                                            <div className='digit-cycle__parity-meter' aria-hidden='true'>
+                                                <span style={{ width: `${evenShare}%` }} />
+                                                <span style={{ width: `${oddShare}%` }} />
+                                            </div>
+                                        )}
                                         <div className='digit-cycle__circles'>
                                             {market.digits.map(digit => (
                                                 <span

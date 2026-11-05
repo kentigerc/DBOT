@@ -213,7 +213,7 @@ describe('percentage-based Even/Odd recovery', () => {
 describe('standalone Even/Odd strategy', () => {
     const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'even-odd' };
     const state = { streak: 0, countAfter: 0, pauseUntil: 0 };
-    it('selects the strongest qualifying parity market for normal trades and recovery', () => {
+    it('keeps normal parity entries and does not reuse them as recovery signals', () => {
         const even = market([120, 80, 120, 80, 120, 80, 120, 80, 120, 80]);
         const odd = market([70, 130, 70, 130, 70, 130, 70, 130, 70, 130]);
         odd.symbol = 'R_50';
@@ -222,10 +222,7 @@ describe('standalone Even/Odd strategy', () => {
         const normal = chooseSignal([even, odd], state, settings, 10000);
         expect(normal).toMatchObject({ symbol: 'R_50', direction: 'DIGITODD', recovery: false });
         expect(normal?.barrier).toBeUndefined();
-        expect(chooseSignal([even], { ...state, streak: 1 }, settings, 10000)).toMatchObject({
-            direction: 'DIGITEVEN',
-            recovery: true,
-        });
+        expect(chooseSignal([even], { ...state, streak: 1 }, settings, 10000)).toBeUndefined();
     });
     it('waits on balanced or stale data and rejects incompatible settings', () => {
         const balanced = market(Array(10).fill(100));
@@ -239,30 +236,72 @@ describe('standalone Even/Odd strategy', () => {
     });
 });
 
-it('locks standalone recovery through percentage drift and partial wins, but requires its first fresh formation', () => {
+describe('Even/Odd recovery uses the Momentum selector', () => {
     const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'even-odd' };
-    const m = market([120, 80, 120, 80, 120, 80, 120, 80, 120, 80]);
-    const state = { streak: 1, deficit: 35, countAfter: 9999, pauseUntil: 0 };
-    expect(chooseSignal([m], state, settings, 10000)).toBeUndefined();
-    m.digits.splice(-3, 3, 2, 4, 1);
-    expect(chooseSignal([m], state, settings, 10000)).toMatchObject({
-        direction: 'DIGITEVEN',
-        recovery: true,
-        formation: true,
+    const state = { streak: 1, deficit: 35, countAfter: 9999, pauseUntil: 0, momentumPending: true };
+    const ready = (symbol: string, direction: 'DIGITOVER' | 'DIGITUNDER', percentage: number) => {
+        const m = market();
+        m.symbol = symbol;
+        m.recoveryMomentum[direction] = { percentage, change: 0.1, run: 2, armed: true, epoch: 1000 };
+        return m;
+    };
+    it('compares both recovery contracts across markets and picks the highest qualifying percentage', () => {
+        const over = ready('R_10', 'DIGITOVER', 60);
+        const under = ready('1HZ50V', 'DIGITUNDER', 64);
+        expect(chooseSignal([over, under], state, settings, 10000)).toMatchObject({
+            symbol: under.symbol,
+            direction: 'DIGITUNDER',
+            barrier: '6',
+            recovery: true,
+            formation: true,
+        });
+        over.recoveryMomentum.DIGITOVER.percentage = 65;
+        expect(chooseSignal([over, under], state, settings, 10000)).toMatchObject({
+            symbol: over.symbol,
+            direction: 'DIGITOVER',
+            barrier: '3',
+            recovery: true,
+        });
     });
-    expect(chooseSignal([m], { ...state, countAfter: 10000 }, settings, 10000)).toBeUndefined();
-    m.digits = Array(1000).fill(1);
-    expect(
-        chooseSignal(
-            [m],
-            { ...state, streak: 0, deficit: 6, lockedSymbol: m.symbol, lockedDirection: 'DIGITEVEN' },
-            settings,
-            10000
-        )
-    ).toMatchObject({ direction: 'DIGITEVEN', recovery: true, formation: false });
-    expect(
-        chooseSignal([m], { ...state, lockedSymbol: m.symbol, lockedDirection: 'DIGITEVEN' }, settings, 14000)
-    ).toBeUndefined();
+    it('requires a rising 52% share, two winning digits and fresh data before the first recovery', () => {
+        const m = ready('R_10', 'DIGITOVER', 52);
+        expect(chooseSignal([m], state, settings, 10000)?.barrier).toBe('3');
+        for (const change of [{ percentage: 51.9 }, { change: 0 }, { run: 1 }, { armed: false }]) {
+            const original = { ...m.recoveryMomentum.DIGITOVER };
+            m.recoveryMomentum.DIGITOVER = { ...original, ...change };
+            expect(chooseSignal([m], state, settings, 10000)).toBeUndefined();
+            m.recoveryMomentum.DIGITOVER = original;
+        }
+        expect(chooseSignal([m], { ...state, countAfter: 10000 }, settings, 10000)).toBeUndefined();
+        expect(chooseSignal([m], state, settings, 14000)).toBeUndefined();
+    });
+    it('keeps the purchased recovery market and contract through drift without requiring another formation', () => {
+        const locked = ready('R_10', 'DIGITOVER', 52);
+        const stronger = ready('1HZ50V', 'DIGITUNDER', 90);
+        locked.resetMomentum();
+        locked.recoveryMomentum.DIGITOVER.percentage = 20;
+        const recovery = {
+            ...state,
+            recoveryLocked: true,
+            lockedSymbol: locked.symbol,
+            lockedDirection: 'DIGITOVER' as const,
+        };
+        expect(chooseSignal([locked, stronger], recovery, settings, 10000)).toMatchObject({
+            symbol: locked.symbol,
+            direction: 'DIGITOVER',
+            barrier: '3',
+            recovery: true,
+            formation: false,
+        });
+        expect(chooseSignal([stronger], recovery, settings, 10000)).toBeUndefined();
+        expect(chooseSignal([locked], recovery, settings, 14000)).toBeUndefined();
+    });
+    it('does not resume an obsolete saved Even/Odd recovery lock', () => {
+        const m = ready('1HZ50V', 'DIGITUNDER', 64);
+        expect(
+            chooseSignal([m], { ...state, lockedSymbol: 'old-market', lockedDirection: 'DIGITEVEN' }, settings, 10000)
+        ).toMatchObject({ symbol: m.symbol, direction: 'DIGITUNDER', barrier: '6' });
+    });
 });
 
 it('includes Under 7 in Analysis Tool entries only when its digit is neither most nor least frequent', () => {

@@ -663,62 +663,75 @@ it('excludes markets that do not offer one-tick Even/Odd recovery contracts', as
     expect(broker.buys).toHaveLength(0);
 });
 
-it('uses initial formation then recovers directly on the losing volatility until its deficit clears', async () => {
-    const broker = new FakeBroker();
-    const send = broker.send;
-    broker.send = jest.fn(async body => {
-        if (body.ticks_history) {
-            const digits = [...Array<number>(600).fill(0), ...Array<number>(400).fill(1)];
-            return {
-                pip_size: 2,
-                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
-            };
-        }
-        return send(body);
-    });
-    const { engine } = await setup(
-        { strategy: 'even-odd', recoveryMode: 'parity_percentage', multiplier: 2, duration: 5 },
-        broker
-    );
-    let epoch = 1003;
-    const tick = async (digit: number) => {
-        await jest.advanceTimersByTimeAsync(1000);
-        broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
-        await jest.advanceTimersByTimeAsync(150);
-    };
-    expect(broker.buys).toHaveLength(0);
-    await tick(2);
-    await tick(4);
-    await tick(1);
-    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
-    broker.settle(-0.35);
-    await jest.advanceTimersByTimeAsync(150);
-    expect(broker.buys).toHaveLength(1);
-    expect(engine.getSnapshot().recovery).toMatchObject({ lockedSymbol: 'R_100', lockedDirection: 'DIGITEVEN' });
-    await tick(9); // No new formation is required after the initial loss.
-    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.7 });
-    broker.settle(-0.7);
-    await tick(9);
-    expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 1.4 });
-    broker.settle(0.8);
-    expect(engine.getSnapshot().recovery).toMatchObject({
-        deficit: 25,
-        lockedSymbol: 'R_100',
-        lockedDirection: 'DIGITEVEN',
-    });
-    await tick(9);
-    expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
-    broker.settle(0.1);
-    expect(engine.getSnapshot()).toMatchObject({
-        stake: 35,
-        recovery: { deficit: 15, lockedSymbol: 'R_100', lockedDirection: 'DIGITEVEN' },
-    });
-    await tick(9);
-    expect(broker.buys[4].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
-    engine.stop();
-    broker.settle(0.15);
-    expect(engine.getSnapshot()).toMatchObject({ active: false, stake: 35, recovery: { deficit: 0 } });
-});
+it.each([
+    { direction: 'DIGITOVER', barrier: '3', winner: 8, loser: 1, recoveryDigits: [5, 6, 7], drift: 0 },
+    { direction: 'DIGITUNDER', barrier: '6', winner: 2, loser: 9, recoveryDigits: [2, 4, 5], drift: 9 },
+])(
+    'recovers a parity loss with $direction $barrier until its first win, then resumes normal parity entries',
+    async ({ direction, barrier, winner, loser, recoveryDigits, drift }) => {
+        const broker = new FakeBroker();
+        const send = broker.send;
+        broker.send = jest.fn(async body => {
+            if (body.ticks_history) {
+                const digits = [...Array<number>(400).fill(loser), ...Array<number>(600).fill(winner)];
+                return {
+                    pip_size: 2,
+                    history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
+                };
+            }
+            return send(body);
+        });
+        const { engine } = await setup(
+            { strategy: 'even-odd', recoveryMode: 'parity_percentage', multiplier: 2, duration: 5 },
+            broker
+        );
+        let epoch = 1003;
+        const tick = async (digit: number) => {
+            await jest.advanceTimersByTimeAsync(1000);
+            broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
+            await jest.advanceTimersByTimeAsync(150);
+        };
+        for (const digit of [2, 4, 1]) await tick(digit);
+        expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
+        broker.settle(-0.35);
+        expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
+        expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
+        expect(broker.buys).toHaveLength(1);
+        for (const digit of recoveryDigits) await tick(digit);
+        expect(broker.buys[1].parameters).toMatchObject({
+            contract_type: direction,
+            barrier,
+            duration: 5,
+            amount: 0.7,
+        });
+        expect(engine.getSnapshot().recovery).toMatchObject({
+            lockedSymbol: 'R_100',
+            lockedDirection: direction,
+            recoveryLocked: true,
+        });
+        broker.settle(-0.7);
+        await tick(drift);
+        expect(broker.buys[2].parameters).toMatchObject({
+            contract_type: direction,
+            barrier,
+            duration: 5,
+            amount: 1.4,
+        });
+        broker.settle(0.1); // A first recovery win ends this episode even when it does not repay every loss.
+        expect(engine.getSnapshot()).toMatchObject({
+            stake: 35,
+            batch: 0,
+            recovery: { momentumPending: false, deficit: 0 },
+        });
+        expect(engine.getSnapshot().pnl).toBe(-95);
+        expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
+        expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
+        expect(broker.buys).toHaveLength(3);
+        for (const digit of [2, 4, 1]) await tick(digit);
+        expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
+        engine.stop();
+    }
+);
 
 it('initializes other market feeds while an earlier contract-capability request is still pending', async () => {
     const broker = new FakeBroker(),

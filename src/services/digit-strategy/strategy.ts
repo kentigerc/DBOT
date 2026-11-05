@@ -58,7 +58,7 @@ export function validateSettings(s: Settings) {
     if ((s.recoveryMode === 'same_contract') !== (s.strategy === 'momentum-70'))
         throw new Error('Invalid same-contract strategy settings.');
     if (s.strategy === 'even-odd' && s.recoveryMode !== 'parity_percentage')
-        throw new Error('Even/Odd uses parity recovery.');
+        throw new Error('Invalid Even/Odd recovery settings.');
     for (const key of ['stake', 'maxStake', 'stopLoss', 'takeProfit'] as const) {
         const v = s[key];
         if (
@@ -396,10 +396,23 @@ export function chooseSignal(
             )[0];
     }
     if (config.strategy === 'even-odd') {
-        const recovering = (state.deficit || 0) > 0 || state.streak > 0;
-        if (recovering && state.lockedSymbol && state.lockedDirection) {
-            const market = markets.find(m => m.symbol === state.lockedSymbol);
-            return market?.ready(now) ? signalOn(market, state.lockedDirection, undefined, true) : undefined;
+        const recovering = state.momentumPending ?? ((state.deficit || 0) > 0 || state.streak > 0);
+        if (recovering) {
+            // Reuse Momentum's rising 52% Over 3 / Under 6 entry rules and ranking.
+            // The first recovery can choose either direction, regardless of the lost parity contract.
+            const locked = state.recoveryLocked && ['DIGITOVER', 'DIGITUNDER'].includes(state.lockedDirection || '');
+            return chooseSignal(
+                markets,
+                {
+                    ...state,
+                    momentumPending: true,
+                    recoveryLocked: !!locked,
+                    lockedDirection: locked ? state.lockedDirection : undefined,
+                },
+                { ...config, strategy: 'momentum-70' },
+                now,
+                random
+            );
         }
         const candidates = markets.flatMap(m => {
             if (!m.ready(now)) return [];
