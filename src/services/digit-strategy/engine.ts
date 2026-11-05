@@ -832,21 +832,26 @@ export class DigitStrategyEngine {
             if (pause) this.log('Three-win batch complete. Returning to fresh market analysis after five seconds.');
         }
         if (this.state.settings.strategy === 'momentum-70') {
-            const momentumPending = !p.signal.recovery && profit < 0;
+            const momentumPending = profit < 0 || (p.signal.recovery && profit === 0);
             batch = profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
             pause = batch >= 3 && !momentumPending;
             recovery = {
                 streak,
                 momentumPending,
-                deficit: momentumPending ? -profit : 0,
+                deficit: momentumPending ? Math.max(0, (this.state.recovery.deficit || 0) - profit) : 0,
                 previous: p.signal.recovery ? this.state.recovery.previous : p.signal.direction,
                 countAfter: this.now(),
                 pauseUntil: pause ? this.now() + 5000 : 0,
-                ...(momentumPending ? { lockedDirection: p.signal.direction } : {}),
+                ...(momentumPending
+                    ? {
+                          lockedDirection: p.signal.direction,
+                          ...(p.signal.recovery ? { lockedSymbol: p.signal.symbol, recoveryLocked: true } : {}),
+                      }
+                    : {}),
             };
-            if (p.signal.recovery) {
+            if (p.signal.recovery && profit > 0) {
                 next = cents(this.state.settings.stake);
-                this.log('Recovery attempt complete. Returning to normal entries at the starting stake.');
+                this.log('Recovery win complete. Returning to normal entries at the starting stake.');
             }
             recoveryLosses = 0;
             for (const market of this.markets.values()) market.resetMomentum();

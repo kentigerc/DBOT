@@ -764,7 +764,7 @@ it('trades Momentum 70 in three-win batches and initially waits for a qualifying
 });
 
 it.each([0.2, -0.7, 0])(
-    'takes one Momentum recovery attempt, then returns to normal entries after result %s',
+    'continues Momentum recovery after losses or voids, and returns to normal immediately after its first win (%s)',
     async result => {
         const broker = new FakeBroker(),
             send = broker.send;
@@ -799,6 +799,15 @@ it.each([0.2, -0.7, 0])(
         await tick();
         await tick();
         broker.settle(result);
+        if (result <= 0) {
+            expect(engine.getSnapshot()).toMatchObject({
+                recovery: { momentumPending: true, recoveryLocked: true, lockedSymbol: 'R_100' },
+            });
+            await tick();
+            expect(broker.buys[2].parameters).toMatchObject({ barrier: '3', amount: result < 0 ? 1.4 : 0.7 });
+            broker.settle(0.2);
+        }
+        const normalIndex = broker.buys.length;
         expect(engine.getSnapshot()).toMatchObject({
             stake: 35,
             batch: 0,
@@ -806,11 +815,11 @@ it.each([0.2, -0.7, 0])(
         });
         expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
         await tick();
-        expect(broker.buys).toHaveLength(2);
+        expect(broker.buys).toHaveLength(normalIndex);
         await tick();
-        expect(broker.buys).toHaveLength(2);
+        expect(broker.buys).toHaveLength(normalIndex);
         await tick();
-        expect(broker.buys[2].parameters).toMatchObject({
+        expect(broker.buys[normalIndex].parameters).toMatchObject({
             symbol: 'R_100',
             contract_type: 'DIGITOVER',
             barrier: '1',
@@ -821,7 +830,7 @@ it.each([0.2, -0.7, 0])(
         await tick();
         await tick();
         await tick();
-        expect(broker.buys[3].parameters).toMatchObject({ barrier: '3', amount: 0.7 });
+        expect(broker.buys[normalIndex + 1].parameters).toMatchObject({ barrier: '3', amount: 0.7 });
         engine.stop();
         broker.settle(0.6);
         expect(engine.getSnapshot().recovery.momentumPending).toBe(false);
