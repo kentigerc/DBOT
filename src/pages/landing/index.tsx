@@ -552,6 +552,20 @@ export default function Landing() {
                         </a>
                     </div>
                 </section>
+                <section className='nl-risk-notice' id='risk-notice' aria-labelledby='nl-risk-heading'>
+                    <h2 id='nl-risk-heading'>Trading risk &amp; responsibility</h2>
+                    <p>
+                        Trading and automated strategies can result in financial loss. You are responsible for your
+                        trading decisions, account activity and risk settings. NetoAcademy does not guarantee profits or
+                        protection against losses. Only trade funds you can afford to lose.
+                    </p>
+                    <p>
+                        To the fullest extent permitted by applicable law, NetoAcademy is not liable for financial
+                        losses arising from your trading decisions or use of the platform’s trading tools and automated
+                        strategies. This notice does not exclude or limit any liability or rights that cannot lawfully
+                        be excluded or limited.
+                    </p>
+                </section>
                 <section className='nl-final nl-section'>
                     <p className='nl-eyebrow'>YOUR WORKSPACE IS WAITING</p>
                     <h2>
@@ -576,6 +590,7 @@ export default function Landing() {
                     <a href={PLATFORM}>Trading platform</a>
                     <a href='/free-bots'>Trading bots</a>
                     <a href='#about'>About NetoAcademy</a>
+                    <a href='#risk-notice'>Risk &amp; responsibility</a>
                     <a href='#questions'>Questions</a>
                     <a href='https://deriv.com' target='_blank' rel='noopener noreferrer'>
                         Deriv <Arrow diagonal />
@@ -585,6 +600,11 @@ export default function Landing() {
                     <p>
                         Trading involves risk. You can lose your stake. Only trade money you can afford to lose.
                         Availability depends on your country and Deriv account eligibility. For adults aged 18 and over.
+                    </p>
+                    <p>
+                        You trade at your own risk. To the fullest extent permitted by applicable law, NetoAcademy is
+                        not liable for trading losses. This does not affect rights or liabilities that cannot lawfully
+                        be excluded. <a href='#risk-notice'>Read the risk &amp; responsibility notice.</a>
                     </p>
                     <p>
                         NetoAcademy is an independent third-party platform and is not operated by Deriv. Deriv’s name

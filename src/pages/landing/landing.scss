@@ -1380,3 +1380,40 @@ body.neto-landing-page {
         }
     }
 }
+
+.neto-landing {
+    .nl-risk-notice {
+        margin: 0 5% 40px;
+        padding: 26px 30px;
+        border: 1px solid var(--nl-line);
+        border-left: 3px solid var(--nl-red);
+        border-radius: 6px;
+        scroll-margin-top: 105px;
+        h2 {
+            font-size: 20px;
+            font-weight: 500;
+            margin: 0 0 14px;
+            line-height: 1.4;
+        }
+        p {
+            font-size: 13px;
+            line-height: 1.85;
+            color: var(--nl-muted);
+            max-width: 1100px;
+        }
+        p + p {
+            margin-top: 12px;
+        }
+    }
+    .nl-footer__legal p a {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+    @media (max-width: 760px) {
+        .nl-risk-notice {
+            margin-inline: 6%;
+            padding: 22px;
+            scroll-margin-top: 88px;
+        }
+    }
+}
