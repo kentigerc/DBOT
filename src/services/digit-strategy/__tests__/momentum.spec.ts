@@ -35,7 +35,7 @@ it.each(['over', 'under'] as const)(
         f.tick(b);
         expect(momentumSignal(f.m, state, f.now())).toMatchObject({
             direction: side === 'over' ? 'DIGITOVER' : 'DIGITUNDER',
-            barrier: side === 'over' ? '2' : '7',
+            barrier: side === 'over' ? '1' : '8',
             recovery: false,
         });
     }
@@ -82,7 +82,7 @@ it('compares both directions across markets and locks recovery to the losing mar
     expect(chooseSignal([over.m, under.m], recovery, settings, over.now())).toMatchObject({
         symbol: 'R_10',
         direction: 'DIGITOVER',
-        barrier: '4',
+        barrier: '3',
         recovery: true,
     });
     expect(momentumSignal(over.m, recovery, over.now() + 4000)).toBeUndefined();
@@ -123,7 +123,7 @@ it.each(['over', 'under'] as const)('waits for a rising 52%% %s recovery share a
     expect(momentumSignal(m, recovering, now)).toBeUndefined();
     tick(side === 'over' ? 6 : 4);
     expect(momentumSignal(m, recovering, now)).toMatchObject({
-        barrier: side === 'over' ? '4' : '5',
+        barrier: side === 'over' ? '3' : '6',
         recovery: true,
         formation: true,
     });
@@ -132,7 +132,7 @@ it.each(['over', 'under'] as const)('waits for a rising 52%% %s recovery share a
     m.recoveryMomentum.DIGITUNDER.percentage = 20;
     m.resetMomentum();
     expect(momentumSignal(m, locked, now)).toMatchObject({
-        barrier: side === 'over' ? '4' : '5',
+        barrier: side === 'over' ? '3' : '6',
         recovery: true,
         formation: false,
     });
@@ -158,7 +158,7 @@ it('selects a recovery market across the watchlist once, then ignores stronger a
         chooseSignal([first, second], { ...recovering, lockedSymbol: 'R_10', recoveryLocked: false }, settings, now)
     ).toMatchObject({
         symbol: 'R_50',
-        barrier: '4',
+        barrier: '3',
         recovery: true,
     });
     first.recoveryMomentum.DIGITOVER.percentage = 95;
@@ -166,14 +166,31 @@ it('selects a recovery market across the watchlist once, then ignores stronger a
     second.recoveryMomentum.DIGITOVER.percentage = 20;
     expect(
         chooseSignal([first, second], { ...recovering, lockedSymbol: 'R_50', recoveryLocked: true }, settings, now)
-    ).toMatchObject({ symbol: 'R_50', barrier: '4', formation: false, recovery: true });
+    ).toMatchObject({ symbol: 'R_50', barrier: '3', formation: false, recovery: true });
 });
 
 it('accepts exactly 52% for a formed rising recovery entry and rejects a value below it', () => {
     const f = feed();
     const recovering = { ...state, deficit: 35, lockedDirection: 'DIGITOVER' as const };
     f.m.recoveryMomentum.DIGITOVER = { percentage: 52, change: 0.1, armed: true, run: 2, epoch: f.now() / 1000 };
-    expect(momentumSignal(f.m, recovering, f.now())).toMatchObject({ barrier: '4', recovery: true });
+    expect(momentumSignal(f.m, recovering, f.now())).toMatchObject({ barrier: '3', recovery: true });
     f.m.recoveryMomentum.DIGITOVER.percentage = 51.9;
     expect(momentumSignal(f.m, recovering, f.now())).toBeUndefined();
+});
+it.each([
+    [1, 0, 100, 0, 100],
+    [2, 100, 100, 0, 100],
+    [3, 100, 100, 0, 100],
+    [4, 100, 100, 100, 100],
+    [5, 100, 100, 100, 100],
+    [6, 100, 100, 100, 0],
+    [7, 100, 100, 100, 0],
+    [8, 100, 0, 100, 0],
+])('counts digit %s in the updated normal and recovery groups', (digit, over1, under8, over3, under6) => {
+    const m = new DigitMarket('R_10', 2, 'Volatility Index');
+    for (let i = 0; i < 1000; i++) m.add(100 + digit / 100, i + 1);
+    expect(m.momentum.DIGITOVER.percentage).toBe(over1);
+    expect(m.momentum.DIGITUNDER.percentage).toBe(under8);
+    expect(m.recoveryMomentum.DIGITOVER.percentage).toBe(over3);
+    expect(m.recoveryMomentum.DIGITUNDER.percentage).toBe(under6);
 });

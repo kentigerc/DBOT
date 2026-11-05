@@ -97,7 +97,7 @@ export const nextRecoveryStake = (previousCents: number, multiplier = DEFAULT_SE
 export type Frequency = { digit: number; count: number; percentage: number; most: boolean; least: boolean };
 export type MomentumReading = { percentage: number; change: number; run: number; armed: boolean; epoch: number };
 export class DigitMarket {
-    private groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER4: 0, UNDER5: 0 };
+    private groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER3: 0, UNDER6: 0 };
     momentum: Record<'DIGITOVER' | 'DIGITUNDER', MomentumReading> = {
         DIGITOVER: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
         DIGITUNDER: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
@@ -135,7 +135,7 @@ export class DigitMarket {
                 this.digits = [];
                 this.arrivals = [];
                 this.liveTicks = 0;
-                this.groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER4: 0, UNDER5: 0 };
+                this.groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER3: 0, UNDER6: 0 };
                 this.resetMomentum();
                 this.gapUntil = received + 6000;
             }
@@ -150,18 +150,18 @@ export class DigitMarket {
         this.digits.push(Number(display.slice(-1)));
         this.arrivals.push(received);
         for (const list of [this.prices, this.epochs, this.digits, this.arrivals]) if (list.length > 1000) list.shift();
-        for (const key of ['DIGITOVER', 'DIGITUNDER', 'OVER4', 'UNDER5'] as const) {
-            const recovery = key === 'OVER4' || key === 'UNDER5';
-            const direction = key === 'DIGITOVER' || key === 'OVER4' ? 'DIGITOVER' : 'DIGITUNDER';
+        for (const key of ['DIGITOVER', 'DIGITUNDER', 'OVER3', 'UNDER6'] as const) {
+            const recovery = key === 'OVER3' || key === 'UNDER6';
+            const direction = key === 'DIGITOVER' || key === 'OVER3' ? 'DIGITOVER' : 'DIGITUNDER';
             const target = recovery ? this.recoveryMomentum : this.momentum;
             const accepts = (digit: number) =>
-                key === 'OVER4'
-                    ? digit > 4
-                    : key === 'UNDER5'
-                      ? digit < 5
+                key === 'OVER3'
+                    ? digit > 3
+                    : key === 'UNDER6'
+                      ? digit < 6
                       : key === 'DIGITOVER'
-                        ? digit > 2
-                        : digit < 7;
+                        ? digit > 1
+                        : digit < 8;
             const previous = this.groupCounts[key];
             const count = previous + (accepts(digit) ? 1 : 0) - (outgoing !== undefined && accepts(outgoing) ? 1 : 0);
             this.groupCounts[key] = count;
@@ -345,7 +345,7 @@ export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number
     if (recovering && state.recoveryLocked) {
         if (m.symbol !== state.lockedSymbol || !['DIGITOVER', 'DIGITUNDER'].includes(state.lockedDirection || ''))
             return;
-        return signalOn(m, state.lockedDirection!, state.lockedDirection === 'DIGITOVER' ? '4' : '5', true);
+        return signalOn(m, state.lockedDirection!, state.lockedDirection === 'DIGITOVER' ? '3' : '6', true);
     }
     const readings = recovering ? m.recoveryMomentum : m.momentum;
     const direction = (['DIGITOVER', 'DIGITUNDER'] as const)
@@ -365,7 +365,7 @@ export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number
         ? signalOn(
               m,
               direction,
-              recovering ? (direction === 'DIGITOVER' ? '4' : '5') : direction === 'DIGITOVER' ? '2' : '7',
+              recovering ? (direction === 'DIGITOVER' ? '3' : '6') : direction === 'DIGITOVER' ? '1' : '8',
               recovering,
               true
           )

@@ -98,7 +98,7 @@ export default function Momentum() {
                     <h2 id='momentum-title'>
                         Momentum <span>70</span>
                     </h2>
-                    <p>Over 2 & Under 7 · Three-win batches · Over 4 / Under 5 recovery</p>
+                    <p>Over 1 & Under 8 · Three-win batches · Over 3 / Under 6 recovery</p>
                 </div>
                 <span className={`momentum__status${own && state.active ? ' is-live' : ''}`}>
                     {own && state.active ? 'LIVE SESSION' : 'READY WHEN YOU ARE'}
@@ -201,11 +201,11 @@ export default function Momentum() {
                                     <span>
                                         {direction === 'DIGITOVER'
                                             ? recovering
-                                                ? 'OVER 4'
-                                                : 'OVER 2'
+                                                ? 'OVER 3'
+                                                : 'OVER 1'
                                             : recovering
-                                              ? 'UNDER 5'
-                                              : 'UNDER 7'}
+                                              ? 'UNDER 6'
+                                              : 'UNDER 8'}
                                     </span>
                                     <strong>
                                         {percent.toFixed(1)}
@@ -214,7 +214,7 @@ export default function Momentum() {
                                     <div
                                         className='momentum__meter'
                                         role='meter'
-                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Over 4' : 'Over 2') : recovering ? 'Under 5' : 'Under 7'} cumulative percentage`}
+                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Over 3' : 'Over 1') : recovering ? 'Under 6' : 'Under 8'} cumulative percentage`}
                                         aria-valuemin={0}
                                         aria-valuemax={100}
                                         aria-valuenow={percent}
@@ -262,8 +262,8 @@ export default function Momentum() {
                                 <thead>
                                     <tr>
                                         <th>Market</th>
-                                        <th>{recovering ? 'Over 4' : 'Over 2'}</th>
-                                        <th>{recovering ? 'Under 5' : 'Under 7'}</th>
+                                        <th>{recovering ? 'Over 3' : 'Over 1'}</th>
+                                        <th>{recovering ? 'Under 6' : 'Under 8'}</th>
                                         <th>Feed</th>
                                     </tr>
                                 </thead>
@@ -320,8 +320,8 @@ export default function Momentum() {
                                                 {t.market}
                                                 <small>
                                                     {t.direction === 'DIGITOVER'
-                                                        ? `Over ${t.barrier ?? '2'}`
-                                                        : `Under ${t.barrier ?? '7'}`}
+                                                        ? `Over ${t.barrier ?? '1'}`
+                                                        : `Under ${t.barrier ?? '8'}`}
                                                     {t.recovery ? ' · Recovery' : ''}
                                                 </small>
                                             </td>

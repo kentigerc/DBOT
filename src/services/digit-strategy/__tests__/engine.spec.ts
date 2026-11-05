@@ -697,7 +697,7 @@ it('initializes other market feeds while an earlier contract-capability request 
     expect(broker.buys).toHaveLength(0);
 });
 
-it('trades Momentum 70 in three-win batches and initially waits for a qualifying Over 4 recovery entry', async () => {
+it('trades Momentum 70 in three-win batches and initially waits for a qualifying Over 3 recovery entry', async () => {
     const broker = new FakeBroker(),
         send = broker.send;
     broker.send = jest.fn(async body => {
@@ -725,7 +725,7 @@ it('trades Momentum 70 in three-win batches and initially waits for a qualifying
     await tick(3);
     await tick(8);
     expect(broker.buys).toHaveLength(1);
-    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', amount: 0.35 });
+    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '1', amount: 0.35 });
     broker.settle(-0.35);
     await jest.advanceTimersByTimeAsync(500);
     expect(broker.buys).toHaveLength(1);
@@ -744,7 +744,7 @@ it('trades Momentum 70 in three-win batches and initially waits for a qualifying
     expect(broker.buys[1].parameters).toMatchObject({
         symbol: 'R_100',
         contract_type: 'DIGITOVER',
-        barrier: '4',
+        barrier: '3',
         amount: 0.7,
     });
     broker.settle(0.6);
@@ -803,7 +803,7 @@ it('keeps a partial Momentum recovery balance on the same contract and resets th
     expect(broker.buys[2].parameters).toMatchObject({
         symbol: 'R_100',
         contract_type: 'DIGITOVER',
-        barrier: '4',
+        barrier: '3',
         amount: 0.35,
     });
     engine.stop();

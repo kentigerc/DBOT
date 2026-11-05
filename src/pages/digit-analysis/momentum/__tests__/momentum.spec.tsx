@@ -76,7 +76,7 @@ it('shows the actual recovery barrier in the journal and indicates the locked re
                 contractId: 123,
                 market: 'R_50',
                 direction: 'DIGITOVER',
-                barrier: '4',
+                barrier: '3',
                 recovery: true,
                 at: 1700000000000,
                 stake: 35,
@@ -86,9 +86,9 @@ it('shows the actual recovery barrier in the journal and indicates the locked re
         ],
     });
     render(<Momentum />);
-    expect(screen.getByText('OVER 4')).toBeTruthy();
-    expect(screen.getByText('UNDER 5')).toBeTruthy();
-    expect(screen.getByText('Over 4 · Recovery')).toBeTruthy();
+    expect(screen.getByText('OVER 3')).toBeTruthy();
+    expect(screen.getByText('UNDER 6')).toBeTruthy();
+    expect(screen.getByText('Over 3 · Recovery')).toBeTruthy();
     expect(screen.getByText('Locked recovery market')).toBeTruthy();
 });
 
