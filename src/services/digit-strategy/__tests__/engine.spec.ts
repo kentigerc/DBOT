@@ -664,11 +664,11 @@ it('excludes markets that do not offer one-tick Even/Odd recovery contracts', as
 });
 
 it.each([
-    { direction: 'DIGITOVER', barrier: '3', winner: 8, loser: 1, recoveryDigits: [5, 6, 7], drift: 0 },
-    { direction: 'DIGITUNDER', barrier: '6', winner: 2, loser: 9, recoveryDigits: [2, 4, 5], drift: 9 },
+    { direction: 'DIGITOVER', barrier: '3', winner: 8, loser: 1, recoveryDigits: [5, 6, 7], drift: 0, duration: 2 },
+    { direction: 'DIGITUNDER', barrier: '6', winner: 2, loser: 9, recoveryDigits: [2, 4, 5], drift: 9, duration: 5 },
 ])(
     'recovers a parity loss with $direction $barrier until its first win, then resumes normal parity entries',
-    async ({ direction, barrier, winner, loser, recoveryDigits, drift }) => {
+    async ({ direction, barrier, winner, loser, recoveryDigits, drift, duration }) => {
         const broker = new FakeBroker();
         const send = broker.send;
         broker.send = jest.fn(async body => {
@@ -682,7 +682,7 @@ it.each([
             return send(body);
         });
         const { engine } = await setup(
-            { strategy: 'even-odd', recoveryMode: 'parity_percentage', multiplier: 2, duration: 5 },
+            { strategy: 'even-odd', recoveryMode: 'parity_percentage', multiplier: 2.1, duration },
             broker
         );
         let epoch = 1003;
@@ -692,7 +692,7 @@ it.each([
             await jest.advanceTimersByTimeAsync(150);
         };
         for (const digit of [2, 4, 1]) await tick(digit);
-        expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
+        expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration, amount: 0.35 });
         broker.settle(-0.35);
         expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
         expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
@@ -701,21 +701,21 @@ it.each([
         expect(broker.buys[1].parameters).toMatchObject({
             contract_type: direction,
             barrier,
-            duration: 5,
-            amount: 0.7,
+            duration,
+            amount: 0.74,
         });
         expect(engine.getSnapshot().recovery).toMatchObject({
             lockedSymbol: 'R_100',
             lockedDirection: direction,
             recoveryLocked: true,
         });
-        broker.settle(-0.7);
+        broker.settle(-0.74);
         await tick(drift);
         expect(broker.buys[2].parameters).toMatchObject({
             contract_type: direction,
             barrier,
-            duration: 5,
-            amount: 1.4,
+            duration,
+            amount: 1.55,
         });
         broker.settle(0.1); // A first recovery win ends this episode even when it does not repay every loss.
         expect(engine.getSnapshot()).toMatchObject({
@@ -723,12 +723,12 @@ it.each([
             batch: 0,
             recovery: { momentumPending: false, deficit: 0 },
         });
-        expect(engine.getSnapshot().pnl).toBe(-95);
+        expect(engine.getSnapshot().pnl).toBe(-99);
         expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
         expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
         expect(broker.buys).toHaveLength(3);
         for (const digit of [2, 4, 1]) await tick(digit);
-        expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 5, amount: 0.35 });
+        expect(broker.buys[3].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration, amount: 0.35 });
         engine.stop();
     }
 );
