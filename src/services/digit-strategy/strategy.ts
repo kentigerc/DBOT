@@ -170,7 +170,7 @@ export class DigitMarket {
             const change = oldCount === undefined ? 0 : (count - oldCount) / 10;
             let armed = reading.armed,
                 run = reading.run;
-            if (!received || !this.ready(received) || count < (recovery ? 550 : 700) || change < 0) {
+            if (!received || !this.ready(received) || count < (recovery ? 520 : 700) || change < 0) {
                 armed = false;
                 run = 0;
             } else if (!armed && change > 0) {
@@ -355,7 +355,7 @@ export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number
             return (
                 r.armed &&
                 r.run >= 2 &&
-                r.percentage >= (recovering ? 55 : 70) &&
+                r.percentage >= (recovering ? 52 : 70) &&
                 r.change > 0 &&
                 m.arrivals.slice(-2).every(at => at > state.countAfter)
             );

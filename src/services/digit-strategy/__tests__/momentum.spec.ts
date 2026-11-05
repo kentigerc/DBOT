@@ -100,12 +100,12 @@ it('arms exactly at 70% when the previous sample was below the threshold', () =>
     expect(f.m.momentum.DIGITOVER).toMatchObject({ percentage: 70, armed: true, run: 0 });
     expect(momentumSignal(f.m, state, f.now())).toBeUndefined();
 });
-it.each(['over', 'under'] as const)('waits for a rising 55%% %s recovery share and two fresh winning digits', side => {
+it.each(['over', 'under'] as const)('waits for a rising 52%% %s recovery share and two fresh winning digits', side => {
     let now = 1700000000000;
     const m = new DigitMarket('R_25', 2, 'Volatility 25 Index');
     const outside = side === 'over' ? 0 : 9,
         inside = side === 'over' ? 8 : 2;
-    const digits = [...Array<number>(450).fill(outside), ...Array<number>(550).fill(inside)];
+    const digits = [...Array<number>(480).fill(outside), ...Array<number>(520).fill(inside)];
     digits.forEach((digit, i) => m.add(100 + digit / 100, now / 1000 - 1000 + i));
     const tick = (digit: number) => {
         now += 1000;
@@ -167,4 +167,13 @@ it('selects a recovery market across the watchlist once, then ignores stronger a
     expect(
         chooseSignal([first, second], { ...recovering, lockedSymbol: 'R_50', recoveryLocked: true }, settings, now)
     ).toMatchObject({ symbol: 'R_50', barrier: '4', formation: false, recovery: true });
+});
+
+it('accepts exactly 52% for a formed rising recovery entry and rejects a value below it', () => {
+    const f = feed();
+    const recovering = { ...state, deficit: 35, lockedDirection: 'DIGITOVER' as const };
+    f.m.recoveryMomentum.DIGITOVER = { percentage: 52, change: 0.1, armed: true, run: 2, epoch: f.now() / 1000 };
+    expect(momentumSignal(f.m, recovering, f.now())).toMatchObject({ barrier: '4', recovery: true });
+    f.m.recoveryMomentum.DIGITOVER.percentage = 51.9;
+    expect(momentumSignal(f.m, recovering, f.now())).toBeUndefined();
 });
