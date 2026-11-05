@@ -2,7 +2,7 @@ import { digitStrategyEngine } from '@/services/digit-strategy/client';
 import { empty } from '@/services/digit-strategy/engine';
 import { DEFAULT_SETTINGS } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import DigitCycle from '..';
 
 jest.mock('@/services/digit-strategy/client', () => ({
@@ -220,4 +220,89 @@ it('identifies the new parity workspace and the actual locked recovery contract'
     expect(screen.getByText('Recovery status')).toBeTruthy();
     expect(screen.getByText('Active')).toBeTruthy();
     expect(screen.queryByText('Recovery deficit')).toBeNull();
+});
+
+const previewMarket = (symbol: string, name: string) => ({
+    symbol,
+    name,
+    ready: true,
+    latest: 4,
+    status: 'Live',
+    digits: Array.from({ length: 10 }, (_, digit) => ({
+        digit,
+        count: 100,
+        percentage: 10,
+        most: false,
+        least: false,
+    })),
+});
+it('shows one rotating parity preview while reporting that all markets are scanned', () => {
+    jest.useFakeTimers();
+    try {
+        client.getSnapshot.mockReturnValue({
+            ...empty(),
+            active: true,
+            settings: { ...DEFAULT_SETTINGS, strategy: 'even-odd' },
+            markets: [
+                previewMarket('R_10', 'Volatility 10'),
+                previewMarket('R_50', 'Volatility 50'),
+                previewMarket('R_100', 'Volatility 100'),
+            ],
+        });
+        const { container, unmount } = render(<DigitCycle parity />);
+        expect(container.querySelectorAll('.digit-cycle__markets article')).toHaveLength(1);
+        expect(screen.getByText('Volatility 10')).toBeTruthy();
+        expect(screen.getByText(/Scanning all markets · 3\/3 live/)).toBeTruthy();
+        act(() => jest.advanceTimersByTime(2000));
+        expect(screen.queryByText('Volatility 10')).toBeNull();
+        expect(screen.getByText('Volatility 50')).toBeTruthy();
+        expect(container.querySelectorAll('.digit-cycle__markets article')).toHaveLength(1);
+        unmount();
+        expect(jest.getTimerCount()).toBe(0);
+    } finally {
+        jest.useRealTimers();
+    }
+});
+it.each(['open contract', 'locked recovery'])('pins the displayed parity market during an %s', mode => {
+    jest.useFakeTimers();
+    try {
+        const snapshot = {
+            ...empty(),
+            active: true,
+            settings: { ...DEFAULT_SETTINGS, strategy: 'even-odd' },
+            markets: [previewMarket('R_10', 'Volatility 10'), previewMarket('R_50', 'Volatility 50')],
+        };
+        client.getSnapshot.mockReturnValue({
+            ...snapshot,
+            ...(mode === 'open contract'
+                ? { pending: { signal: { symbol: 'R_50' } } }
+                : {
+                      streak: 1,
+                      recovery: {
+                          ...snapshot.recovery,
+                          momentumPending: true,
+                          recoveryLocked: true,
+                          lockedSymbol: 'R_50',
+                          lockedDirection: 'DIGITUNDER',
+                      },
+                  }),
+        });
+        const { container, unmount } = render(<DigitCycle parity />);
+        act(() => jest.advanceTimersByTime(6000));
+        expect(container.querySelectorAll('.digit-cycle__markets article')).toHaveLength(1);
+        expect(screen.getByRole('heading', { name: 'Volatility 50' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Volatility 10' })).toBeNull();
+        unmount();
+    } finally {
+        jest.useRealTimers();
+    }
+});
+it('keeps the existing HIT AND RUN market display', () => {
+    client.getSnapshot.mockReturnValue({
+        ...empty(),
+        settings: { ...DEFAULT_SETTINGS, strategy: 'over2-under7' },
+        markets: [previewMarket('R_10', 'Volatility 10'), previewMarket('R_50', 'Volatility 50')],
+    });
+    const { container } = render(<DigitCycle />);
+    expect(container.querySelectorAll('.digit-cycle__markets article')).toHaveLength(2);
 });

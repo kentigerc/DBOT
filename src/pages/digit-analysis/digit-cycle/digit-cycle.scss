@@ -497,3 +497,112 @@ body.theme--light .digit-cycle--parity {
         color: #bb2d48;
     }
 }
+
+// Keep the parity workspace compact while the server observes the entire watchlist.
+.digit-cycle--parity {
+    .digit-cycle__parity-header {
+        padding: 20px 24px;
+    }
+    .digit-cycle__parity-mark span {
+        width: 48px;
+        height: 60px;
+        font-size: 27px;
+    }
+    .digit-cycle__setup-heading {
+        padding: 18px 24px 12px;
+    }
+    .digit-cycle__fields {
+        padding: 0 24px 18px;
+        gap: 12px 16px;
+    }
+    .digit-cycle__actions {
+        padding: 14px 24px;
+    }
+    .digit-cycle__stats {
+        margin: 16px 24px;
+        > div {
+            padding: 12px;
+            gap: 6px;
+        }
+    }
+    .digit-cycle__scan-status {
+        margin: 12px 24px;
+        color: var(--text-less-prominent);
+        font-size: 11px;
+    }
+    .digit-cycle__markets {
+        grid-template-columns: minmax(0, 1fr);
+        margin: 12px 24px 18px;
+        article {
+            padding: 16px;
+        }
+    }
+    .digit-cycle__market-empty {
+        color: var(--text-less-prominent);
+        font-size: 12px;
+    }
+    .digit-cycle__parity-meter {
+        max-width: 560px;
+        margin: 12px 0 16px;
+    }
+    .digit-cycle__circles {
+        grid-template-columns: repeat(10, minmax(0, 1fr));
+        max-width: 560px;
+        gap: 8px;
+        span {
+            max-width: 44px;
+        }
+        strong {
+            font-size: 14px;
+        }
+    }
+    .digit-cycle__table {
+        max-height: 320px;
+        overflow: auto;
+        overscroll-behavior: contain;
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+    }
+    @media (max-width: 600px) {
+        .digit-cycle__parity-header {
+            padding: 18px;
+        }
+        .digit-cycle__parity-mark span {
+            width: 35px;
+            height: 50px;
+            font-size: 22px;
+        }
+        .digit-cycle__setup-heading {
+            padding: 18px 18px 12px;
+        }
+        .digit-cycle__fields {
+            padding: 0 18px 18px;
+            gap: 12px;
+        }
+        .digit-cycle__actions {
+            padding: 14px 18px;
+        }
+        .digit-cycle__stats {
+            margin: 16px 18px;
+        }
+        .digit-cycle__scan-status {
+            margin-inline: 18px;
+        }
+        .digit-cycle__markets {
+            margin: 12px 18px 18px;
+            article {
+                padding: 14px;
+            }
+        }
+        .digit-cycle__circles {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            max-width: 300px;
+        }
+        .digit-cycle__table {
+            max-height: 280px;
+        }
+    }
+}

@@ -19,6 +19,7 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
     const [error, setError] = useState('');
     const [contractId, setContractId] = useState('');
     const [session, setSession] = useState(getDerivSession());
+    const [previewIndex, setPreviewIndex] = useState(0);
     const own = state.settings.strategy === strategy;
     const parityRecovery =
         own && parity && (state.recovery.momentumPending ?? (state.streak > 0 || (state.recovery.deficit || 0) > 0));
@@ -27,6 +28,27 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
     const busy = state.active || !!state.pending;
     const history = state.trades.length > 0;
     const locked = busy || history;
+    useEffect(() => {
+        if (!parity || !own || !state.active) return;
+        const timer = window.setInterval(() => setPreviewIndex(index => index + 1), 2000);
+        return () => window.clearInterval(timer);
+    }, [parity, own, state.active]);
+    const marketPool = state.markets.filter(
+        market =>
+            (parity && parityRecovery && !state.recovery.recoveryLocked) ||
+            !state.recovery.lockedSymbol ||
+            market.symbol === state.recovery.lockedSymbol
+    );
+    const readyPreviews = marketPool.filter(market => market.ready);
+    const pinnedSymbol =
+        parityRecovery && state.recovery.recoveryLocked ? state.recovery.lockedSymbol : state.pending?.signal.symbol;
+    const focus = pinnedSymbol
+        ? marketPool.find(market => market.symbol === pinnedSymbol)
+        : readyPreviews.length
+          ? readyPreviews[previewIndex % readyPreviews.length]
+          : marketPool[0];
+    const visibleMarkets = parity ? (focus ? [focus] : []) : marketPool;
+
     useEffect(() => {
         const update = () => {
             setSession(getDerivSession());
@@ -208,83 +230,90 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                             </div>
                         ))}
                     </div>
+                    {parity && (
+                        <p className='digit-cycle__scan-status' role='status'>
+                            {pinnedSymbol
+                                ? `${parityRecovery ? 'Recovery locked' : 'Monitoring open contract'} · ${focus?.name || pinnedSymbol}`
+                                : state.active
+                                  ? `Scanning all markets · ${state.markets.filter(market => market.ready).length}/${state.markets.length} live · Preview rotates every 2 seconds`
+                                  : `${state.markets.length} markets in this session · Showing the last readings`}
+                        </p>
+                    )}
                     <div className='digit-cycle__markets'>
-                        {state.markets
-                            .filter(
-                                market =>
-                                    (parity && parityRecovery && !state.recovery.recoveryLocked) ||
-                                    !state.recovery.lockedSymbol ||
-                                    market.symbol === state.recovery.lockedSymbol
-                            )
-                            .map(market => {
-                                const candidates =
-                                    !parity && !policyRecovery && market.ready && !state.recovery.lockedSymbol
-                                        ? cycleDirections(market.digits, market.latest)
-                                        : [];
-                                const evenShare = market.digits
-                                    .filter(d => d.digit % 2 === 0)
-                                    .reduce((sum, d) => sum + d.percentage, 0);
-                                const oddShare = market.digits
-                                    .filter(d => d.digit % 2 !== 0)
-                                    .reduce((sum, d) => sum + d.percentage, 0);
-                                return (
-                                    <article key={market.symbol}>
-                                        <h3>{market.name}</h3>
-                                        <p>
-                                            {market.status} · Last digit: {market.latest ?? '—'} ·{' '}
-                                            {parity
-                                                ? parityRecovery
-                                                    ? state.recovery.recoveryLocked
-                                                        ? `Recovering · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 3' : 'Under 6'}`
-                                                        : 'Searching recovery entries'
-                                                    : 'Monitoring Even/Odd'
-                                                : policyRecovery
-                                                  ? `Recovery · ${RECOVERY_MODES[state.settings.recoveryMode]}`
-                                                  : state.recovery.lockedSymbol === market.symbol
-                                                    ? `${state.streak ? 'Recovering' : 'Trading batch'} · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'}`
-                                                    : candidates.length
-                                                      ? candidates
-                                                            .map(direction =>
-                                                                direction === 'DIGITOVER'
-                                                                    ? 'Over 2 entry ready'
-                                                                    : 'Under 7 entry ready'
-                                                            )
-                                                            .join(', ')
-                                                      : 'Waiting for entry conditions'}
-                                        </p>
-                                        <p>
-                                            Even{' '}
-                                            {market.digits
-                                                .filter(d => d.digit % 2 === 0)
-                                                .reduce((total, d) => total + d.percentage, 0)
-                                                .toFixed(1)}
-                                            %{' · '}Odd{' '}
-                                            {market.digits
-                                                .filter(d => d.digit % 2 !== 0)
-                                                .reduce((total, d) => total + d.percentage, 0)
-                                                .toFixed(1)}
-                                            %
-                                        </p>
-                                        {parity && (
-                                            <div className='digit-cycle__parity-meter' aria-hidden='true'>
-                                                <span style={{ width: `${evenShare}%` }} />
-                                                <span style={{ width: `${oddShare}%` }} />
-                                            </div>
-                                        )}
-                                        <div className='digit-cycle__circles'>
-                                            {market.digits.map(digit => (
-                                                <span
-                                                    key={digit.digit}
-                                                    className={digit.most ? 'is-most' : digit.least ? 'is-least' : ''}
-                                                >
-                                                    <strong>{digit.digit}</strong>
-                                                    {digit.percentage.toFixed(1)}%
-                                                </span>
-                                            ))}
+                        {parity && !focus && (
+                            <p className='digit-cycle__market-empty'>Live market readings appear when available.</p>
+                        )}
+
+                        {visibleMarkets.map(market => {
+                            const candidates =
+                                !parity && !policyRecovery && market.ready && !state.recovery.lockedSymbol
+                                    ? cycleDirections(market.digits, market.latest)
+                                    : [];
+                            const evenShare = market.digits
+                                .filter(d => d.digit % 2 === 0)
+                                .reduce((sum, d) => sum + d.percentage, 0);
+                            const oddShare = market.digits
+                                .filter(d => d.digit % 2 !== 0)
+                                .reduce((sum, d) => sum + d.percentage, 0);
+                            return (
+                                <article key={market.symbol}>
+                                    <h3>{market.name}</h3>
+                                    <p>
+                                        {parity && !state.active ? 'Snapshot' : market.status} · Last digit:{' '}
+                                        {market.latest ?? '—'} ·{' '}
+                                        {parity
+                                            ? parityRecovery
+                                                ? state.recovery.recoveryLocked
+                                                    ? `Recovering · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 3' : 'Under 6'}`
+                                                    : 'Searching recovery entries'
+                                                : 'Monitoring Even/Odd'
+                                            : policyRecovery
+                                              ? `Recovery · ${RECOVERY_MODES[state.settings.recoveryMode]}`
+                                              : state.recovery.lockedSymbol === market.symbol
+                                                ? `${state.streak ? 'Recovering' : 'Trading batch'} · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 2' : 'Under 7'}`
+                                                : candidates.length
+                                                  ? candidates
+                                                        .map(direction =>
+                                                            direction === 'DIGITOVER'
+                                                                ? 'Over 2 entry ready'
+                                                                : 'Under 7 entry ready'
+                                                        )
+                                                        .join(', ')
+                                                  : 'Waiting for entry conditions'}
+                                    </p>
+                                    <p>
+                                        Even{' '}
+                                        {market.digits
+                                            .filter(d => d.digit % 2 === 0)
+                                            .reduce((total, d) => total + d.percentage, 0)
+                                            .toFixed(1)}
+                                        %{' · '}Odd{' '}
+                                        {market.digits
+                                            .filter(d => d.digit % 2 !== 0)
+                                            .reduce((total, d) => total + d.percentage, 0)
+                                            .toFixed(1)}
+                                        %
+                                    </p>
+                                    {parity && (
+                                        <div className='digit-cycle__parity-meter' aria-hidden='true'>
+                                            <span style={{ width: `${evenShare}%` }} />
+                                            <span style={{ width: `${oddShare}%` }} />
                                         </div>
-                                    </article>
-                                );
-                            })}
+                                    )}
+                                    <div className='digit-cycle__circles'>
+                                        {market.digits.map(digit => (
+                                            <span
+                                                key={digit.digit}
+                                                className={digit.most ? 'is-most' : digit.least ? 'is-least' : ''}
+                                            >
+                                                <strong>{digit.digit}</strong>
+                                                {digit.percentage.toFixed(1)}%
+                                            </span>
+                                        ))}
+                                    </div>
+                                </article>
+                            );
+                        })}
                     </div>
                     {state.trades.length > 0 && (
                         <div
