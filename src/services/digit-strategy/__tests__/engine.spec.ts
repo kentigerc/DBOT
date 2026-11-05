@@ -696,3 +696,104 @@ it('initializes other market feeds while an earlier contract-capability request 
     expect(engine.getSnapshot().active).toBe(false);
     expect(broker.buys).toHaveLength(0);
 });
+
+it('trades Momentum 70 in three-win batches and waits for a fresh same-contract recovery entry after losses', async () => {
+    const broker = new FakeBroker(),
+        send = broker.send;
+    broker.send = jest.fn(async body => {
+        if (body.ticks_history) {
+            const digits = [...Array<number>(300).fill(0), ...Array<number>(700).fill(4)];
+            return {
+                pip_size: 2,
+                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
+            };
+        }
+        return send(body);
+    });
+    const { engine } = await setup({ strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2 }, broker);
+    let epoch = 1003;
+    const tick = async (digit = 4) => {
+        await jest.advanceTimersByTimeAsync(1000);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
+        await jest.advanceTimersByTimeAsync(150);
+    };
+    expect(broker.buys).toHaveLength(0);
+    await tick(3);
+    await tick(8);
+    expect(broker.buys).toHaveLength(1);
+    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', amount: 0.35 });
+    broker.settle(-0.35);
+    await jest.advanceTimersByTimeAsync(500);
+    expect(broker.buys).toHaveLength(1);
+    await tick(3);
+    await tick(4);
+    expect(broker.buys).toHaveLength(1);
+    await tick(5);
+    expect(broker.buys[1].parameters).toMatchObject({
+        symbol: 'R_100',
+        contract_type: 'DIGITOVER',
+        barrier: '2',
+        amount: 0.7,
+    });
+    broker.settle(0.6);
+    expect(engine.getSnapshot().batch).toBe(0);
+    for (let i = 0; i < 3; i++) {
+        await tick(3);
+        await tick(4);
+        await tick(5);
+        broker.settle(0.12);
+    }
+    expect(broker.buys).toHaveLength(5);
+    expect(engine.getSnapshot().batch).toBe(0);
+    expect(engine.getSnapshot().batchPause).toBeGreaterThan(Date.now());
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(broker.buys).toHaveLength(5);
+    engine.stop();
+});
+
+it('keeps a partial Momentum recovery balance on the same contract and resets the next stake after a win', async () => {
+    const broker = new FakeBroker(),
+        send = broker.send;
+    broker.send = jest.fn(async body => {
+        if (body.ticks_history) {
+            const digits = [...Array<number>(300).fill(0), ...Array<number>(700).fill(4)];
+            return {
+                pip_size: 2,
+                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
+            };
+        }
+        return send(body);
+    });
+    const { engine } = await setup({ strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2 }, broker);
+    let epoch = 1003;
+    const tick = async () => {
+        await jest.advanceTimersByTimeAsync(1000);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100.04, epoch: ++epoch, pip_size: 2 } });
+        await jest.advanceTimersByTimeAsync(150);
+    };
+    await tick();
+    await tick();
+    broker.settle(-0.35);
+    await tick();
+    await tick();
+    await tick();
+    broker.settle(0.2);
+    expect(engine.getSnapshot()).toMatchObject({
+        stake: 35,
+        batch: 0,
+        recovery: { deficit: 15, lockedSymbol: 'R_100', lockedDirection: 'DIGITOVER' },
+    });
+    await tick();
+    await tick();
+    expect(broker.buys).toHaveLength(2);
+    await tick();
+    expect(broker.buys[2].parameters).toMatchObject({
+        symbol: 'R_100',
+        contract_type: 'DIGITOVER',
+        barrier: '2',
+        amount: 0.35,
+    });
+    engine.stop();
+    broker.settle(0.2);
+    expect(engine.getSnapshot().recovery.deficit).toBe(0);
+});

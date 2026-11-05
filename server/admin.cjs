@@ -10,6 +10,7 @@ const TOOLS = new Set([
     'analysis_tool',
     'hit_and_run',
     'even_odd',
+    'momentum_70',
 ]);
 const day = at => new Date(at).toISOString().slice(0, 10);
 function reportRange(url) {

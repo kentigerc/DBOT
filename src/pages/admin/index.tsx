@@ -63,6 +63,7 @@ const labels: Record<string, string> = {
     analysis_tool: 'Analysis Tool',
     hit_and_run: 'HIT AND RUN',
     even_odd: 'Even / Odd',
+    momentum_70: 'Momentum 70',
 };
 async function get<T>(path: string): Promise<T> {
     const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store' });

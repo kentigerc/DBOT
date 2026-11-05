@@ -3,6 +3,7 @@ import {
     cents,
     chooseSignal,
     cycleSignal,
+    momentumSignal,
     DEFAULT_SETTINGS,
     DigitMarket,
     type Direction,
@@ -48,6 +49,7 @@ type Pending = {
     contractId?: number;
 };
 export type MarketView = {
+    momentum?: DigitMarket['momentum'];
     symbol: string;
     name: string;
     price: string;
@@ -460,6 +462,7 @@ export class DigitStrategyEngine {
                         ? m.digits.length
                         : [...m.digits].reverse().findIndex(d => d < 5),
                 digits: m.frequencies(),
+                momentum: { ...m.momentum },
                 status: m.ready(this.now()) ? 'Live' : m.liveTicks < 3 ? 'Warming up' : 'Stale / refilling',
             }));
             this.update({ markets, liveUntil: this.state.active ? this.now() + 15000 : 0 });
@@ -540,6 +543,14 @@ export class DigitStrategyEngine {
                 fresh?.symbol === signal.symbol &&
                 fresh.direction === signal.direction &&
                 (!signal.formation || fresh.epoch === signal.epoch)
+            );
+        }
+        if (this.state.settings.strategy === 'momentum-70') {
+            const fresh = momentumSignal(market, this.state.recovery, this.now());
+            return (
+                fresh?.direction === signal.direction &&
+                fresh.barrier === signal.barrier &&
+                fresh.epoch === signal.epoch
             );
         }
         if (signal.recovery) {
@@ -812,6 +823,21 @@ export class DigitStrategyEngine {
                 recoveryLosses = 0;
             }
             if (pause) this.log('Three-win batch complete. Returning to fresh market analysis after five seconds.');
+        }
+        if (this.state.settings.strategy === 'momentum-70') {
+            const deficit = Math.max(0, (this.state.recovery.deficit || 0) - profit);
+            batch = profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
+            pause = batch >= 3 && deficit === 0;
+            recovery = {
+                streak,
+                deficit,
+                countAfter: this.now(),
+                pauseUntil: pause ? this.now() + 5000 : 0,
+                ...(deficit > 0 ? { lockedSymbol: p.signal.symbol, lockedDirection: p.signal.direction } : {}),
+            };
+            recoveryLosses = 0;
+            for (const market of this.markets.values()) market.resetMomentum();
+            if (pause) this.log('Three-win batch complete. Returning to live market analysis after five seconds.');
         }
         if (this.state.settings.strategy === 'even-odd') {
             const deficit = Math.max(0, (this.state.recovery.deficit || 0) - profit);

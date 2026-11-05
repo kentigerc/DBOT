@@ -161,11 +161,13 @@ export default function AnalysisTool() {
                                     }))
                                 }
                             >
-                                {Object.entries(RECOVERY_MODES).map(([value, label]) => (
-                                    <option key={value} value={value}>
-                                        {label}
-                                    </option>
-                                ))}
+                                {Object.entries(RECOVERY_MODES)
+                                    .filter(([value]) => value !== 'same_contract')
+                                    .map(([value, label]) => (
+                                        <option key={value} value={value}>
+                                            {label}
+                                        </option>
+                                    ))}
                             </select>
                         </label>
                         {!['under5_filtered_once', 'parity_percentage'].includes(draft.recoveryMode) &&
