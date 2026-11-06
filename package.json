@@ -8,6 +8,7 @@
     "scripts": {
         "dev": "npm run build:strategy && node server/dev.cjs",
         "start:production": "node server/index.cjs",
+        "test:load": "npm run build:strategy && node scripts/load-test.cjs",
         "test:server": "npm run build:strategy && node --test server/*.test.cjs",
         "start": "node server/index.cjs",
         "build": "npm run build:strategy && rsbuild build",
