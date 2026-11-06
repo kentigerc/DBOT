@@ -26,6 +26,10 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
         own && parity && (state.recovery.momentumPending ?? (state.streak > 0 || (state.recovery.deficit || 0) > 0));
     const policyRecovery =
         own && (state.streak > 0 || (state.recovery.deficit || 0) > 0) && state.settings.hitRecovery === 'analysis';
+    const parityLocked =
+        parityRecovery &&
+        state.recovery.recoveryLocked &&
+        ['DIGITEVEN', 'DIGITODD'].includes(state.recovery.lockedDirection || '');
     const busy = state.active || !!state.pending;
     const history = state.trades.length > 0;
     const locked = busy || history;
@@ -34,15 +38,13 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
         const timer = window.setInterval(() => setPreviewIndex(index => index + 1), 2000);
         return () => window.clearInterval(timer);
     }, [parity, own, state.active]);
-    const marketPool = state.markets.filter(
-        market =>
-            (parity && parityRecovery && !state.recovery.recoveryLocked) ||
-            !state.recovery.lockedSymbol ||
-            market.symbol === state.recovery.lockedSymbol
+    const marketPool = state.markets.filter(market =>
+        parity
+            ? !parityLocked || market.symbol === state.recovery.lockedSymbol
+            : !state.recovery.lockedSymbol || market.symbol === state.recovery.lockedSymbol
     );
     const readyPreviews = marketPool.filter(market => market.ready);
-    const pinnedSymbol =
-        parityRecovery && state.recovery.recoveryLocked ? state.recovery.lockedSymbol : state.pending?.signal.symbol;
+    const pinnedSymbol = parityLocked ? state.recovery.lockedSymbol : state.pending?.signal.symbol;
     const focus = pinnedSymbol
         ? marketPool.find(market => market.symbol === pinnedSymbol)
         : readyPreviews.length
@@ -264,8 +266,8 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                                         {market.latest ?? '—'} ·{' '}
                                         {parity
                                             ? parityRecovery
-                                                ? state.recovery.recoveryLocked
-                                                    ? `Recovering · ${state.recovery.lockedDirection === 'DIGITOVER' ? 'Over 3' : 'Under 6'}`
+                                                ? parityLocked
+                                                    ? `Recovering · ${state.recovery.lockedDirection === 'DIGITEVEN' ? 'Even' : 'Odd'}`
                                                     : 'Searching recovery entries'
                                                 : 'Monitoring Even/Odd'
                                             : policyRecovery

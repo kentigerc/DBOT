@@ -97,6 +97,11 @@ export const nextRecoveryStake = (previousCents: number, multiplier = DEFAULT_SE
 export type Frequency = { digit: number; count: number; percentage: number; most: boolean; least: boolean };
 export type MomentumReading = { percentage: number; change: number; run: number; armed: boolean; epoch: number };
 export class DigitMarket {
+    private parityCounts = { DIGITEVEN: 0, DIGITODD: 0 };
+    parityMomentum: Record<'DIGITEVEN' | 'DIGITODD', MomentumReading> = {
+        DIGITEVEN: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
+        DIGITODD: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
+    };
     private groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER3: 0, UNDER6: 0 };
     momentum: Record<'DIGITOVER' | 'DIGITUNDER', MomentumReading> = {
         DIGITOVER: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
@@ -136,6 +141,7 @@ export class DigitMarket {
                 this.arrivals = [];
                 this.liveTicks = 0;
                 this.groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER3: 0, UNDER6: 0 };
+                this.parityCounts = { DIGITEVEN: 0, DIGITODD: 0 };
                 this.resetMomentum();
                 this.gapUntil = received + 6000;
             }
@@ -179,9 +185,30 @@ export class DigitMarket {
             } else if (armed) run = accepts(this.digits[this.digits.length - 1]) ? Math.min(2, run + 1) : 0;
             target[direction] = { percentage: count / 10, change, armed, run, epoch };
         }
+        for (const direction of ['DIGITEVEN', 'DIGITODD'] as const) {
+            const parity = direction === 'DIGITEVEN' ? 0 : 1;
+            const previous = this.parityCounts[direction];
+            const count =
+                previous + (digit % 2 === parity ? 1 : 0) - (outgoing !== undefined && outgoing % 2 === parity ? 1 : 0);
+            this.parityCounts[direction] = count;
+            const change = full ? (count - previous) / 10 : 0;
+            const reading = this.parityMomentum[direction];
+            let armed = reading.armed,
+                run = reading.run;
+            if (!received || !this.ready(received) || count < 600 || change < 0) {
+                armed = false;
+                run = 0;
+            } else {
+                if (!armed && change > 0) armed = true;
+                run = armed && digit % 2 === parity ? Math.min(3, run + 1) : 0;
+            }
+            this.parityMomentum[direction] = { percentage: count / 10, change, armed, run, epoch };
+        }
         return true;
     }
     resetMomentum() {
+        for (const direction of ['DIGITEVEN', 'DIGITODD'] as const)
+            this.parityMomentum[direction] = { ...this.parityMomentum[direction], armed: false, run: 0 };
         for (const direction of ['DIGITOVER', 'DIGITUNDER'] as const) {
             this.momentum[direction] = { ...this.momentum[direction], armed: false, run: 0 };
             this.recoveryMomentum[direction] = { ...this.recoveryMomentum[direction], armed: false, run: 0 };
@@ -398,21 +425,35 @@ export function chooseSignal(
     if (config.strategy === 'even-odd') {
         const recovering = state.momentumPending ?? ((state.deficit || 0) > 0 || state.streak > 0);
         if (recovering) {
-            // Reuse Momentum's rising 52% Over 3 / Under 6 entry rules and ranking.
-            // The first recovery can choose either direction, regardless of the lost parity contract.
-            const locked = state.recoveryLocked && ['DIGITOVER', 'DIGITUNDER'].includes(state.lockedDirection || '');
-            return chooseSignal(
-                markets,
-                {
-                    ...state,
-                    momentumPending: true,
-                    recoveryLocked: !!locked,
-                    lockedDirection: locked ? state.lockedDirection : undefined,
-                },
-                { ...config, strategy: 'momentum-70' },
-                now,
-                random
-            );
+            const locked = state.recoveryLocked && ['DIGITEVEN', 'DIGITODD'].includes(state.lockedDirection || '');
+            if (locked) {
+                const market = markets.find(m => m.symbol === state.lockedSymbol);
+                return market?.ready(now) ? signalOn(market, state.lockedDirection!, undefined, true) : undefined;
+            }
+            const candidates = markets.flatMap(m => {
+                if (!m.ready(now) || now < state.pauseUntil) return [];
+                return (['DIGITEVEN', 'DIGITODD'] as const).flatMap(direction => {
+                    const reading = m.parityMomentum[direction];
+                    const parity = direction === 'DIGITEVEN' ? 0 : 1;
+                    if (
+                        !reading.armed ||
+                        reading.percentage < 60 ||
+                        reading.change <= 0 ||
+                        reading.run < 3 ||
+                        !m.digits.slice(-3).every(digit => digit % 2 === parity) ||
+                        !m.arrivals.slice(-3).every(at => at > state.countAfter)
+                    )
+                        return [];
+                    return [signalOn(m, direction, undefined, true, true)];
+                });
+            });
+            return candidates.sort(
+                (a, b) =>
+                    markets.find(m => m.symbol === b.symbol)!.parityMomentum[b.direction as 'DIGITEVEN' | 'DIGITODD']
+                        .percentage -
+                    markets.find(m => m.symbol === a.symbol)!.parityMomentum[a.direction as 'DIGITEVEN' | 'DIGITODD']
+                        .percentage
+            )[0];
         }
         const candidates = markets.flatMap(m => {
             if (!m.ready(now)) return [];

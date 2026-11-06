@@ -195,7 +195,7 @@ it('identifies the new parity workspace and the actual locked recovery contract'
             momentumPending: true,
             recoveryLocked: true,
             lockedSymbol: 'R_50',
-            lockedDirection: 'DIGITUNDER',
+            lockedDirection: 'DIGITODD',
         },
         markets: [
             {
@@ -216,8 +216,8 @@ it('identifies the new parity workspace and the actual locked recovery contract'
     });
     const { container } = render(<DigitCycle parity />);
     expect(container.querySelector('.digit-cycle--parity')).toBeTruthy();
-    expect(screen.getByText(/Recovering · Under 6/)).toBeTruthy();
-    expect(screen.queryByText(/Recovering · Even\/Odd/)).toBeNull();
+    expect(screen.getByText(/Recovering · Odd/)).toBeTruthy();
+    expect(screen.queryByText(/Recovering · Under/)).toBeNull();
     expect(screen.getByText('Recovery status')).toBeTruthy();
     expect(screen.getByText('Active')).toBeTruthy();
     expect(screen.queryByText('Recovery deficit')).toBeNull();
@@ -284,7 +284,7 @@ it.each(['open contract', 'locked recovery'])('pins the displayed parity market 
                           momentumPending: true,
                           recoveryLocked: true,
                           lockedSymbol: 'R_50',
-                          lockedDirection: 'DIGITUNDER',
+                          lockedDirection: 'DIGITODD',
                       },
                   }),
         });

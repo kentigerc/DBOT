@@ -342,8 +342,7 @@ export class DigitStrategyEngine {
                         if (generation !== this.generation || !this.state.active || !this.state.wantsRun) return;
                         const available = info.contracts_for?.available || [];
                         const required = [
-                            'DIGITOVER',
-                            'DIGITUNDER',
+                            ...(settings.strategy === 'even-odd' ? [] : ['DIGITOVER', 'DIGITUNDER']),
                             ...(settings.strategy === undefined ? ['DIGITDIFF'] : []),
                             ...(settings.recoveryMode.startsWith('parity') ? ['DIGITEVEN', 'DIGITODD'] : []),
                         ];
@@ -737,7 +736,12 @@ export class DigitStrategyEngine {
                               : p.signal.symbol,
                     lockedDirection: p.signal.direction,
                     ...(['momentum-70', 'even-odd'].includes(this.state.settings.strategy || '')
-                        ? { recoveryLocked: ['DIGITOVER', 'DIGITUNDER'].includes(p.signal.direction) }
+                        ? {
+                              recoveryLocked: (this.state.settings.strategy === 'even-odd'
+                                  ? ['DIGITEVEN', 'DIGITODD']
+                                  : ['DIGITOVER', 'DIGITUNDER']
+                              ).includes(p.signal.direction),
+                          }
                         : {}),
                     countAfter: 0,
                 },
@@ -850,6 +854,9 @@ export class DigitStrategyEngine {
         }
         if (['momentum-70', 'even-odd'].includes(this.state.settings.strategy || '')) {
             const parity = this.state.settings.strategy === 'even-odd';
+            const validRecoveryDirection = (parity ? ['DIGITEVEN', 'DIGITODD'] : ['DIGITOVER', 'DIGITUNDER']).includes(
+                p.signal.direction
+            );
             const momentumPending = profit < 0 || (p.signal.recovery && profit === 0);
             batch =
                 parity || profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
@@ -863,8 +870,10 @@ export class DigitStrategyEngine {
                 pauseUntil: pause ? this.now() + 5000 : 0,
                 ...(momentumPending
                     ? {
-                          ...(!parity || p.signal.recovery ? { lockedDirection: p.signal.direction } : {}),
-                          ...(p.signal.recovery && ['DIGITOVER', 'DIGITUNDER'].includes(p.signal.direction)
+                          ...(!parity || (p.signal.recovery && validRecoveryDirection)
+                              ? { lockedDirection: p.signal.direction }
+                              : {}),
+                          ...(p.signal.recovery && validRecoveryDirection
                               ? { lockedSymbol: p.signal.symbol, recoveryLocked: true }
                               : {}),
                       }
