@@ -17,6 +17,7 @@ export default function LiveChart({ darkMode }: { darkMode: boolean }) {
     const [api, setApi] = useState<DerivAPIBasic | null>(null);
     const [connected, setConnected] = useState(false);
     const [error, setError] = useState('');
+    const [interactive, setInteractive] = useState(false);
     const [attempt, setAttempt] = useState(0);
     const [symbol, setSymbol] = useState('R_100');
     const [chartType, setChartType] = useState('line');
@@ -39,6 +40,7 @@ export default function LiveChart({ darkMode }: { darkMode: boolean }) {
         const close = () => {
             if (active) {
                 setConnected(false);
+                setInteractive(false);
                 setError('Market data disconnected. Reconnect to resume the live chart.');
             }
         };
@@ -94,6 +96,18 @@ export default function LiveChart({ darkMode }: { darkMode: boolean }) {
     );
     return (
         <div className='nl-smart-chart'>
+            <div className='nl-smart-chart__interaction'>
+                <span>{interactive ? 'Chart controls enabled' : 'Live chart · Scroll to explore'}</span>
+                <button
+                    type='button'
+                    disabled={!connected}
+                    aria-pressed={interactive}
+                    onClick={() => setInteractive(value => !value)}
+                >
+                    {interactive ? 'Return to page scrolling' : 'Enable chart controls'}
+                </button>
+            </div>
+
             {error ? (
                 <div className='nl-smart-chart__status' role='alert'>
                     <p>{error}</p>
@@ -113,44 +127,50 @@ export default function LiveChart({ darkMode }: { darkMode: boolean }) {
                     Connecting live chart…
                 </div>
             ) : null}
-            {api && connected && (
-                <SmartChart
-                    id='neto-landing'
-                    barriers={[]}
-                    showLastDigitStats={false}
-                    chartControlsWidgets={null}
-                    enabledChartFooter={false}
-                    toolbarWidget={() => (
-                        <ToolbarWidgets
-                            updateChartType={setChartType}
-                            updateGranularity={setGranularity}
-                            position={isDesktop ? 'top' : 'bottom'}
-                            isDesktop={isDesktop}
-                        />
-                    )}
-                    chartType={chartType}
-                    granularity={granularity}
-                    symbol={symbol}
-                    settings={{
-                        assetInformation: false,
-                        countdown: true,
-                        isHighestLowestMarkerEnabled: false,
-                        language: 'en',
-                        position: 'bottom',
-                        theme: darkMode ? 'dark' : 'light',
-                    }}
-                    isMobile={isMobile}
-                    enabledNavigationWidget={isDesktop}
-                    requestAPI={requestAPI}
-                    requestSubscribe={requestSubscribe}
-                    requestForgetStream={requestForgetStream}
-                    requestForget={() => subscriptions.forEach((_, id) => requestForgetStream(id))}
-                    topWidgets={() => <ChartTitle onChange={setSymbol} />}
-                    isConnectionOpened={connected}
-                    isLive
-                    leftMargin={80}
-                />
-            )}
+            <div
+                className={`nl-smart-chart__canvas${interactive ? '' : ' nl-smart-chart__canvas--preview'}`}
+                {...(!interactive ? { inert: '' } : {})}
+            >
+                {api && connected && (
+                    <SmartChart
+                        id='neto-landing'
+                        barriers={[]}
+                        showLastDigitStats={false}
+                        chartControlsWidgets={null}
+                        enabledChartFooter={false}
+                        toolbarWidget={() => (
+                            <ToolbarWidgets
+                                updateChartType={setChartType}
+                                updateGranularity={setGranularity}
+                                position={isDesktop ? 'top' : 'bottom'}
+                                isDesktop={isDesktop}
+                            />
+                        )}
+                        chartType={chartType}
+                        granularity={granularity}
+                        symbol={symbol}
+                        settings={{
+                            assetInformation: false,
+                            countdown: true,
+                            isHighestLowestMarkerEnabled: false,
+                            language: 'en',
+                            position: 'bottom',
+                            theme: darkMode ? 'dark' : 'light',
+                        }}
+                        isMobile={isMobile}
+                        enabledNavigationWidget={isDesktop}
+                        requestAPI={requestAPI}
+                        requestSubscribe={requestSubscribe}
+                        requestForgetStream={requestForgetStream}
+                        requestForget={() => subscriptions.forEach((_, id) => requestForgetStream(id))}
+                        topWidgets={() => <ChartTitle onChange={setSymbol} />}
+                        isConnectionOpened={connected}
+                        isLive
+                        leftMargin={80}
+                    />
+                )}
+            </div>
+            {!interactive && <div className='nl-smart-chart__scroll-surface' aria-hidden='true' />}
         </div>
     );
 }

@@ -96,3 +96,16 @@ it('offers reconnection when the public socket closes', () => {
     open();
     expect(screen.getByTestId('smartchart')).toBeTruthy();
 });
+
+it('keeps chart gestures inactive until explicitly enabled and restores page scrolling without remounting', () => {
+    const { container } = render(<LiveChart darkMode />);
+    open();
+    const chart = screen.getByTestId('smartchart');
+    expect(container.querySelector('.nl-smart-chart__canvas')?.hasAttribute('inert')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Enable chart controls' }));
+    expect(container.querySelector('.nl-smart-chart__canvas')?.hasAttribute('inert')).toBe(false);
+    expect(screen.getByTestId('smartchart')).toBe(chart);
+    fireEvent.click(screen.getByRole('button', { name: 'Return to page scrolling' }));
+    expect(container.querySelector('.nl-smart-chart__canvas')?.hasAttribute('inert')).toBe(true);
+    expect(screen.getByTestId('smartchart')).toBe(chart);
+});

@@ -1,6 +1,8 @@
 body.neto-landing-page {
     margin: 0;
-    overflow: hidden;
+    height: auto;
+    overflow-y: auto;
+    overflow-x: clip;
 }
 
 .neto-landing {
@@ -9,10 +11,9 @@ body.neto-landing-page {
     --nl-ink: #efefea;
     --nl-muted: #959690;
     --nl-red: #ff514e;
-    height: 100vh;
-    height: 100dvh;
-    overflow-y: auto;
-    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: clip;
     background: var(--nl-bg);
     color: var(--nl-ink);
     font-family: 'IBM Plex Sans', sans-serif;
@@ -1414,6 +1415,68 @@ body.neto-landing-page {
             margin-inline: 6%;
             padding: 22px;
             scroll-margin-top: 88px;
+        }
+    }
+}
+
+.neto-landing .nl-smart-chart {
+    display: flex;
+    flex-direction: column;
+    &__interaction {
+        flex-shrink: 0;
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 48px;
+        padding: 8px 5%;
+        border-bottom: 1px solid var(--nl-line);
+        background: var(--nl-bg);
+        color: var(--nl-muted);
+        font-size: 12px;
+        button {
+            border: 1px solid var(--nl-line);
+            border-radius: 5px;
+            padding: 8px 12px;
+            min-height: 36px;
+            background: transparent;
+            color: var(--nl-ink);
+            font-size: 11px;
+            &:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+        }
+    }
+    &__canvas {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+    }
+    &__canvas--preview {
+        pointer-events: none;
+    }
+    &__scroll-surface {
+        position: absolute;
+        inset: 53px 0 0;
+        z-index: 1;
+        touch-action: pan-y pinch-zoom;
+    }
+    // Keep retry and connection messages reachable above the scroll surface.
+    &__status {
+        position: relative;
+        z-index: 2;
+    }
+    @media (max-width: 600px) {
+        &__interaction {
+            padding-inline: 6%;
+            span {
+                max-width: 135px;
+                font-size: 11px;
+            }
         }
     }
 }
