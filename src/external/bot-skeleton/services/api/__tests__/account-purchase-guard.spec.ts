@@ -21,13 +21,10 @@ it('a percentage-guard rejection must not leave an XML purchase reserved or unco
     })!;
     xmlScannerCycle.loaded(token, { takeProfit: 1000, stopLoss: 10000 });
     xmlScannerCycle.runStarted();
-    let digits = counts.flatMap((n, d) => Array<number>(n).fill(d));
-    const epoch = Date.now() / 1000;
-    xmlScannerCycle.market('R_100', digits, epoch);
-    for (let i = 1; i <= 3; i++) {
-        digits = [...digits.slice(1), 5];
-        xmlScannerCycle.market('R_100', digits, epoch + i / 1000);
-    }
+    const digits = counts.flatMap((n, d) => Array<number>(n).fill(d));
+    digits.splice(digits.indexOf(1), 1);
+    digits.push(1);
+    xmlScannerCycle.market('R_100', digits, Date.now() / 1000);
     expect(await xmlScannerCycle.beforePurchase('R_100')).toBe(true);
     scannerExitGuard.begin(jest.fn());
     scannerExitGuard.trigger();

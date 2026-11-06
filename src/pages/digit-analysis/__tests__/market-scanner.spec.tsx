@@ -108,10 +108,7 @@ it('updates a live market and removes a match without polling history again', as
     await act(async () => {});
     expect(screen.getByRole('button', { name: 'Load Bot' })).toBeTruthy();
     await act(async () => {
-        for (let i = 0; i < 40; i++) {
-            await jest.advanceTimersByTimeAsync(1000);
-            api.emit(2);
-        }
+        api.emit(2);
     });
     expect(screen.queryByRole('button', { name: 'Load Bot' })).toBeNull();
     expect(api.send.mock.calls.filter(([request]) => request.ticks_history)).toHaveLength(1);
