@@ -43,7 +43,7 @@ class FakeBroker implements Broker {
             return {
                 pip_size: 2,
                 history: {
-                    prices: Array.from({ length: 1000 }, (_, i) => 100 + (i % 10) / 100),
+                    prices: Array.from({ length: 1000 }, (_, i) => 100 + (i < 20 ? 0 : i % 10) / 100),
                     times: Array.from({ length: 1000 }, (_, i) => i + 1),
                 },
             };
@@ -328,7 +328,7 @@ async function setupCycle(options: Partial<typeof DEFAULT_SETTINGS> = {}, under 
     broker.holdQuote = holdInitialQuote;
     const send = broker.send;
     const counts = [90, 90, 90, 80, 100, 100, 110, 110, 110, 120];
-    const digits = (under ? [...counts].reverse() : counts).flatMap((count, digit) => Array<number>(count).fill(digit));
+    const digits = counts.flatMap((count, digit) => Array<number>(count).fill(under ? 9 - digit : digit));
     broker.send = jest.fn(async body =>
         body.ticks_history
             ? { pip_size: 2, history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) } }
@@ -346,26 +346,27 @@ async function setupCycle(options: Partial<typeof DEFAULT_SETTINGS> = {}, under 
     await jest.advanceTimersByTimeAsync(150);
     await starting;
     let epoch = 1000;
-    const tick = async (digit = under ? 7 : 1) => {
+    const tick = async (digit = under ? 4 : 5) => {
         await jest.advanceTimersByTimeAsync(1000);
         broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
         await jest.advanceTimersByTimeAsync(150);
     };
-    await tick();
-    await tick(under ? 8 : 2);
-    await tick();
-    return { broker, engine, tick };
+    for (let i = 0; i < 5; i++) await tick();
+    const entry = async () => {
+        for (let i = 0; i < 3; i++) await tick();
+    };
+    return { broker, engine, tick, entry };
 }
 describe('HIT AND RUN execution', () => {
     it('finishes a three-win batch and waits for fresh analysis before another entry', async () => {
-        const { broker, engine, tick } = await setupCycle();
+        const { broker, engine, tick, entry } = await setupCycle();
         expect(broker.buys).toHaveLength(1);
         expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', duration: 1 });
         broker.settle(0.32);
-        await tick();
+        await entry();
         expect(broker.buys).toHaveLength(2);
         broker.settle(0.32);
-        await tick(2);
+        await entry();
         expect(broker.buys).toHaveLength(3);
         broker.settle(0.32);
         expect(engine.getSnapshot()).toMatchObject({
@@ -379,12 +380,12 @@ describe('HIT AND RUN execution', () => {
         expect(broker.buys).toHaveLength(3);
         await tick(5);
         expect(broker.buys).toHaveLength(3);
-        await tick(1);
+        await entry();
         expect(broker.buys).toHaveLength(4);
         engine.stop();
     });
     it('continues recovery without analysis, then restarts a three-win batch on the same market', async () => {
-        const { broker, engine, tick } = await setupCycle({ multiplier: 3 });
+        const { broker, engine, tick, entry } = await setupCycle({ multiplier: 3 });
         broker.settle(-0.35);
         expect(engine.getSnapshot()).toMatchObject({
             streak: 1,
@@ -401,16 +402,16 @@ describe('HIT AND RUN execution', () => {
         expect(broker.buys[2].price).toBe(3.15);
         broker.settle(2.84);
         expect(engine.getSnapshot()).toMatchObject({ streak: 0, stake: 35, batch: 0, batchPause: 0 });
-        await jest.advanceTimersByTimeAsync(150);
+        await entry();
         expect(broker.buys).toHaveLength(4);
         expect(broker.buys[3].price).toBe(0.35);
         expect(broker.buys[3].parameters).toMatchObject({ symbol: 'R_100', contract_type: 'DIGITOVER', barrier: '2' });
         broker.settle(0.32);
-        await jest.advanceTimersByTimeAsync(150);
+        await entry();
         expect(engine.getSnapshot().batch).toBe(1);
         expect(broker.buys).toHaveLength(5);
         broker.settle(0.32);
-        await jest.advanceTimersByTimeAsync(150);
+        await entry();
         expect(engine.getSnapshot().batch).toBe(2);
         expect(broker.buys).toHaveLength(6);
         broker.settle(0.32);
@@ -437,21 +438,20 @@ describe('HIT AND RUN execution', () => {
         expect(broker.buys).toHaveLength(0);
         engine.stop();
     });
-    it('does not reapply entry triggers to continuation quotes, but still honors STOP', async () => {
-        const { broker, engine, tick } = await setupCycle();
+    it('revalidates normal continuation quotes and honors STOP before a wire purchase', async () => {
+        const { broker, engine, tick, entry } = await setupCycle();
         broker.settle(0.32);
         broker.holdQuote = true;
-        await tick(5);
-        await tick(6);
+        await entry();
+        await tick(1); // Entry invalidated while the quote was in flight.
         broker.quoteResolve!({ proposal: { ask_price: 0.35, payout: 0.67 } });
         await jest.advanceTimersByTimeAsync(150);
-        expect(broker.buys).toHaveLength(2);
-        broker.settle(0.32);
-        await jest.advanceTimersByTimeAsync(150);
+        expect(broker.buys).toHaveLength(1);
+        await entry();
         engine.stop();
         broker.quoteResolve!({ proposal: { ask_price: 0.35, payout: 0.67 } });
         await jest.advanceTimersByTimeAsync(150);
-        expect(broker.buys).toHaveLength(2);
+        expect(broker.buys).toHaveLength(1);
     });
 });
 
@@ -464,20 +464,21 @@ it('executes Under 7 with the same HIT AND RUN safeguards', async () => {
     expect(engine.getSnapshot().active).toBe(false);
 });
 it('recovers a loss in a later HIT AND RUN session and then starts a full new three-win batch', async () => {
-    const { broker, engine, tick } = await setupCycle();
+    const { broker, engine, entry } = await setupCycle();
     for (let i = 0; i < 3; i++) {
         broker.settle(0.32);
-        await jest.advanceTimersByTimeAsync(150);
+        if (i < 2) await entry();
+        else await jest.advanceTimersByTimeAsync(150);
     }
     expect(broker.buys).toHaveLength(3);
     expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
     await jest.advanceTimersByTimeAsync(5000);
-    await tick(1);
+    await entry();
     expect(broker.buys).toHaveLength(4);
     // Two successful normal trades do not count toward the next batch after a loss.
     for (let i = 0; i < 2; i++) {
         broker.settle(0.32);
-        await jest.advanceTimersByTimeAsync(150);
+        await entry();
     }
     expect(broker.buys).toHaveLength(6);
     expect(engine.getSnapshot().batch).toBe(2);
@@ -487,13 +488,14 @@ it('recovers a loss in a later HIT AND RUN session and then starts a full new th
     expect(broker.buys[6].price).toBe(0.74);
     expect(engine.getSnapshot()).toMatchObject({ batch: 0, recovery: { lockedSymbol: 'R_100' } });
     broker.settle(0.67);
-    await jest.advanceTimersByTimeAsync(150);
+    await entry();
     expect(broker.buys).toHaveLength(8);
     expect(broker.buys[7].price).toBe(0.35);
     expect(engine.getSnapshot()).toMatchObject({ batch: 0, recovery: { lockedSymbol: 'R_100' } });
     for (let i = 0; i < 3; i++) {
         broker.settle(0.32);
-        await jest.advanceTimersByTimeAsync(150);
+        if (i < 2) await entry();
+        else await jest.advanceTimersByTimeAsync(150);
     }
     expect(broker.buys).toHaveLength(10);
     expect(engine.getSnapshot().batch).toBe(0);
@@ -502,13 +504,14 @@ it('recovers a loss in a later HIT AND RUN session and then starts a full new th
 });
 describe('HIT AND RUN Analysis Tool recovery policies', () => {
     it('waits for the chosen formation, buys Under 5 recovery, and restores the original Over 2 batch', async () => {
-        const { broker, engine, tick } = await setupCycle({
+        const { broker, engine, tick, entry } = await setupCycle({
             hitRecovery: 'analysis',
             recoveryMode: 'under5_run',
             triggerCount: 3,
         });
         broker.settle(-0.35);
         expect(engine.getSnapshot().recovery).toMatchObject({ batchMarket: 'R_100', batchDirection: 'DIGITOVER' });
+        await tick(2);
         await tick(5);
         await tick(6);
         expect(broker.buys).toHaveLength(1);
@@ -516,7 +519,7 @@ describe('HIT AND RUN Analysis Tool recovery policies', () => {
         expect(broker.buys).toHaveLength(2);
         expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 0.74 });
         broker.settle(0.67);
-        await jest.advanceTimersByTimeAsync(150);
+        await entry();
         expect(broker.buys).toHaveLength(3);
         expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', amount: 0.35 });
         expect(engine.getSnapshot()).toMatchObject({
@@ -611,7 +614,7 @@ it('executes percentage recovery immediately at one tick and returns to normal t
     const send = broker.send;
     broker.send = jest.fn(async body => {
         if (body.ticks_history) {
-            const digits = [...Array<number>(550).fill(0), ...Array<number>(450).fill(1)];
+            const digits = [...Array<number>(20).fill(9), ...Array<number>(550).fill(0), ...Array<number>(430).fill(1)];
             return {
                 pip_size: 2,
                 history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
@@ -636,6 +639,12 @@ it('executes percentage recovery immediately at one tick and returns to normal t
     await jest.advanceTimersByTimeAsync(1000);
     broker.emit({ tick: { symbol: 'R_100', quote: 100.03, epoch: 1005, pip_size: 2 } });
     await jest.advanceTimersByTimeAsync(150);
+    expect(broker.buys).toHaveLength(2);
+    for (let epoch = 1006; epoch <= 1008; epoch++) {
+        await jest.advanceTimersByTimeAsync(1000);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100.07, epoch, pip_size: 2 } });
+        await jest.advanceTimersByTimeAsync(150);
+    }
     expect(broker.buys[2].parameters.duration).toBe(2);
     engine.stop();
 });

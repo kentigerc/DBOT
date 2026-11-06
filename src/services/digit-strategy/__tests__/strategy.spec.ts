@@ -320,14 +320,21 @@ describe('Even/Odd recovery requires a rising 52% share and three matching digit
     });
 });
 
-it('includes Under 7 in Analysis Tool entries only when its digit is neither most nor least frequent', () => {
-    const m = market();
+it('keeps Under 7 in Analysis Tool and requires its live winning-digit formation', () => {
+    const m = new DigitMarket('R_100', 2, 'Volatility 100 Index');
+    const digits = [...Array<number>(300).fill(9), ...Array<number>(700).fill(0)];
+    digits.forEach((digit, i) => m.add(100 + digit / 100, i + 1));
     const state = { streak: 0, countAfter: 0, pauseUntil: 0, previous: 'DIGITOVER' as const };
+    for (let i = 1; i <= 4; i++) m.add(100.04, 1000 + i, 5000 + i * 1000);
+    expect(chooseSignal([m], state, DEFAULT_SETTINGS, 9000, () => 0)?.direction).toBe('DIGITDIFF');
+    m.add(100.04, 1005, 10000);
     expect(chooseSignal([m], state, DEFAULT_SETTINGS, 10000, () => 0)).toMatchObject({
         direction: 'DIGITUNDER',
         barrier: '7',
         recovery: false,
+        formation: true,
     });
-    m.digits = Array(1000).fill(7);
-    expect(chooseSignal([m], state, DEFAULT_SETTINGS, 10000, () => 0)).toBeUndefined();
+    expect(m.entries.ready('DIGITUNDER', 7)).toBe(true);
+    m.entries.reset();
+    expect(chooseSignal([m], state, DEFAULT_SETTINGS, 10000, () => 0)?.direction).toBe('DIGITDIFF');
 });

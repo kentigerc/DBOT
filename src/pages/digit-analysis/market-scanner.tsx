@@ -1,3 +1,4 @@
+import { OverUnderEntries } from '@/services/digit-strategy/over-under-entry';
 import { checkTradingBalance } from '@/services/digit-strategy/balance';
 import { validateXmlAutoSettings, type XmlAutoSettings } from '@/utils/xml-auto-settings';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -93,6 +94,7 @@ export default function MarketScanner({
                         api.disconnect();
                         return;
                     }
+                    const entryTrackers = new Map<string, OverUnderEntries>();
                     await observeVolatilityMarkets(
                         api,
                         sampleSize,
@@ -103,11 +105,17 @@ export default function MarketScanner({
                                 display_name: value.market.display_name || value.market.symbol,
                             };
                             const { digits, epoch } = value;
+                            let entries = entryTrackers.get(market.symbol);
+                            if (!entries) {
+                                entries = new OverUnderEntries();
+                                entryTrackers.set(market.symbol, entries);
+                            }
+                            entries.observe(digits, epoch, value.live);
                             // Evaluate both directions against the same snapshot and API request.
                             const snapshot = { ...market, digits, checkedAt: Date.now() };
                             const evaluations = (['over', 'under'] as const).map(side => ({
                                 ...snapshot,
-                                ...evaluateScan(digits, side, sampleSize),
+                                ...evaluateScan(digits, side, sampleSize, entries),
                                 side,
                             }));
                             const matches = evaluations.filter(result => result.matches);

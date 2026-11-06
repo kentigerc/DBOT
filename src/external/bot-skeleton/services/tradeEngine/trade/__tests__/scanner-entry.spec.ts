@@ -47,7 +47,7 @@ it('does not send the XML purchase until the scanner entry gate allows it', asyn
     });
     const engine = new (Purchase(Base))();
     const request = engine.purchase('DIGITUNDER');
-    expect(gate).toHaveBeenCalledWith('R_100');
+    expect(gate).toHaveBeenCalledWith('R_100', { direction: 'DIGITUNDER', barrier: 4 });
     expect(api_base.api.send).not.toHaveBeenCalled();
     release(true);
     await request;

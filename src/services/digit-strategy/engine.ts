@@ -3,6 +3,7 @@ import { type DerivAccount } from '@/utils/deriv-session';
 import {
     cents,
     chooseSignal,
+    cycleDirections,
     cycleSignal,
     momentumSignal,
     DEFAULT_SETTINGS,
@@ -50,6 +51,7 @@ type Pending = {
     contractId?: number;
 };
 export type MarketView = {
+    entryDirections?: Direction[];
     momentum?: DigitMarket['momentum'];
     recoveryMomentum?: DigitMarket['recoveryMomentum'];
     symbol: string;
@@ -467,6 +469,7 @@ export class DigitStrategyEngine {
                         ? m.digits.length
                         : [...m.digits].reverse().findIndex(d => d < 5),
                 digits: m.frequencies(),
+                entryDirections: cycleDirections(m.entries),
                 momentum: { ...m.momentum },
                 recoveryMomentum: { ...m.recoveryMomentum },
                 status: m.ready(this.now()) ? 'Live' : m.liveTicks < 3 ? 'Warming up' : 'Stale / refilling',
@@ -572,6 +575,11 @@ export class DigitStrategyEngine {
                 (!signal.formation || s.epoch === signal.epoch)
             );
         }
+        if (signal.direction === 'DIGITOVER' || signal.direction === 'DIGITUNDER')
+            return (
+                market.entries.ready(signal.direction, Number(signal.barrier)) &&
+                market.epochs[market.epochs.length - 1] === signal.epoch
+            );
         const barrier =
             signal.direction === 'DIGITDIFF' ? String(market.digits[market.digits.length - 1]) : signal.barrier!;
         const mark = market.frequencies()[Number(barrier)];
@@ -887,6 +895,8 @@ export class DigitStrategyEngine {
             for (const market of this.markets.values()) market.resetMomentum();
             if (pause) this.log('Three-win batch complete. Returning to live market analysis after five seconds.');
         }
+        if (this.state.settings.strategy === undefined || this.state.settings.strategy === 'over2-under7')
+            for (const market of this.markets.values()) market.entries.reset();
         const pnl = this.state.pnl + profit,
             peak = Math.max(this.state.peak, pnl);
         this.update({

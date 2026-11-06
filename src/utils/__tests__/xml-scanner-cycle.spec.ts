@@ -24,9 +24,22 @@ const setup = () => {
     cycle.runStarted();
     return { cycle, stop, token };
 };
+const epochs = new WeakMap<XmlScannerCycle, number>();
+const primeEntry = (cycle: XmlScannerCycle) => {
+    const selected = cycle.getSnapshot().match!;
+    const under = selected.side === 'under';
+    let digits = counts.flatMap((n, digit) => Array<number>(n).fill(under ? 9 - digit : digit));
+    let epoch = Math.max(epochs.get(cycle) || 0, Date.now() / 1000);
+    cycle.market(selected.symbol, digits, (epoch += 0.001));
+    for (let i = 0; i < 3; i++) {
+        digits = [...digits.slice(1), under ? 4 : 5];
+        cycle.market(selected.symbol, digits, (epoch += 0.001));
+    }
+    epochs.set(cycle, epoch);
+};
 const settle = async (cycle: XmlScannerCycle, id: number, profit: number) => {
-    if (cycle.getSnapshot().phase === 'waiting') cycle.market('R_100', sample(), Date.now() / 1000 + id / 1000);
-    expect(await cycle.beforePurchase('R_100')).toBe(true);
+    primeEntry(cycle);
+    expect(await cycle.beforePurchase(cycle.getSnapshot().match!.symbol)).toBe(true);
     expect(cycle.purchase('TEST-DEMO')).toBe(true);
     cycle.purchased(id);
     cycle.contract({ contract_id: id, is_sold: 1, profit });
@@ -153,6 +166,7 @@ it('STOP during the batch cooldown prevents another scan', async () => {
 it('STOP prevents entries but still records the final settlement of its open contract', async () => {
     const { cycle } = setup();
     cycle.market('R_100', sample(), Date.now() / 1000);
+    primeEntry(cycle);
     expect(await cycle.beforePurchase('R_100')).toBe(true);
     expect(cycle.purchase('TEST-DEMO')).toBe(true);
     cycle.stop(); // Purchase receipt can arrive after STOP.
@@ -173,6 +187,7 @@ it('percentage protection ends Auto after four total losses and cannot begin a n
     cycle.market('R_100', sample(), Date.now() / 1000);
     for (let id = 1; id <= 4; id++) {
         cycle.market('R_100', sample(), Date.now() / 1000 + id / 1000);
+        primeEntry(cycle);
         expect(await cycle.beforePurchase('R_100')).toBe(true);
         expect(cycle.purchase('TEST-DEMO') && guard.purchase()).toBe(true);
         cycle.purchased(id);
@@ -251,7 +266,7 @@ it.each(['over', 'under'] as const)(
             return result;
         };
         const epoch = Date.now() / 1000;
-        cycle.market(selected.symbol, digits(side === 'over' ? 1 : 7), epoch);
+        primeEntry(cycle);
         for (const [id, profit] of [
             [501, -0.35],
             [502, -0.74],
@@ -260,7 +275,7 @@ it.each(['over', 'under'] as const)(
             expect(await cycle.beforePurchase(selected.symbol)).toBe(true);
             expect(cycle.purchase('TEST-DEMO')).toBe(true);
             cycle.purchased(id);
-            cycle.contract({ contract_id: id, is_sold: 1, profit, exit_tick_time: epoch + 0.5 });
+            cycle.contract({ contract_id: id, is_sold: 1, profit, exit_tick_time: epoch });
             expect(cycle.getSnapshot()).toMatchObject({
                 phase: 'running',
                 recoverySearch: false,
@@ -273,6 +288,7 @@ it.each(['over', 'under'] as const)(
             cycle.market(selected.symbol, digits(side === 'over' ? 9 : 0), epoch);
         }
         expect(cycle.getSnapshot()).toMatchObject({ wins: 0, losses: 0, phase: 'running' });
+        primeEntry(cycle);
         expect(await cycle.beforePurchase(selected.symbol)).toBe(true);
         cycle.stop();
         expect(await cycle.beforePurchase(selected.symbol)).toBe(false);
@@ -293,7 +309,7 @@ it('pauses purchases during a feed reconnect, preserving wins, losses and sessio
     cycle.market('R_100', sample(), Date.now() / 1000 - 30);
     await Promise.resolve();
     expect(released).toBe(false);
-    cycle.market('R_100', sample(9), Date.now() / 1000);
+    primeEntry(cycle);
     expect(await pending).toBe(true);
     expect(cycle.getSnapshot()).toMatchObject({ wins: 1, losses: 0, pnl: 12 });
     expect(cycle.canPurchase('TEST-DEMO')).toBe(true);
@@ -464,4 +480,58 @@ it('keeps the recovery-feed scope alive across XML batches but invalidates it on
     expect(cycle.recoveryScope().key).not.toBe(scope.key);
     expect(scope.valid()).toBe(false);
     cycle.stop();
+});
+
+it('checks the actual XML contract barrier and revalidates it at the wire gate', async () => {
+    const { cycle } = setup();
+    primeEntry(cycle); // Over 2 qualifies, but this XML asks to buy Under 5.
+    const contract = { direction: 'DIGITUNDER' as const, barrier: 5 };
+    let released = false;
+    const pending = cycle.beforePurchase('R_100', contract).then(value => {
+        released = value;
+        return value;
+    });
+    await Promise.resolve();
+    expect(released).toBe(false);
+    let digits = [...Array<number>(30).fill(9), ...Array<number>(70).fill(0)];
+    const epoch = Date.now() / 1000 + 0.1;
+    cycle.market('R_100', digits, epoch);
+    for (let i = 1; i <= 3; i++) {
+        digits = [...digits.slice(1), 4];
+        cycle.market('R_100', digits, epoch + i / 1000);
+    }
+    expect(await pending).toBe(true);
+    expect(cycle.canPurchase('TEST-DEMO')).toBe(true);
+    // A losing digit arrives while the caller fetches the account balance.
+    cycle.market('R_100', [...digits.slice(1), 9], epoch + 0.004);
+    expect(cycle.purchase('TEST-DEMO')).toBe(false);
+    cycle.stop();
+});
+it('requires a fresh entry after a normal win and rejects a short live sample', async () => {
+    const { cycle } = setup();
+    await settle(cycle, 1, 0.12);
+    let released = false;
+    const pending = cycle.beforePurchase('R_100', { direction: 'DIGITOVER', barrier: 2 }).then(value => {
+        released = value;
+        return value;
+    });
+    const epoch = Date.now() / 1000 + 0.1;
+    let digits = [...Array<number>(6).fill(0), ...Array<number>(14).fill(5)];
+    cycle.market('R_100', digits, epoch);
+    for (let i = 1; i <= 3; i++) {
+        digits = [...digits.slice(1), 5];
+        cycle.market('R_100', digits, epoch + i / 1000);
+    }
+    await Promise.resolve();
+    expect(released).toBe(false);
+    cycle.stop();
+    expect(await pending).toBe(false);
+});
+it('reports an invalid XML entry barrier instead of waiting indefinitely', async () => {
+    const { cycle } = setup();
+    expect(await cycle.beforePurchase('R_100', { direction: 'DIGITOVER', barrier: NaN })).toBe(false);
+    expect(cycle.getSnapshot()).toMatchObject({
+        enabled: false,
+        message: expect.stringContaining('entry digit is invalid'),
+    });
 });

@@ -1,3 +1,4 @@
+import { OverUnderEntries } from './over-under-entry';
 // Ported from the uploaded fastbot/digits.py, recovery_filters.py and storage.py.
 export type Direction = 'DIGITOVER' | 'DIGITUNDER' | 'DIGITDIFF' | 'DIGITEVEN' | 'DIGITODD';
 export const RECOVERY_MODES = {
@@ -97,6 +98,7 @@ export const nextRecoveryStake = (previousCents: number, multiplier = DEFAULT_SE
 export type Frequency = { digit: number; count: number; percentage: number; most: boolean; least: boolean };
 export type MomentumReading = { percentage: number; change: number; run: number; armed: boolean; epoch: number };
 export class DigitMarket {
+    entries = new OverUnderEntries();
     private parityCounts = { DIGITEVEN: 0, DIGITODD: 0 };
     parityMomentum: Record<'DIGITEVEN' | 'DIGITODD', MomentumReading> = {
         DIGITEVEN: { percentage: 0, change: 0, run: 0, armed: false, epoch: 0 },
@@ -142,6 +144,7 @@ export class DigitMarket {
                 this.liveTicks = 0;
                 this.groupCounts = { DIGITOVER: 0, DIGITUNDER: 0, OVER3: 0, UNDER6: 0 };
                 this.parityCounts = { DIGITEVEN: 0, DIGITODD: 0 };
+                this.entries = new OverUnderEntries();
                 this.resetMomentum();
                 this.gapUntil = received + 6000;
             }
@@ -204,6 +207,7 @@ export class DigitMarket {
             }
             this.parityMomentum[direction] = { percentage: count / 10, change, armed, run, epoch };
         }
+        if (this.digits.length === 1000) this.entries.observe(this.digits, epoch, !!received && this.ready(received));
         return true;
     }
     resetMomentum() {
@@ -340,31 +344,24 @@ export function recoverySignal(m: DigitMarket, s: RecoveryState, config: Setting
     if (needsFormation && !m.highRun(config.triggerCount, s.countAfter)) return;
     return signalOn(m, 'DIGITUNDER', barrier, true, needsFormation);
 }
-// Frequency marks only: the live last-digit outline is not a frequency mark.
-export function cycleDirections(digits: Frequency[], latest: number | undefined): Direction[] {
-    const eligible = (targets: number[]) =>
-        targets.every(digit => {
-            const row = digits.find(item => item.digit === digit);
-            return row && row.percentage < 10 && !row.most && !row.least;
-        });
-    const result: Direction[] = [];
-    if ((latest === 1 || latest === 2) && eligible([0, 1, 2])) result.push('DIGITOVER');
-    if ((latest === 7 || latest === 8) && eligible([7, 8, 9])) result.push('DIGITUNDER');
-    return result;
+// Entry directions are derived from live formation readings, not static frequency marks.
+export function cycleDirections(entries: OverUnderEntries): Direction[] {
+    return (['DIGITOVER', 'DIGITUNDER'] as const).filter(direction =>
+        entries.ready(direction, direction === 'DIGITOVER' ? 2 : 7)
+    );
 }
 export function cycleSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
-    if (state.lockedSymbol) {
-        if (m.symbol !== state.lockedSymbol || !m.ready(now)) return;
-        const direction = state.lockedDirection;
-        if (direction !== 'DIGITOVER' && direction !== 'DIGITUNDER') return;
-        return signalOn(m, direction, direction === 'DIGITOVER' ? '2' : '7', state.streak > 0);
-    }
-    if (!m.ready(now) || now < state.pauseUntil || m.received <= state.countAfter) return;
-    const direction = cycleDirections(m.frequencies(), m.digits[m.digits.length - 1]).find(
-        value => !state.lockedDirection || value === state.lockedDirection
+    if (!m.ready(now) || now < state.pauseUntil) return;
+    const locked = state.lockedSymbol;
+    if (locked && m.symbol !== locked) return;
+    if (!(locked && state.streak > 0) && m.received <= state.countAfter) return;
+    const direction = (['DIGITOVER', 'DIGITUNDER'] as const).find(
+        direction =>
+            (!state.lockedDirection || state.lockedDirection === direction) &&
+            ((locked && state.streak > 0) || m.entries.ready(direction, direction === 'DIGITOVER' ? 2 : 7))
     );
     return direction
-        ? signalOn(m, direction, direction === 'DIGITOVER' ? '2' : '7', state.streak > 0, true)
+        ? signalOn(m, direction, direction === 'DIGITOVER' ? '2' : '7', state.streak > 0, !(locked && state.streak > 0))
         : undefined;
 }
 export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
@@ -518,8 +515,13 @@ export function chooseSignal(
         for (const m of markets) {
             if (!m.ready(now)) continue;
             const barrier = value ?? String(m.digits[m.digits.length - 1]);
-            const mark = m.frequencies()[Number(barrier)];
-            if (!mark.most && !mark.least) signals.push(signalOn(m, direction, barrier, false));
+            if (direction === 'DIGITOVER' || direction === 'DIGITUNDER') {
+                if (m.entries.ready(direction, Number(barrier)))
+                    signals.push(signalOn(m, direction, barrier, false, true));
+            } else {
+                const mark = m.frequencies()[Number(barrier)];
+                if (!mark.most && !mark.least) signals.push(signalOn(m, direction, barrier, false));
+            }
         }
         if (signals.length) groups.push(signals);
     }

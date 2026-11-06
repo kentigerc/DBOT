@@ -20,7 +20,11 @@ export default Engine =>
                 return Promise.resolve();
             }
 
-            if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol))) return;
+            const entryContract =
+                ['DIGITOVER', 'DIGITUNDER'].includes(contract_type) && !xmlScannerCycle.isRecovering()
+                    ? { direction: contract_type, barrier: Number(prediction ?? this.tradeOptions.prediction) }
+                    : undefined;
+            if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol, entryContract))) return;
             let purchaseOptions = prediction === undefined ? this.tradeOptions : { ...this.tradeOptions, prediction };
             const parityRecovery = xmlScannerCycle.isRecovering();
             const generation = xmlScannerCycle.getSnapshot().generation;

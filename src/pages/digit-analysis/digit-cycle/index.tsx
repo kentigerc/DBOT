@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
-import { cycleDirections, DEFAULT_SETTINGS, RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
+import { DEFAULT_SETTINGS, RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
 import './digit-cycle.scss';
 
@@ -250,7 +250,7 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                         {visibleMarkets.map(market => {
                             const candidates =
                                 !parity && !policyRecovery && market.ready && !state.recovery.lockedSymbol
-                                    ? cycleDirections(market.digits, market.latest)
+                                    ? market.entryDirections || []
                                     : [];
                             const evenShare = market.digits
                                 .filter(d => d.digit % 2 === 0)

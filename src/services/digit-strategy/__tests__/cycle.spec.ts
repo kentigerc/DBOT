@@ -7,18 +7,16 @@ import {
     validateSettings,
 } from '../strategy';
 const counts = [90, 90, 90, 80, 100, 100, 110, 110, 110, 120];
-const market = (under = false, latest = under ? 7 : 1) => {
+const market = (under = false, latest = under ? 4 : 5) => {
     const m = new DigitMarket('R_100', 2, 'Volatility 100 Index');
-    m.digits = (under ? [...counts].reverse() : counts).flatMap((count, digit) => Array<number>(count).fill(digit));
-    m.digits[m.digits.length - 1] = latest;
-    m.epochs = Array.from({ length: 1000 }, (_, i) => i + 1);
-    m.received = 10000;
-    m.liveTicks = 3;
+    const digits = counts.flatMap((count, digit) => Array<number>(count).fill(under ? 9 - digit : digit));
+    digits.forEach((digit, i) => m.add(100 + digit / 100, i + 1));
+    for (let i = 1; i <= 5; i++) m.add(100 + latest / 100, 1000 + i, 5000 + i * 1000);
     return m;
 };
 const recovery = { streak: 0, countAfter: 0, pauseUntil: 0 };
 describe('HIT AND RUN entry rules', () => {
-    it.each([1, 2])('enters Over 2 only after digit %s', digit => {
+    it.each([3, 5, 9])('enters Over 2 only after digit %s', digit => {
         expect(cycleSignal(market(false, digit), recovery, 10000)).toMatchObject({
             direction: 'DIGITOVER',
             barrier: '2',
@@ -26,24 +24,27 @@ describe('HIT AND RUN entry rules', () => {
             formation: true,
         });
     });
-    it.each([7, 8])('enters Under 7 only after digit %s', digit => {
+    it.each([0, 4, 6])('enters Under 7 only after digit %s', digit => {
         expect(cycleSignal(market(true, digit), recovery, 10000)).toMatchObject({
             direction: 'DIGITUNDER',
             barrier: '7',
         });
     });
-    it('rejects other last digits, exact ten percent and every marked target digit', () => {
-        expect(cycleSignal(market(false, 0), recovery, 10000)).toBeUndefined();
-        expect(cycleSignal(market(true, 9), recovery, 10000)).toBeUndefined();
-        const frequencies = market().frequencies();
-        for (const invalid of [
-            { ...frequencies[1], percentage: 10 },
-            { ...frequencies[1], least: true },
-            { ...frequencies[1], most: true },
-        ]) {
-            const changed = frequencies.map(item => (item.digit === 1 ? invalid : item));
-            expect(cycleDirections(changed, 1)).toEqual([]);
-        }
+    it('rejects losing digits and requires live formation readings instead of frequency marks', () => {
+        expect(cycleSignal(market(false, 2), recovery, 10000)).toBeUndefined();
+        expect(cycleSignal(market(true, 7), recovery, 10000)).toBeUndefined();
+        const m = market();
+        expect(cycleDirections(m.entries)).toEqual(['DIGITOVER']);
+        m.entries.reset();
+        expect(cycleDirections(m.entries)).toEqual([]);
+    });
+    it('requires a tick after the batch cooldown before a new normal entry', () => {
+        const m = market();
+        expect(cycleSignal(m, { ...recovery, countAfter: 10000, pauseUntil: 10000 }, 10000)).toBeUndefined();
+        m.add(100.05, 1006, 11000);
+        expect(cycleSignal(m, { ...recovery, countAfter: 10000, pauseUntil: 10000 }, 11000)?.direction).toBe(
+            'DIGITOVER'
+        );
     });
     it('scans both directions initially, then retains the selected contract without reanalysis', () => {
         const over = market(),
@@ -55,7 +56,7 @@ describe('HIT AND RUN entry rules', () => {
         const locked = { ...recovery, streak: 1, lockedSymbol: 'R_100', lockedDirection: 'DIGITOVER' as const };
         expect(chooseSignal([under], locked, settings, 10000)).toBeUndefined();
         expect(cycleSignal(over, locked, 10000)?.recovery).toBe(true);
-        over.digits[over.digits.length - 1] = 5;
+        over.entries.reset();
         expect(cycleSignal(over, recovery, 10000)).toBeUndefined();
         expect(cycleSignal(over, { ...locked, countAfter: 10000 }, 10000)).toMatchObject({
             direction: 'DIGITOVER',
@@ -85,14 +86,14 @@ describe('HIT AND RUN direction selection across fresh analyses', () => {
         });
     });
     it('never forces alternation when only one direction fully qualifies', () => {
-        const over = market(false, 5),
+        const over = market(false, 2),
             under = market(true);
         under.symbol = 'R_50';
         for (const random of [0, 0.5, 0.999]) {
             expect(chooseSignal([over, under], recovery, settings, 10000, () => random)?.direction).toBe('DIGITUNDER');
         }
-        over.digits[over.digits.length - 1] = 2;
-        under.digits[under.digits.length - 1] = 9;
+        over.entries = market().entries;
+        under.entries.reset();
         expect(chooseSignal([over, under], recovery, settings, 10000, () => 0.999)?.direction).toBe('DIGITOVER');
     });
     it('holds Under through recovery, then allows Over after the batch releases the lock', () => {

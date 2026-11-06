@@ -1,3 +1,4 @@
+import { OverUnderEntries, type OverUnderDirection } from '@/services/digit-strategy/over-under-entry';
 import { startXmlRecoveryProgress } from './xml-recovery-progress';
 import { DEFAULT_XML_AUTO_SETTINGS, validateXmlAutoSettings, type XmlAutoSettings } from './xml-auto-settings';
 import { nextRecoveryStake } from '@/services/digit-strategy/strategy';
@@ -62,6 +63,8 @@ export class XmlScannerCycle {
     private guarded = false;
     private sessionSequence = 0;
     private started = false;
+    private entries = new OverUnderEntries();
+    private entryContract?: { direction: OverUnderDirection; barrier: number };
     private entered = false;
     private recovery = false;
     private lastSettlementProfit?: number;
@@ -102,6 +105,8 @@ export class XmlScannerCycle {
         if (!accountId || ![100, 500, 1000].includes(sampleSize))
             throw new Error('Select an active Deriv account and sample size.');
         const validatedSettings = validateXmlAutoSettings(settings);
+        this.entries = new OverUnderEntries();
+        this.entryContract = undefined;
         this.sessionSequence++;
         clearTimeout(this.timer);
         this.stopBot = stopBot;
@@ -140,6 +145,8 @@ export class XmlScannerCycle {
         if (!this.state.enabled || this.state.phase !== 'scanning' || match.sampleSize !== this.state.sampleSize)
             return;
         this.settled.clear();
+        this.entries = new OverUnderEntries();
+        this.entryContract = undefined;
         this.lastDigits = [];
         this.lastEpoch = 0;
         this.recoveryAfterEpoch = 0;
@@ -198,6 +205,7 @@ export class XmlScannerCycle {
     pauseMarket(symbol: string) {
         if (!this.state.enabled || symbol !== this.state.match?.symbol) return;
         this.feedPaused = true;
+        this.entries.reset();
         this.update({ message: 'Live monitoring reconnecting · New purchases paused.' });
     }
     private fresh(epoch = this.lastEpoch) {
@@ -205,6 +213,7 @@ export class XmlScannerCycle {
     }
     market(symbol: string, digits: number[], epoch: number) {
         if (!this.state.enabled || !this.started || symbol !== this.state.match?.symbol) return;
+        this.entries.observe(digits, epoch);
         this.lastDigits = digits;
         this.lastEpoch = epoch;
         if (digits.length === this.state.sampleSize && this.fresh(epoch) && this.feedPaused) {
@@ -215,7 +224,7 @@ export class XmlScannerCycle {
                     : 'Live monitoring restored.',
             });
         }
-        if (this.waiter && !this.feedPaused && ((this.entered && this.fresh()) || this.ready())) {
+        if (this.waiter && !this.feedPaused && ((this.recovery && this.entered && this.fresh()) || this.ready())) {
             this.entered = true;
             const resolve = this.waiter;
             this.waiter = undefined;
@@ -329,14 +338,22 @@ export class XmlScannerCycle {
         const match = this.state.match;
         return (
             !!match &&
+            this.lastDigits.length === match.sampleSize &&
             this.lastEpoch > this.recoveryAfterEpoch &&
             Date.now() / 1000 - this.lastEpoch <= 6 &&
             this.lastEpoch <= Date.now() / 1000 + 2 &&
-            evaluateScan(this.lastDigits, match.side, match.sampleSize).entryReady
+            (this.entryContract
+                ? this.entries.ready(this.entryContract.direction, this.entryContract.barrier)
+                : evaluateScan(this.lastDigits, match.side, match.sampleSize, this.entries).entryReady)
         );
     }
-    beforePurchase(symbol: string): Promise<boolean> {
+    beforePurchase(symbol: string, contract?: { direction: OverUnderDirection; barrier: number }): Promise<boolean> {
         if (!this.guarded) return Promise.resolve(true);
+        if (contract && (!Number.isInteger(contract.barrier) || contract.barrier < 0 || contract.barrier > 9)) {
+            this.stop('The XML entry digit is invalid. Check the bot settings before restarting.');
+            return Promise.resolve(false);
+        }
+        this.entryContract = contract;
         if (!this.state.enabled || !this.started || !['waiting', 'running'].includes(this.state.phase))
             return Promise.resolve(false);
         if (!this.recovery && this.state.pnl - Math.round(this.state.settings.stake * 100) < -this.stopLoss) {
@@ -347,7 +364,7 @@ export class XmlScannerCycle {
             this.stop('The XML market changed. Start a fresh scan.');
             return Promise.resolve(false);
         }
-        if (this.entered && !this.feedPaused && this.fresh()) return Promise.resolve(true);
+        if (this.recovery && this.entered && !this.feedPaused && this.fresh()) return Promise.resolve(true);
         if (!this.feedPaused && this.ready()) {
             this.entered = true;
             this.update({
@@ -374,7 +391,8 @@ export class XmlScannerCycle {
                 this.state.phase === 'running' &&
                 !this.feedPaused &&
                 this.fresh() &&
-                !this.inFlight)
+                !this.inFlight &&
+                (this.recovery || this.ready()))
         );
     }
     purchase(accountId: string) {
@@ -424,6 +442,8 @@ export class XmlScannerCycle {
         this.lastSettlementProfit = profit;
         const losses = profit < 0 ? this.state.losses + 1 : profit > 0 ? 0 : this.state.losses;
         const wins = profit < 0 || this.recovery ? 0 : profit > 0 ? this.state.wins + 1 : this.state.wins;
+        this.entries.reset();
+        if (!this.recovery) this.entered = false;
         if (profit < 0) {
             this.recovery = true;
             // Preserve the normal XML market; each recovery purchase selects a fresh parity opportunity.
