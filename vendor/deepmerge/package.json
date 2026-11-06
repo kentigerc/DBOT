@@ -1,0 +1,15 @@
+{
+    "name": "@netoacademy/deepmerge-compat",
+    "version": "4.3.1+neto.1",
+    "private": true,
+    "description": "Security-maintained compatibility fork of deepmerge 4.3.1",
+    "main": "index.js",
+    "types": "index.d.ts",
+    "license": "MIT",
+    "upstream": {
+        "package": "deepmerge",
+        "version": "4.3.1",
+        "source": "https://github.com/TehShrike/deepmerge",
+        "originalCjsSha256": "2e5160f84a1141bd927264afe4d15766f1e6cf07daef182b37ff53fea121de7d"
+    }
+}

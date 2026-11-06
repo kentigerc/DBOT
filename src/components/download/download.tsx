@@ -1,3 +1,4 @@
+import { csvRows } from '@/utils/csv';
 import { observer } from 'mobx-react-lite';
 import { useStore } from '@/hooks/useStore';
 import { downloadFile, getSuccessJournalMessage, TTransaction } from '@/utils/download';
@@ -50,7 +51,7 @@ const Download = observer(({ tab }: TDownloadProps) => {
             ]);
         });
 
-        const content = items.map(e => e.join(',')).join('\n');
+        const content = csvRows(items);
         downloadFile(localize('Transactions'), content);
     };
 
@@ -60,14 +61,14 @@ const Download = observer(({ tab }: TDownloadProps) => {
         filtered_messages.map(item => {
             let array_message;
             if (item.message_type !== 'success') {
-                array_message = JSON.stringify(item.message);
+                array_message = typeof item.message === 'string' ? item.message : JSON.stringify(item.message);
             } else {
                 array_message = getSuccessJournalMessage(item.message.toString(), item.extra);
             }
             const arr = [item.date, item.time, array_message?.replace('&#x2F;', '/')];
             items.push(arr);
         });
-        const content = items.map(e => e.join(',')).join('\n');
+        const content = csvRows(items);
         downloadFile(localize('Journal'), content);
     };
 

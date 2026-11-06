@@ -45,7 +45,10 @@ jobs:
               run: node scripts/check-secrets.cjs
 
             - name: Install locked dependencies
-              run: npm ci
+              run: npm ci --ignore-scripts
+
+            - name: Audit all dependency advisories
+              run: npm audit --audit-level=low
 
             - name: Test OAuth, WebSockets and PostgreSQL persistence
               env:

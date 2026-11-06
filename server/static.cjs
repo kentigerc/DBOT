@@ -19,7 +19,7 @@ function privatePath(pathname) {
         pathname.split('/').some(part => part.startsWith('.')) ||
         /^\/(?:src|server|node_modules)(?:\/|$)/i.test(pathname) ||
         /\.(?:map|bak|old|orig|zip|tar|tgz|gz|sql|sqlite|db|log|env|ini|ya?ml|lock|cjs|[cm]?tsx?)$/i.test(pathname) ||
-        pathname === '/test-offline.html'
+        pathname.toLowerCase() === '/test-offline.html'
     );
 }
 async function serveStatic(req, res, { root, origin }) {
@@ -29,11 +29,15 @@ async function serveStatic(req, res, { root, origin }) {
     }
     try {
         const pathname = decodeURIComponent(new URL(req.url, origin).pathname);
+        if (/[\x00-\x1f\x7f\\:]/.test(pathname) || /%[a-f0-9]{2}/i.test(pathname)) {
+            res.writeHead(400);
+            return res.end();
+        }
         if (privatePath(pathname)) {
             res.writeHead(404);
             return res.end();
         }
-        if (pathname === '/bots' || pathname.startsWith('/bots/')) {
+        if (pathname.toLowerCase() === '/bots' || pathname.toLowerCase().startsWith('/bots/')) {
             res.writeHead(403);
             return res.end('Bot downloads are disabled.');
         }

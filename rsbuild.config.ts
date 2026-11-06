@@ -63,9 +63,10 @@ export default defineConfig({
                 from: 'node_modules/@deriv/deriv-charts/dist/*',
                 to: 'js/smartcharts/[name][ext]',
                 globOptions: {
-                    ignore: ['**/*.LICENSE.txt'],
+                    ignore: ['**/*.map', '**/*.LICENSE.txt'],
                 },
             },
+            { from: 'node_modules/@deriv/deriv-charts/dist/*.LICENSE.txt', to: 'licenses/smartcharts/[name][ext]' },
             { from: 'node_modules/@deriv/deriv-charts/dist/chart/assets/*', to: 'assets/[name][ext]' },
             { from: 'node_modules/@deriv/deriv-charts/dist/chart/assets/fonts/*', to: 'assets/fonts/[name][ext]' },
             { from: 'node_modules/@deriv/deriv-charts/dist/chart/assets/shaders/*', to: 'assets/shaders/[name][ext]' },

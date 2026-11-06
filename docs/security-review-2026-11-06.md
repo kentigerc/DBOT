@@ -1,6 +1,6 @@
 # NetoAcademy prelaunch security review — 6 November 2026
 
-**Status: application hardening completed for this pass; unrestricted public launch is NOT cleared.** This is a source review plus local regression/browser testing, not a penetration-test certificate. It does not establish that every vulnerability in the two supplied lists is absent, or that the live Render/DNS/cloud configuration is secure. No attack traffic or trading orders were sent to Deriv, Render or other third parties; dependency metadata was queried from npm/GitHub and the application was tested locally with synthetic trading responses.
+**Status: application hardening completed for this pass; unrestricted public launch is NOT cleared.** This is a source review plus local regression/browser testing, not a penetration-test certificate. It does not establish that every vulnerability in the three supplied lists is absent, or that the live Render/DNS/cloud configuration is secure. No attack traffic or trading orders were sent to Deriv, Render or other third parties; dependency metadata was queried from npm/GitHub and the application was tested locally with synthetic trading responses.
 
 ## Concrete changes
 
@@ -12,8 +12,8 @@
 
 ## Release requirements still open
 
-1. Resolve or independently assess the remaining dependency advisories, especially `@deriv/deriv-charts` / `lodash.set` and glob-related `minimatch` / `brace-expansion`. No audit suppression was added. A clean npm audit would still not prove application security.
-2. In the existing Render web service, set **NODE_VERSION to `24`**, rebuild, and confirm the running version. Editing render.yaml does not prove an existing service's environment changed. Set NETO_ORIGIN to the exact deployed HTTPS origin; register the matching `/callback` in Deriv. Keep NETO_SESSION_SECRET as a stable, server-only cryptographically random secret of at least 32 bytes. Verify NETO_ADMIN_ACCOUNT_IDS contains only the intended owner (`ROT91643925` from this conversation).
+1. Keep the local security backports and regression checks maintained. Follow-up remediation cleared all currently reported npm advisories, including development tools; see the updated appendix. The chart and merge fixes include local code that npm cannot certify. A clean audit is not proof of application security.
+2. In the existing Render web service, set **NODE_VERSION to `24`**, rebuild, and confirm the running version. Editing render.yaml does not prove an existing service's environment or build command changed. Set its build command to `npm ci --ignore-scripts && npm run build`; confirm it deploys the new commit. Set NETO_ORIGIN to the exact deployed HTTPS origin; register the matching `/callback` in Deriv. Keep NETO_SESSION_SECRET as a stable, server-only cryptographically random secret of at least 32 bytes. Verify NETO_ADMIN_ACCOUNT_IDS contains only the intended owner (`ROT91643925` from this conversation).
 3. Use DATABASE_URL for production revocations and analytics, restrict database network access, verify the provider's recommended TLS/certificate settings, and test backup restoration. Without PostgreSQL, an ephemeral Render filesystem cannot preserve logout revocations across replacement instances. Keep trading intent journals on durable storage and test restart/reconciliation.
 4. Keep **one Node process and one Render trading-service instance** until distributed per-account trading locks are implemented and tested. Persistent logout checks are shared in PostgreSQL, but trading-runner locks and abuse buckets remain per process. Do not enable horizontal replicas/autoscaling yet.
 5. Verify Render/CDN/WAF protections for volumetric DDoS, request smuggling, TLS versions/renewal, WebSocket upgrades, cache rules and upstream access. Application rate limiting cannot absorb a distributed network flood. NETO_TRUST_PROXY_HOPS defaults to one only when Render's `RENDER=true` marker is present; verify the real proxy chain. Never trust arbitrary client X-Forwarded-For values. NETO_MAX_SOCKETS defaults to 256; quotas are guards, not a claim that the server can support 256 active traders.
@@ -35,7 +35,7 @@ PostgreSQL statements use bound parameters and fixed table/column names in analy
 
 ### X — Code/HTML: hardened and tested; vendor risk remains
 
-Removed native Function evaluation from tick-delay validation; numeric-only parsing, input bounds and malicious-expression tests. HTML error messages use an explicit DOMPurify allowlist. JSX renders text normally. CSP blocks inline scripts and native eval. This does not prove every possible XSS/sandbox escape absent; remaining chart dependency findings remain open.
+Removed native Function evaluation from tick-delay validation; numeric-only parsing, input bounds and malicious-expression tests. HTML error messages use an explicit DOMPurify allowlist. JSX renders text normally. CSP blocks inline scripts and native eval. This does not prove every possible XSS/sandbox escape absent; the embedded chart setter and merge-library backports have explicit regression tests and require ongoing maintenance.
 
 ### F — Files/XML: hardened and tested
 
@@ -65,9 +65,9 @@ CSP, frame-ancestors/X-Frame-Options, nosniff, no-referrer, Permissions-Policy, 
 
 No bearer token is returned by the session metadata endpoint. OTP targets are strictly pinned to Deriv. Committed-source credential-pattern scan reports locations only and found no matches in its supported formats; it is not an exhaustive secret/history audit. Server-side secrets are not added to the frontend build allowlist. Security logs are bounded JSON events with HMAC-pseudonymized client IDs and omit request bodies, cookies, credentials and full URLs. File storage uses restricted permissions; backup encryption, retention, alert delivery and access logs require operator verification.
 
-### S — Supply chain: patched, remaining findings OPEN
+### S — Supply chain: known audit findings cleared; maintenance required
 
-Updated DOMPurify, Lodash, Handlebars, Router, cookie/XML packages and vendor release-tool dependencies. Node target is maintained 24.x; CI uses verified commit-pinned official actions and npm ci. Legacy Deriv deployments/translation jobs are disabled for this fork. Weekly Dependabot configuration and a supplemental credential-pattern CI check were added. The audit still reports findings: see the dependency appendix. No claim of a clean supply chain or zero-day protection.
+Updated DOMPurify, Lodash, Handlebars, Router, cookie/XML packages and vendor release-tool dependencies. Node target is maintained 24.x; CI uses verified commit-pinned official actions and npm ci. Legacy Deriv deployments/translation jobs are disabled for this fork. Weekly Dependabot configuration and a supplemental credential-pattern CI check were added. The follow-up cleared known production and development dependency advisories. The embedded chart setter has a checksummed backport, and private compatibility packages replace the unmaintained setter and merge implementation. Tests verify actual consumer resolution and malicious prototype paths. No audit suppression was added; this does not establish a clean supply chain or zero-day protection.
 
 ### P — External/platform: NOT VERIFIED
 
@@ -362,25 +362,211 @@ Unknown vulnerabilities, native/browser sandbox and extension compromise, arbitr
 
 ## Dependency audit appendix
 
-The production-dependency audit (`npm audit --omit=dev --json`) counts dependency advisories, not confirmed remotely exploitable application defects. It also includes some vendor release/build tooling declared as runtime dependencies. Prioritization must inspect reachability; counts must not be dismissed solely because a dependency is transitive.
+Audit counts are advisory metadata, not confirmed remotely exploitable application defects. Production and development dependencies are both reviewed. No advisory exclusions or suppression files were added.
 
-- Before: 2 critical, 69 high, 17 moderate, 19 low; 107 total.
-- After: 0 critical, 4 high, 42 moderate, 7 low; 53 total.
+| Review stage                           | Critical | High | Moderate | Low | Total |
+| -------------------------------------- | -------- | ---- | -------- | --- | ----- |
+| Before first pass, production          | 2        | 69   | 17       | 19  | 107   |
+| After first pass, production           | 0        | 4    | 42       | 7   | 53    |
+| After follow-up, production            | 0        | 0    | 0        | 0   | 0     |
+| After follow-up, including development | 0        | 0    | 0        | 0   | 0     |
 
-Full remaining advisory metadata: [dependency report](security-dependencies-2026-11-06.json). Remaining high-severity package entries:
+Full audit evidence and local-remediation details: [dependency report](security-dependencies-2026-11-06.json).
 
-- `@deriv/deriv-charts` — unresolved; see dependency report for affected nodes/advisories.
-- `brace-expansion` — unresolved; see dependency report for affected nodes/advisories.
-- `lodash.set` — unresolved; see dependency report for affected nodes/advisories.
-- `minimatch` — unresolved; see dependency report for affected nodes/advisories.
+- Updated patched pattern/brace, date, UUID, XML, Babel and build dependencies. Updated Quill tokens removes unused vendor release tooling, and the unused ShiftAI CLI was removed from this app. Dependency installs in CI/Blueprint disable lifecycle scripts; the production build explicitly applies the reviewed vendor patch.
+- `vendor/lodash-set` is a clearly named private compatibility adapter calling maintained `lodash/set`. The vulnerable standalone `lodash.set` implementation is absent. **This alone would not fix SmartCharts:** `scripts/patch-vendor-security.cjs` also backports the prototype-path guard into the actual pinned SmartCharts 2.9.3 bundle, verifies its complete SHA-256, verifies its own patched output on repeat runs, and refuses changed upstream contents. Tests execute the actual embedded factory and verify both ordinary chart-setting paths and attempted prototype pollution.
+- `vendor/deepmerge` is an MIT-licensed, explicitly named private fork of 4.3.1, marked `+neto.1`, with source provenance and original checksum. It filters prototype-changing keys from both source and target copying. Tests cover poisoned targets/sources, legitimate merges, options and actual resolution from all tour/build/test consumers. npm cannot inspect/certify a local fork; these tests and source review remain necessary even when its advisory count is zero.
+- CI runs `npm audit --audit-level=low` for the complete installed tree, plus regression tests. The locked dependency tree was validated with a fresh install rather than only an audit of a partially updated node_modules directory.
 
 ## Final verification record
 
-- Node 24.19.0: production build passed; locked dependency installation dry run passed. The vendor analytics package still declares Node 18/npm 9 engines; current application regression/build checks pass on Node 24, but vendor compatibility remains a maintenance concern.
-- Application regression suite: 63 suites, 442 tests passed.
-- Server regression suite with isolated local PostgreSQL 16: 98 tests passed, zero failures/skips. Production PostgreSQL/Render configuration was not inspected.
+- Node 24.19.0: production build passed; a complete clean locked dependency installation with lifecycle scripts disabled passed. The vendor analytics package still declares Node 18/npm 9 engines; current application regression/build checks pass on Node 24, but vendor compatibility remains a maintenance concern.
+- Application regression suite: 64 suites, 454 tests passed, including spreadsheet-formula regressions.
+- Server regression suite with isolated local PostgreSQL 16: 102 tests passed, zero failures/skips. Production PostgreSQL/Render configuration was not inspected.
 - Local Chromium: landing page at desktop and mobile widths, live synthetic digit circles, Bot Builder and native Charts loaded with zero recorded CSP violations/runtime errors. Workspace scroll and fixed header checked. No live trading orders were placed.
 - Actual production entrypoint smoke check: landing/callback/health succeed, unauthenticated admin access returns 401, and environment/repository/server-source/source-map probes are refused with 404; CSP and private no-store headers verified.
 - Credential-format scan: no matches in the supported patterns; this is not a comprehensive secret/history audit.
 - Repository-wide TypeScript checking still fails with hundreds of existing baseline diagnostics; this review does not certify a clean typecheck. Tests and the production bundler pass.
+- The actual copied/minified chart artifact also passed the prototype-path regression; vendor source maps are omitted and license notices are retained separately.
 - The CSP forbids native string compilation. A build-time adapter replaces one exact static Acorn keyword-check optimization; it fails the build if the expected vendor source changes. Interpreter compatibility is regression-tested with string compilation disabled.
+
+## Additional granular review
+
+The additional list is mapped below; repeating a vulnerability name does not establish a new defect. The 15 common-compromise classes repeated at the end of the request map to the first two checklists and the same controls.
+
+### V — Spreadsheet exports: hardened and tested
+
+Journal, transaction and admin CSV exports now share quoting and formula neutralization. Cells beginning with spreadsheet operators (including leading whitespace/control characters) are prefixed as text, embedded quotes/delimiters/newlines remain within a cell, and genuine numeric loss values retain their numeric representation. Journal messages can originate in imported XML, so they must be treated as untrusted text. Downloads use a Blob URL rather than a hand-built data URL.
+
+### Additional evidence and limits
+
+- Static delivery rejects control/null bytes, backslashes, alternate-stream colon syntax, residual double encoding, mixed-case private paths and methods other than GET/HEAD. Local tests exercise these cases, plus encoded traversal and realpath/symlink containment. XML imports reject entity declarations before parsing, so an internal Billion Laughs expansion is refused. Server-side destinations remain fixed Deriv hosts; user XML URLs are fetched by the browser with omitted credentials, not by a server-side proxy.
+- Provider account IDs come from Deriv and are compared server-side. No browser-selected account, role, hidden field, local storage marker or account-name homograph grants access. OAuth origins/destinations are fixed rather than derived from Host/forwarded headers. Render/CDN HTTP parsing and DNS/IDN impersonation outside this application still require edge/domain controls.
+- Access and refresh tokens stay in encrypted HttpOnly cookies. Browser storage contains account selection, chart/bot state and historical trade metadata, which can still be sensitive on a shared device; it is not a secret vault and is not claimed to be encrypted. Legacy token storage is cleared on session changes. Same-origin XSS/browser-extension compromise is not eliminated by removing tokens from storage.
+- Reviewed new-tab links use noopener/noreferrer. CSP and framing protection reduce UI redressing; they do not certify the absence of every cross-origin timing/XS-Leak or browser/hardware side channel. Compression policy is also an edge/provider setting.
+- Analytics queues/maps, preview storage and report row counts are bounded; PostgreSQL retention and application quotas reduce application-level abuse. Distributed floods, storage/billing ceilings, disk/DB capacity, alerts and provider budgets still require live operator configuration. Referral/affiliate attribution and anti-fraud controls are provider-owned; no rewards, cart, bookings, subscriptions or user-voting workflow exists here.
+- No LLM/RAG/vector database, Java/JNDI/OGNL/RMI, PDF/SSI processor, or self-hosted Redis/MongoDB/Elasticsearch/message broker was found in the reviewed runtime. Bot names containing “AI” do not establish an LLM backend. There is no connected administrative agent tool in the deployed trading application. This is a scope finding, not evidence about an unknown external service.
+- Cloud IAM, snapshots, object storage, HSMs, registrar controls and staging/management interfaces were not accessible to inspect. This workspace has no configured Render credentials/connector. These items remain **unverified**, not passed or silently waived. The earlier single-process/distributed-lock requirement still applies.
+
+| ID   | Additional concern                             | Scoped coverage |
+| ---- | ---------------------------------------------- | --------------- |
+| C001 | Unicode Normalization Attacks                  | F               |
+| C002 | Homograph Attacks                              | P               |
+| C003 | IDN Spoofing                                   | P               |
+| C004 | Path Canonicalization Bypass                   | F               |
+| C005 | Alternative Path Traversal                     | F               |
+| C006 | Null Byte Injection                            | F               |
+| C007 | Wildcard Abuse                                 | R               |
+| C008 | Alternate Data Stream (ADS) Abuse              | F               |
+| C009 | Case-Sensitivity Bypass                        | F               |
+| C010 | File Extension Bypass                          | F               |
+| C011 | Double Extension Upload                        | F               |
+| C012 | Filename Injection                             | F               |
+| C013 | Regular Expression Denial of Service (ReDoS)   | S               |
+| C014 | XML Bomb (Billion Laughs)                      | F               |
+| C015 | JSON Injection                                 | X               |
+| C016 | CSV Injection                                  | V               |
+| C017 | Formula Injection                              | V               |
+| C018 | PDF Injection                                  | N               |
+| C019 | SSI (Server Side Includes) Injection           | N               |
+| C020 | Template Sandbox Escape                        | X               |
+| C021 | Expression Language Injection                  | X               |
+| C022 | OGNL Injection                                 | N               |
+| C023 | JNDI Injection                                 | N               |
+| C024 | Deserialization Gadget Chains                  | U               |
+| C025 | Java RMI Exposure                              | N               |
+| C026 | Unsafe Reflection                              | X               |
+| C027 | Dynamic Code Evaluation Abuse                  | X               |
+| C028 | Prototype Override                             | X               |
+| C029 | Client-Side Desynchronization                  | H               |
+| C030 | Request Queue Poisoning                        | H               |
+| C031 | Host Confusion                                 | H               |
+| C032 | Content Spoofing                               | X               |
+| C033 | URL Parsing Discrepancies                      | H               |
+| C034 | HTTP Verb Tampering                            | O               |
+| C035 | Method Override Abuse                          | O               |
+| C036 | TRACE Method Enabled                           | H               |
+| C037 | WebDAV Misconfiguration                        | N               |
+| C038 | Alternate Channel Authentication Bypass        | A               |
+| C039 | Privilege Confusion                            | O               |
+| C040 | Role Injection                                 | O               |
+| C041 | Claims Manipulation                            | A               |
+| C042 | Identity Federation Abuse                      | E               |
+| C043 | Token Substitution                             | A               |
+| C044 | Session Prediction                             | A               |
+| C045 | Session Donation                               | A               |
+| C046 | Session Swapping                               | A               |
+| C047 | Session Riding                                 | A               |
+| C048 | Cookie Fixation                                | A               |
+| C049 | Cookie Injection                               | A               |
+| C050 | Insecure Cookie Scope                          | A               |
+| C051 | Domain Cookie Abuse                            | A               |
+| C052 | Persistent Authentication Flaws                | A               |
+| C053 | Remember-Me Token Abuse                        | A               |
+| C054 | CSRF Login Attacks                             | A               |
+| C055 | Logout CSRF                                    | A               |
+| C056 | Dynamic DNS Abuse                              | P               |
+| C057 | Internal Network Exposure                      | P               |
+| C058 | Exposed Management Interfaces                  | P               |
+| C059 | Exposed Development Endpoints                  | P               |
+| C060 | Test Environment Exposure                      | P               |
+| C061 | Staging Environment Exposure                   | P               |
+| C062 | Preproduction Environment Exposure             | P               |
+| C063 | Backup API Exposure                            | P               |
+| C064 | Shadow IT Exposure                             | P               |
+| C065 | Secret Rotation Failures                       | D               |
+| C066 | Key Management Failures                        | D               |
+| C067 | Cryptographic Key Reuse                        | A               |
+| C068 | Weak Entropy Generation                        | A               |
+| C069 | Predictable Nonce Generation                   | A               |
+| C070 | Hash Collision Vulnerabilities                 | S               |
+| C071 | Unsalted Password Hashes                       | E               |
+| C072 | Weak Password Recovery Questions               | E               |
+| C073 | Authentication State Confusion                 | A               |
+| C074 | Improper Trust Boundaries                      | O               |
+| C075 | Trusting Client Input                          | O               |
+| C076 | Client-Side Authorization                      | O               |
+| C077 | Mobile API Trust Flaws                         | O               |
+| C078 | Cross-Tenant Data Leakage                      | O               |
+| C079 | Tenant Isolation Failure                       | O               |
+| C080 | Shared Resource Exposure                       | O               |
+| C081 | Metadata Service Exposure                      | P               |
+| C082 | Cloud Instance Takeover                        | P               |
+| C083 | IAM Misconfiguration                           | P               |
+| C084 | Excessive Permissions                          | P               |
+| C085 | Resource Policy Misconfiguration               | P               |
+| C086 | Bucket Enumeration                             | P               |
+| C087 | Snapshot Exposure                              | P               |
+| C088 | Database Snapshot Leakage                      | P               |
+| C089 | Exposed Search Indexes                         | P               |
+| C090 | Elasticsearch Exposure                         | N               |
+| C091 | MongoDB Exposure                               | N               |
+| C092 | Redis Exposure                                 | N               |
+| C093 | Memcached Exposure                             | N               |
+| C094 | Message Queue Exposure                         | N               |
+| C095 | RabbitMQ Exposure                              | N               |
+| C096 | Kafka Exposure                                 | N               |
+| C097 | Graph Database Exposure                        | N               |
+| C098 | Data Lake Exposure                             | N               |
+| C099 | Object Storage Exposure                        | P               |
+| C100 | API Gateway Misconfiguration                   | P               |
+| C101 | Reverse Proxy Cache Leaks                      | H               |
+| C102 | Internal Header Trust Abuse                    | H               |
+| C103 | Rate Limiting Misconfiguration                 | R               |
+| C104 | Quota Enforcement Bypass                       | R               |
+| C105 | Abuse of Public Endpoints                      | R               |
+| C106 | Resource Consumption Attacks                   | R               |
+| C107 | Storage Exhaustion Attacks                     | R               |
+| C108 | Queue Flooding                                 | R               |
+| C109 | Email Flooding                                 | N               |
+| C110 | Notification Flooding                          | N               |
+| C111 | SMS Flooding                                   | N               |
+| C112 | Cost Exhaustion Attacks                        | R               |
+| C113 | Billing Abuse                                  | P               |
+| C114 | Free-Tier Abuse                                | R               |
+| C115 | Business Workflow Manipulation                 | T               |
+| C116 | Referral Fraud                                 | E               |
+| C117 | Loyalty Program Abuse                          | N               |
+| C118 | Gift Card Abuse                                | N               |
+| C119 | Reward Point Manipulation                      | N               |
+| C120 | Affiliate Abuse                                | E               |
+| C121 | Subscription Abuse                             | N               |
+| C122 | Trial Abuse                                    | N               |
+| C123 | Inventory Manipulation                         | N               |
+| C124 | Reservation Race Conditions                    | N               |
+| C125 | Booking Logic Flaws                            | N               |
+| C126 | Auction Manipulation                           | N               |
+| C127 | Reputation System Abuse                        | N               |
+| C128 | Voting System Abuse                            | N               |
+| C129 | Moderation Bypass                              | N               |
+| C130 | Content Filter Bypass                          | N               |
+| C131 | AI Prompt Injection                            | N               |
+| C132 | Indirect Prompt Injection                      | N               |
+| C133 | Retrieval-Augmented Generation (RAG) Poisoning | N               |
+| C134 | AI Model Data Leakage                          | N               |
+| C135 | AI Training Data Exposure                      | N               |
+| C136 | LLM Jailbreak Vulnerabilities                  | N               |
+| C137 | Agent Tool Abuse                               | N               |
+| C138 | Vector Database Exposure                       | N               |
+| C139 | Embedding Poisoning                            | N               |
+| C140 | Browser Storage Exposure                       | D               |
+| C141 | LocalStorage Token Leakage                     | D               |
+| C142 | SessionStorage Exposure                        | D               |
+| C143 | IndexedDB Exposure                             | D               |
+| C144 | Clipboard Hijacking                            | U               |
+| C145 | Tabnabbing                                     | H               |
+| C146 | Reverse Tabnabbing                             | H               |
+| C147 | UI Redressing                                  | H               |
+| C148 | Keystroke Capture via Injection                | X               |
+| C149 | Browser Extension Privilege Abuse              | U               |
+| C150 | Cross-Origin Information Leakage               | H               |
+| C151 | XS-Search                                      | U               |
+| C152 | XS-Redirect                                    | U               |
+| C153 | XS-Include                                     | U               |
+| C154 | Cross-Origin Timing Attacks                    | U               |
+| C155 | Side-Channel Information Disclosure            | U               |
+| C156 | Cache Timing Attacks                           | U               |
+| C157 | Compression Side-Channel Attacks               | P               |
+| C158 | Spectre-Class Browser Attacks                  | U               |
+| C159 | Rowhammer-Related Exposure                     | U               |
+| C160 | Hardware Security Module Misconfiguration      | P               |

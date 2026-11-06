@@ -32,6 +32,10 @@ test('static delivery refuses dotfiles, backups, maps, source paths, traversal a
         '/server/auth.cjs',
         '/src/main.tsx',
         '/test-offline.html',
+        '/TEST-OFFLINE.HTML',
+        '/.env.backup.jpg',
+        '/SERVER/auth.cjs',
+        '/app.js.MAP',
         '/..%2fsecret',
         '/escape.txt',
     ]) {
@@ -39,6 +43,11 @@ test('static delivery refuses dotfiles, backups, maps, source paths, traversal a
         assert.ok([403, 404].includes(response.status), `${route}: ${response.status}`);
         assert.ok(!(await response.text()).includes('private-file-marker'));
     }
+    for (const route of ['/app.js%00.png', '/app.js%3Asecret', '/..%5csecret', '/%252e%252e%252fsecret'])
+        assert.equal((await fetch(base + route)).status, 400, route);
+    for (const method of ['POST', 'PUT', 'DELETE', 'OPTIONS'])
+        assert.equal((await fetch(base + '/app.js', { method })).status, 405, method);
+    assert.equal((await fetch(base + '/BOTS/protected.xml')).status, 403);
     const asset = await fetch(base + '/app.js');
     assert.equal(asset.status, 200);
     assert.match(asset.headers.get('content-type'), /javascript/);

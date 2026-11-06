@@ -1,3 +1,4 @@
+import { csvRows } from '@/utils/csv';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import './admin.scss';
@@ -81,7 +82,7 @@ function exportCsv(data: Overview, from: string, to: string) {
         ['Date (UTC)', 'Browser visitors', 'Connected accounts', 'Contracts purchased'],
         ...data.daily.map(row => [row.date, row.visitors, row.connections, row.trades]),
     ];
-    const content = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const content = csvRows(rows);
     const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;

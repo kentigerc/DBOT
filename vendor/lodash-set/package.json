@@ -1,0 +1,11 @@
+{
+    "name": "@netoacademy/lodash-set-compat",
+    "version": "4.3.3",
+    "private": true,
+    "description": "Compatibility adapter replacing unmaintained lodash.set with maintained lodash/set",
+    "main": "index.js",
+    "license": "MIT",
+    "dependencies": {
+        "lodash": "^4.18.1"
+    }
+}

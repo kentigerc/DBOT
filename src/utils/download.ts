@@ -86,12 +86,13 @@ export const getSuccessJournalMessage = (message: string, extra: TExtra) => {
 };
 
 export const downloadFile = (file_name: string, content: string) => {
-    const uri = encodeURI(`data:text/csv;charset=utf-8, ${content}`);
+    const uri = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.setAttribute('href', uri);
     link.setAttribute('download', `${file_name} ${getCurrentDateTimeLocale()}.csv`);
     document.body.appendChild(link);
     link.click();
+    URL.revokeObjectURL(uri);
     const parent_element = link.parentNode;
     const child_element = link;
     if (parent_element && child_element && parent_element?.contains(child_element)) {

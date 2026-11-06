@@ -79,7 +79,7 @@ const config: Config = {
     // A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
     moduleNameMapper: {
         '\\.(css|less|scss)$': '<rootDir>/__mocks__/styleMock.js',
-        '\\.(gif|ttf|eot|svg)$': '<rootDir>/__mocks__/fileMock.js',
+        '\\.(gif|png|jpe?g|webp|ttf|eot|svg)$': '<rootDir>/__mocks__/fileMock.js',
         'react-dom/server': '<rootDir>/__mocks__/react-dom-server.js',
         '@deriv-com/translations': '<rootDir>/__mocks__/translation.mock.js',
         '@deriv-com/ui': '<rootDir>/node_modules/@deriv-com/ui',
@@ -181,7 +181,7 @@ const config: Config = {
     },
 
     // An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation
-    transformIgnorePatterns: ['/node_modules/(?!@deriv-com/ui|@deriv-com/auth-client).+\\.js$'],
+    transformIgnorePatterns: ['/node_modules/(?!@deriv-com/ui|@deriv-com/auth-client|@deriv/quill-icons).+\\.js$'],
 
     // An array of regexp pattern strings that are matched against all modules before the module loader will automatically return a mock for them
     // unmockedModulePathPatterns: undefined,
