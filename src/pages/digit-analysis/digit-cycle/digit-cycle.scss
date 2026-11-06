@@ -559,7 +559,8 @@ body.theme--light .digit-cycle--parity {
     .digit-cycle__table {
         max-height: 320px;
         overflow: auto;
-        overscroll-behavior: contain;
+        // Continue scrolling Digit Analysis when the journal reaches either end.
+        overscroll-behavior-y: auto;
         th {
             position: sticky;
             top: 0;
