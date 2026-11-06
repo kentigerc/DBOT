@@ -48,3 +48,5 @@ lerna-debug.log*
 .analysis-state/
 
 .analytics-state/
+
+.auth-state/

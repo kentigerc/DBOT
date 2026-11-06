@@ -17,22 +17,39 @@ jobs:
         name: Build and test
         runs-on: ubuntu-latest
         timeout-minutes: 20
+        services:
+            postgres:
+                image: postgres:16-alpine
+                env:
+                    POSTGRES_USER: neto
+                    POSTGRES_PASSWORD: ci-test-only
+                    POSTGRES_DB: neto_analytics
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U neto -d neto_analytics"
+                    --health-interval 5s --health-timeout 5s --health-retries 10
         steps:
             - name: Check out repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
               with:
                   persist-credentials: false
 
             - name: Set up Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
               with:
-                  node-version: '20.20.1'
+                  node-version: '24'
                   cache: npm
+
+            - name: Scan tracked source for common credential formats
+              run: node scripts/check-secrets.cjs
 
             - name: Install locked dependencies
               run: npm ci
 
-            - name: Test OAuth and WebSocket server
+            - name: Test OAuth, WebSockets and PostgreSQL persistence
+              env:
+                  NETO_TEST_DATABASE_URL: postgresql://neto:ci-test-only@localhost:5432/neto_analytics
               run: npm run test:server
 
             - name: Test application

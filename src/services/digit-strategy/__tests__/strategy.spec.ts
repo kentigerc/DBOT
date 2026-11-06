@@ -211,3 +211,15 @@ it('keeps Under 7 in Analysis Tool and requires its live winning-digit formation
     m.entries.reset();
     expect(chooseSignal([m], state, DEFAULT_SETTINGS, 10000, () => 0)?.direction).toBe('DIGITDIFF');
 });
+it('rejects unknown settings and prototype-shaped fields before a trading session can use them', () => {
+    expect(() => validateSettings({ ...DEFAULT_SETTINGS, injected: true } as never)).toThrow('Unknown');
+    const poisoned = JSON.parse('{"__proto__":{"stake":1}}');
+    expect(() => validateSettings({ ...DEFAULT_SETTINGS, ...poisoned })).toThrow('Unknown');
+    expect(({} as any).stake).toBeUndefined();
+});
+it('rejects USD limits too large for exact integer-cent arithmetic', () => {
+    for (const value of [Number.MAX_VALUE, 1e20, Number.MAX_SAFE_INTEGER])
+        expect(() =>
+            validateSettings({ ...DEFAULT_SETTINGS, stake: value, maxStake: value, stopLoss: value })
+        ).toThrow();
+});

@@ -549,3 +549,39 @@ test('an unavailable OAuth token endpoint is not retried', async t => {
     assert.equal(response.status, 503);
     assert.equal(calls, 1);
 });
+
+test('persisted logout revocation refuses a previously valid cookie in another handler instance', async t => {
+    const revoked = new Set();
+    const revocations = { isRevoked: async sid => revoked.has(sid), revoke: async sid => revoked.add(sid) };
+    const first = await fixture(t, { handler: { revocations } });
+    await first.authenticated();
+    const stolen = new Map(first.cookies);
+    await first.request('/api/auth/logout', {});
+    assert.equal(revoked.size, 1);
+    const second = await fixture(t, { handler: { revocations } });
+    for (const [key, value] of stolen) second.cookies.set(key, value);
+    assert.equal((await second.request('/api/session')).status, 401);
+    assert.equal(second.calls.length, 0);
+});
+test('HTTPS sessions use host-prefixed, secure, HttpOnly cookies to resist subdomain cookie injection', async t => {
+    const app = await fixture(t, { handler: { origin: 'https://neto.example' } });
+    const { state } = await app.login();
+    const response = await app.request(
+        '/api/auth/callback',
+        { code: 'test-code', state },
+        { Origin: 'https://neto.example' }
+    );
+    assert.equal(response.status, 200);
+    const cookies = response.headers.getSetCookie();
+    assert.ok(
+        cookies.some(
+            cookie =>
+                cookie.startsWith('__Host-neto_session=') &&
+                cookie.includes('Path=/;') &&
+                cookie.includes('Secure') &&
+                cookie.includes('HttpOnly')
+        )
+    );
+    assert.ok(cookies.every(cookie => !cookie.includes('Domain=')));
+    assert.equal((await app.request('/api/session')).status, 200);
+});

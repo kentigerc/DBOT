@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from 'react-router-dom';
 import { useOfflineDetection } from '@/hooks/useOfflineDetection';
 import './app-root.scss';
+import RouteFailure from './RouteFailure';
 const TermsPage = lazy(() => import('../pages/terms'));
 const Landing = lazy(() => import('../pages/landing'));
 const TradingLayout = lazy(() => import('./TradingLayout'));
@@ -30,6 +31,7 @@ const router = createBrowserRouter(
     createRoutesFromElements(
         <>
             <Route
+                errorElement={<RouteFailure />}
                 path='/terms'
                 element={
                     <SuspenseWrapper>
@@ -38,6 +40,7 @@ const router = createBrowserRouter(
                 }
             />
             <Route
+                errorElement={<RouteFailure />}
                 path='/'
                 element={
                     <SuspenseWrapper>
@@ -46,6 +49,7 @@ const router = createBrowserRouter(
                 }
             />
             <Route
+                errorElement={<RouteFailure />}
                 path='/callback'
                 element={
                     <SuspenseWrapper>
@@ -54,6 +58,7 @@ const router = createBrowserRouter(
                 }
             />
             <Route
+                errorElement={<RouteFailure />}
                 element={
                     <SuspenseWrapper>
                         <TradingLayout />

@@ -8,6 +8,6 @@ services:
       healthCheckPath: /api/health
       envVars:
           - key: NODE_VERSION
-            value: 20.20.1
+            value: '24'
           - key: NETO_SESSION_SECRET
             generateValue: true

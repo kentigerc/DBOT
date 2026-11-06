@@ -1,9 +1,11 @@
 require('dotenv').config();
 const http = require('node:http');
 const { randomBytes } = require('node:crypto');
-const { readFile, stat } = require('node:fs/promises');
 const path = require('node:path');
+const { createSecurity } = require('./security.cjs');
+const { serveStatic } = require('./static.cjs');
 const { createAuthHandler } = require('./auth.cjs');
+const revocations = require('./revocations.cjs').createRevocations();
 const { fetch: proxyFetch, ProxyAgent } = require('undici');
 const { attachSockets } = require('./socket.cjs');
 
@@ -20,6 +22,7 @@ const handleAuth = createAuthHandler({
     origin,
     secret,
     onAccounts: values => admin?.accounts(values),
+    revocations,
     fetchImpl: (url, options) => proxyFetch(url, { ...options, ...(dispatcher ? { dispatcher } : {}) }),
 });
 const { createAnalysisService } = require('./analysis.cjs');
@@ -68,76 +71,34 @@ analysis = createAnalysisService(handleAuth, {
 const { createBotLoader } = require('./bots.cjs');
 const loadBot = createBotLoader(handleAuth);
 const root = path.resolve(__dirname, '../dist');
-const types = {
-    '.html': 'text/html',
-    '.js': 'application/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-    '.svg': 'image/svg+xml',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.woff2': 'font/woff2',
-    '.xml': 'application/xml',
-};
-
-const server = http.createServer(async (req, res) => {
-    if (req.url.split('?')[0].startsWith('/api/admin/') || req.url.split('?')[0] === '/api/analytics/pulse')
-        return admin.handle(req, res);
-    if (req.url.split('?')[0] === '/api/bots/load') return loadBot(req, res);
-    if (req.url.split('?')[0] === '/api/analysis') return analysis.handle(req, res);
-    if (req.url.split('?')[0].startsWith('/api/')) return handleAuth(req, res);
-    if (development) {
-        res.writeHead(404);
-        return res.end();
-    }
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'no-referrer');
-    if (!['GET', 'HEAD'].includes(req.method)) {
-        res.writeHead(405);
-        return res.end();
-    }
-    try {
-        const pathname = decodeURIComponent(new URL(req.url, origin).pathname);
-        if (pathname === '/bots' || pathname.startsWith('/bots/')) {
-            res.writeHead(403);
-            return res.end('Bot downloads are disabled.');
-        }
-        let file = path.resolve(root, '.' + pathname);
-        if (!file.startsWith(root + path.sep) && file !== root) {
-            res.writeHead(403);
+const security = createSecurity({ origin, secret, sessionIdentity: handleAuth.sessionIdentity });
+const server = http.createServer(
+    { headersTimeout: 15000, requestTimeout: 30000, maxHeaderSize: 16384 },
+    async (req, res) => {
+        if (!security.handle(req, res)) return;
+        if (req.url.split('?')[0].startsWith('/api/admin/') || req.url.split('?')[0] === '/api/analytics/pulse')
+            return admin.handle(req, res);
+        if (req.url.split('?')[0] === '/api/bots/load') return loadBot(req, res);
+        if (req.url.split('?')[0] === '/api/analysis') return analysis.handle(req, res);
+        if (req.url.split('?')[0].startsWith('/api/')) return handleAuth(req, res);
+        if (development) {
+            res.writeHead(404);
             return res.end();
         }
-        try {
-            if (!(await stat(file)).isFile()) file = path.join(root, 'index.html');
-        } catch {
-            if (path.extname(pathname)) {
-                res.writeHead(404);
-                return res.end();
-            }
-            file = path.join(root, 'index.html');
-        }
-        const body = await readFile(file);
-        res.writeHead(200, {
-            'Content-Type':
-                (types[path.extname(file)] || 'application/octet-stream') +
-                (path.extname(file) === '.html' ? '; charset=utf-8' : ''),
-            'Cache-Control': 'no-cache',
-        });
-        res.end(req.method === 'HEAD' ? undefined : body);
-    } catch {
-        res.writeHead(400);
-        res.end('Unable to serve this request.');
+        return serveStatic(req, res, { root, origin });
     }
-});
+);
 
 attachSockets(server, handleAuth, dispatcher, {
     analysis,
+    security,
     onConnection: (account, key, open) => admin.connection(account, key, open),
     onTrade: (account, value) => admin.trade(account, 'bot_builder', value),
 });
 process.on('SIGTERM', () => {
     analysis.stopAll();
     void admin.close().catch(() => {});
+    void revocations.close().catch(() => {});
     server.close();
     setTimeout(() => process.exit(0), 10000).unref();
 });

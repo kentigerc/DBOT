@@ -47,12 +47,28 @@ export function cents(value: unknown) {
         (typeof value !== 'number' && typeof value !== 'string') ||
         String(value).trim() === '' ||
         !Number.isFinite(amount) ||
+        !Number.isSafeInteger(Math.round(amount * 100)) ||
         Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-7
     )
         throw new Error('Invalid USD amount.');
     return Math.round(amount * 100);
 }
 export function validateSettings(s: Settings) {
+    const fields = [
+        'strategy',
+        'hitRecovery',
+        'stake',
+        'maxLosses',
+        'multiplier',
+        'maxStake',
+        'stopLoss',
+        'takeProfit',
+        'recoveryMode',
+        'triggerCount',
+        'duration',
+    ];
+    if (!s || typeof s !== 'object' || Array.isArray(s) || Object.keys(s).some(key => !fields.includes(key)))
+        throw new Error('Unknown or invalid strategy settings.');
     if (s.hitRecovery !== undefined && !['same_contract', 'analysis'].includes(s.hitRecovery))
         throw new Error('Invalid recovery method.');
     if (s.strategy !== undefined && !['over2-under7', 'even-odd', 'momentum-70'].includes(s.strategy))
@@ -65,6 +81,7 @@ export function validateSettings(s: Settings) {
         const v = s[key];
         if (
             !Number.isFinite(v) ||
+            !Number.isSafeInteger(Math.round(v * 100)) ||
             v < (key === 'takeProfit' ? 0 : 0.01) ||
             Math.abs(v * 100 - Math.round(v * 100)) > 1e-7
         )

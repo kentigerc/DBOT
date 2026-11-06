@@ -25,6 +25,7 @@ function createAuthHandler({
     fetchImpl = fetch,
     now = () => Date.now(),
     onAccounts = () => {},
+    revocations = { isRevoked: async () => false, revoke: async () => {} },
     adminAccountIds = (process.env.NETO_ADMIN_ACCOUNT_IDS || '')
         .split(',')
         .map(value => value.trim())
@@ -65,17 +66,19 @@ function createAuthHandler({
             return null;
         }
     }
+    const cookieName = name => (secure ? `__Host-${name}` : name);
     function setCookie(res, name, data, seconds) {
-        const cookie = `${name}=${data ? seal(data, name) : ''}; Path=/api; HttpOnly; SameSite=Lax; Max-Age=${seconds}${secure ? '; Secure' : ''}`;
+        const cookie = `${cookieName(name)}=${data ? seal(data, name) : ''}; Path=${secure ? '/' : '/api'}; HttpOnly; SameSite=Lax; Max-Age=${seconds}${secure ? '; Secure' : ''}`;
         const existing = res.getHeader('Set-Cookie') || [];
         res.setHeader('Set-Cookie', [...(Array.isArray(existing) ? existing : [existing]), cookie]);
     }
     function readCookie(req, name) {
+        const storedName = cookieName(name);
         const raw = (req.headers.cookie || '')
             .split(';')
             .map(part => part.trim())
-            .find(part => part.startsWith(`${name}=`));
-        return unseal(raw?.slice(name.length + 1), name);
+            .find(part => part.startsWith(`${storedName}=`));
+        return unseal(raw?.slice(storedName.length + 1), name);
     }
     function json(res, status, data) {
         res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -158,8 +161,15 @@ function createAuthHandler({
         const cached = renewed.get(cookie?.sid || refresh?.sid);
         if (cached?.revoked) throw new HttpError(401, 'Please log in to Deriv.');
         const value = cached?.session || cookie;
-        if (!value?.access_token || value.expires <= now()) throw new HttpError(401, 'Please log in to Deriv.');
+        if (!value?.access_token || !/^[A-Za-z0-9_-]{32,64}$/.test(value.sid || '') || value.expires <= now())
+            throw new HttpError(401, 'Please log in to Deriv.');
         return value;
+    }
+    async function verifiedSession(req) {
+        const saved = session(req);
+        if (await revocations.isRevoked(saved.sid)) throw new HttpError(401, 'Please log in to Deriv.');
+        session(req); // A logout may have completed while verification was in flight.
+        return saved;
     }
     function tokenSeconds(tokens) {
         if (
@@ -196,6 +206,7 @@ function createAuthHandler({
         const refreshCookie = readCookie(req, REFRESH_COOKIE);
         const cookie = readCookie(req, SESSION_COOKIE);
         const sid = cookie?.sid || refreshCookie?.sid;
+        if (sid && (await revocations.isRevoked(sid))) throw new HttpError(401, 'Please log in to Deriv.');
         let cached = renewed.get(sid);
         if (cached?.revoked) throw new HttpError(401, 'Please log in to Deriv.');
         let saved = cached?.session || cookie;
@@ -259,7 +270,7 @@ function createAuthHandler({
         }
     }
     async function connectionUrl(req, account_id) {
-        const saved = session(req);
+        const saved = await verifiedSession(req);
         requireTerms(req, saved);
         const accounts = await getAccounts(saved.access_token);
         if (!accounts.some(account => account.account_id === account_id && account.status === 'active')) {
@@ -401,7 +412,11 @@ function createAuthHandler({
                 setCookie(res, TERMS_COOKIE, null, 0);
                 setCookie(res, REPORTING_COOKIE, null, 0);
                 const value = readCookie(req, SESSION_COOKIE) || readCookie(req, REFRESH_COOKIE);
-                if (value?.sid) renewed.set(value.sid, { revoked: true, until: now() + REFRESH_SECONDS * 1000 });
+                if (value?.sid) {
+                    const until = now() + REFRESH_SECONDS * 1000;
+                    renewed.set(value.sid, { revoked: true, until });
+                    await revocations.revoke(value.sid, until);
+                }
                 setCookie(res, REFRESH_COOKIE, null, 0);
                 setCookie(res, SESSION_COOKIE, null, 0);
                 setCookie(res, FLOW_COOKIE, null, 0);
@@ -454,7 +469,7 @@ function createAuthHandler({
     };
     handle.requireTerms = req => requireTerms(req, session(req));
     handle.authorizeAccount = async (req, accountId) => {
-        const saved = session(req);
+        const saved = await verifiedSession(req);
         const accounts = await cachedAccounts(saved);
         const account = accounts.find(item => item.account_id === accountId && item.status === 'active');
         if (!account) throw new HttpError(403, 'This trading account is not available in your Deriv session.');
@@ -463,7 +478,7 @@ function createAuthHandler({
     handle.requireAdmin = async req => {
         if (!adminAccountIds.length)
             throw new HttpError(503, 'Admin access is not configured. Set NETO_ADMIN_ACCOUNT_IDS on the server.');
-        const saved = session(req);
+        const saved = await verifiedSession(req);
         const accounts = await cachedAccounts(saved);
         if (!accounts.some(account => account.status === 'active' && adminAccountIds.includes(account.account_id)))
             throw new HttpError(403, 'This account does not have admin access.');
@@ -505,6 +520,7 @@ function createAuthHandler({
             return null;
         }
     };
+    handle.verifySession = verifiedSession;
     handle.connectionUrl = connectionUrl;
     handle.sessionExpires = req => session(req).expires;
     handle.publicOrigin = publicOrigin;

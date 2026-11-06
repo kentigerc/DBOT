@@ -16,7 +16,7 @@ window.Blockly.Blocks.loader = {
                 {
                     type: 'field_input',
                     name: 'URL',
-                    text: 'http://www.example.com/block.xml',
+                    text: 'https://www.example.com/block.xml',
                 },
             ],
             colour: window.Blockly.Colours.Base.colour,

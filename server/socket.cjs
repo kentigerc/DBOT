@@ -1,3 +1,4 @@
+const { validateSocketMessage } = require('./security.cjs');
 const { startUpstreamKeepalive } = require('./upstream-keepalive.cjs');
 const { watchSessionExpiry } = require('./session-expiry.cjs');
 const { randomUUID } = require('node:crypto');
@@ -10,6 +11,7 @@ function attachSockets(
     dispatcher,
     {
         analysis,
+        security,
         onTrade = () => {},
         onConnection = () => {},
         createUpstream = url => new WebSocket(url, { ...(dispatcher ? { dispatcher } : {}) }),
@@ -19,22 +21,33 @@ function attachSockets(
     // Only receipts from purchases on Builder sockets establish Builder ownership.
     // Share this bounded set across sockets so reconnects can report known settlements.
     const builderContracts = new Set();
-    const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+    const sockets = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024, perMessageDeflate: false });
     server.on('upgrade', async (req, socket, head) => {
         const reject = (status = 403) => {
             if (!socket.destroyed) socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\n\r\n`);
         };
         if (req.headers.origin !== auth.publicOrigin) return reject();
         let upstream;
+        const release = security?.reserveSocket(req);
+        if (security && !release) return reject(429);
+        socket.once('close', () => release?.());
+        const handshakeTimeout = setTimeout(() => {
+            reject(504);
+            upstream?.close();
+        }, 15000);
+        handshakeTimeout.unref?.();
+        socket.once('close', () => clearTimeout(handshakeTimeout));
         try {
             const url = new URL(req.url, auth.publicOrigin);
             if (url.pathname !== '/api/socket') return reject(404);
+            if (url.searchParams.getAll('account_id').length > 1) return reject(400);
             const account = url.searchParams.get('account_id');
+            if (account && !/^[A-Za-z0-9_-]{1,128}$/.test(account)) return reject(400);
             const expires = account ? auth.sessionExpires(req) : null;
             const target = account
                 ? await auth.connectionUrl(req, account)
                 : 'wss://api.derivws.com/trading/v1/options/ws/public';
-            if (socket.destroyed) return;
+            if (socket.destroyed || socket.writableEnded) return;
             upstream = createUpstream(target);
             const timeout = setTimeout(() => {
                 reject(504);
@@ -56,7 +69,8 @@ function attachSockets(
                 'open',
                 () => {
                     clearTimeout(timeout);
-                    if (socket.destroyed) {
+                    clearTimeout(handshakeTimeout);
+                    if (socket.destroyed || socket.writableEnded) {
                         upstream.close();
                         return;
                     }
@@ -79,16 +93,31 @@ function attachSockets(
                                   () => client.close(1008, 'Session expired. Log in again.')
                               )
                             : () => {};
-                        const heartbeat = setInterval(() => {
+                        const heartbeat = setInterval(async () => {
+                            if (account) {
+                                try {
+                                    await auth.verifySession?.(req);
+                                } catch {
+                                    client.close(1008, 'Session is no longer available. Log in again.');
+                                    return;
+                                }
+                            }
+                            if (client.readyState !== 1) return;
                             if (!client.isAlive) return client.terminate();
                             client.isAlive = false;
                             client.ping();
                         }, 30000);
+                        const allowMessage = security?.messageLimiter() || (() => true);
                         client.isAlive = true;
                         client.on('pong', () => {
                             client.isAlive = true;
                         });
-                        client.on('message', (data, binary) => {
+                        client.on('message', async (data, binary) => {
+                            if (!allowMessage()) {
+                                security?.log('socket_message_limit', req);
+                                client.close(1008, 'Message rate limit exceeded.');
+                                return;
+                            }
                             if (binary || upstream.readyState !== 1) {
                                 client.close(1003, 'Text API messages required.');
                                 return;
@@ -100,19 +129,29 @@ function attachSockets(
                             let body;
                             try {
                                 body = JSON.parse(data.toString());
+                                validateSocketMessage(body, account);
+                                if (account) await auth.verifySession?.(req);
                                 if (account && body.buy) auth.requireTerms?.(req);
+                                if (client.readyState !== 1 || upstream.readyState !== 1) return;
                                 if (account) analysis?.beforeBuilder(account, body, clientKey);
+                                upstream.send(data.toString());
                             } catch (error) {
+                                if (client.readyState !== 1) return;
                                 client.send(
                                     JSON.stringify({
-                                        error: { code: error.code || 'AnalysisToolRunning', message: error.message },
+                                        error: {
+                                            code: error.code || 'InvalidRequest',
+                                            message:
+                                                error instanceof SyntaxError
+                                                    ? 'A valid JSON API object is required.'
+                                                    : error.message,
+                                        },
                                         req_id: body?.req_id,
                                         echo_req: body,
                                     })
                                 );
                                 return;
                             }
-                            upstream.send(data.toString());
                         });
                         upstream.addEventListener('message', event => {
                             try {
@@ -188,6 +227,7 @@ function attachSockets(
                 { once: true }
             );
         } catch (error) {
+            clearTimeout(handshakeTimeout);
             upstream?.close();
             reject(error.status || 502);
         }

@@ -3,8 +3,9 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const Client = require('ws');
 const { attachSockets } = require('./socket.cjs');
+const { createSecurity } = require('./security.cjs');
 
-async function fixture(t, expired = false) {
+async function fixture(t, expired = false, limits = {}) {
     const targets = [],
         upstreams = [],
         connections = [],
@@ -43,6 +44,7 @@ async function fixture(t, expired = false) {
         undefined,
         {
             createUpstream: url => new Upstream(url),
+            security: createSecurity({ origin: 'http://neto.example', audit: () => {}, ...limits }),
             onConnection: (...args) => connections.push(args),
             onTrade: (...args) => trades.push(args),
         }
@@ -170,4 +172,52 @@ test('maps an abnormal upstream closure to a valid WebSocket code and retains th
     Object.defineProperty(event, 'code', { value: 1006 });
     upstreams[0].dispatchEvent(event);
     assert.deepEqual(await closed, { code: 1011, reason: 'Deriv connection closed (upstream 1006).' });
+});
+
+test('refuses excess pending/account sockets before allocating another upstream and frees quota on close', async t => {
+    const { connect, targets } = await fixture(t, false, { maxSockets: 1 });
+    const first = connect();
+    await opened(first);
+    assert.match(await rejected(connect()), /429/);
+    assert.equal(targets.length, 1);
+    const closed = new Promise(resolve => first.once('close', resolve));
+    first.close();
+    await closed;
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const next = connect();
+    await opened(next);
+    next.close();
+});
+test('malformed messages and account-switching requests never reach Deriv, while valid reads still work', async t => {
+    const { connect } = await fixture(t);
+    const client = connect();
+    await opened(client);
+    for (const body of ['null', '[]', '{broken', JSON.stringify({ authorize: 'test-only-token' })]) {
+        const reply = new Promise(resolve => client.once('message', value => resolve(JSON.parse(value))));
+        client.send(body);
+        assert.ok((await reply).error);
+    }
+    const response = new Promise(resolve => client.once('message', value => resolve(JSON.parse(value))));
+    client.send(JSON.stringify({ ping: 1, req_id: 22 }));
+    assert.equal((await response).req_id, 22);
+    client.close();
+});
+test('a message flood closes only the abusive socket', async t => {
+    const { connect } = await fixture(t);
+    const client = connect();
+    await opened(client);
+    const closed = new Promise(resolve => client.once('close', code => resolve(code)));
+    for (let i = 0; i < 110; i++) client.send(JSON.stringify({ ping: 1, req_id: i }));
+    assert.equal(await closed, 1008);
+    const next = connect();
+    await opened(next);
+    next.close();
+});
+test('ambiguous account parameters cannot complete a socket upgrade', async t => {
+    const { connect, targets } = await fixture(t);
+    assert.match(
+        await rejected(connect('?account_id=DOT100&account_id=DOT200', 'http://neto.example', 'session=owned')),
+        /400/
+    );
+    assert.equal(targets.length, 0);
 });

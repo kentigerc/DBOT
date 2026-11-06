@@ -3,7 +3,7 @@
     "private": true,
     "version": "0.0.1",
     "engines": {
-        "node": "20.x"
+        "node": "24.x"
     },
     "scripts": {
         "dev": "npm run build:strategy && node server/dev.cjs",
@@ -44,20 +44,20 @@
         "@tanstack/react-query": "^5.29.2",
         "@types/node": "^25.0.2",
         "blockly": "^10.4.3",
-        "brace-expansion": "^3.0.1",
+        "brace-expansion": "^3.0.9",
         "braces": "^3.0.3",
         "canvas-toBlob": "^1.0.0",
         "classnames": "^2.5.1",
         "clsx": "^2.1.0",
         "crc-32": "^1.2.2",
         "debounce": "^2.1.0",
-        "dompurify": "^3.2.6",
+        "dompurify": "^3.4.17",
         "dotenv": "^16.4.5",
         "file-saver": "^2.0.5",
         "formik": "^2.4.6",
         "framer-motion": "^6.5.1",
         "html-react-parser": "^5.1.18",
-        "js-cookie": "^3.0.5",
+        "js-cookie": "^3.0.8",
         "localforage": "^1.10.0",
         "lz-string": "^1.5.0",
         "mobx": "^6.12.3",
@@ -71,7 +71,7 @@
         "react-dom": "^18.2.0",
         "react-joyride": "^2.8.2",
         "react-loadable": "^5.5.0",
-        "react-router-dom": "^6.25.1",
+        "react-router-dom": "^7.18.5",
         "react-tiny-popover": "^8.0.4",
         "react-toastify": "^9.1.3",
         "react-transition-group": "^4.4.5",
@@ -196,6 +196,21 @@
     "overrides": {
         "cross-spawn": "^7.0.6",
         "braces": "^3.0.3",
-        "brace-expansion@2.0.1": "2.0.2"
+        "brace-expansion@2.0.1": "2.0.2",
+        "lodash": "^4.18.1",
+        "lodash-es": "^4.18.1",
+        "handlebars": "^4.7.10",
+        "npm": "^11.21.2",
+        "js-cookie": "$js-cookie",
+        "brace-expansion": "$brace-expansion",
+        "react-router-dom": "$react-router-dom",
+        "react-router": "^7.18.5",
+        "@xmldom/xmldom": "^0.8.15",
+        "@isaacs/brace-expansion": "^5.0.1",
+        "browserslist": "^4.29.5",
+        "form-data@^4.0.0": "^4.0.6",
+        "js-yaml@^4.0.0": "^4.3.2",
+        "picomatch@^2.0.0": "^2.3.2",
+        "picomatch@^4.0.0": "^4.0.4"
     }
 }

@@ -47,6 +47,7 @@ export default defineConfig({
     resolve: {
         alias: {
             react: path.resolve('./node_modules/react'),
+            '@deriv/js-interpreter$': path.resolve('./node_modules/@deriv/js-interpreter/lib/js-interpreter.js'),
             'react-dom': path.resolve('./node_modules/react-dom'),
             '@/external': path.resolve(__dirname, './src/external'),
             '@/components': path.resolve(__dirname, './src/components'),
@@ -104,16 +105,23 @@ export default defineConfig({
     tools: {
         postcss: {
             postcssOptions: {
-                plugins: [{
-                    postcssPlugin: 'neto-local-assets',
-                    AtRule: {
-                        import(rule: { params: string; remove: () => void }) {
-                            // The same fonts and tokens are now bundled from npm.
-                            // Remove duplicate network imports emitted by UI dependencies.
-                            if (/fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/@deriv-com\/quill-tokens/.test(rule.params)) rule.remove();
+                plugins: [
+                    {
+                        postcssPlugin: 'neto-local-assets',
+                        AtRule: {
+                            import(rule: { params: string; remove: () => void }) {
+                                // The same fonts and tokens are now bundled from npm.
+                                // Remove duplicate network imports emitted by UI dependencies.
+                                if (
+                                    /fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/@deriv-com\/quill-tokens/.test(
+                                        rule.params
+                                    )
+                                )
+                                    rule.remove();
+                            },
                         },
                     },
-                }],
+                ],
             },
         },
         rspack: {
@@ -121,6 +129,10 @@ export default defineConfig({
             resolve: {},
             module: {
                 rules: [
+                    {
+                        test: /js-interpreter[\/]lib[\/]js-interpreter\.js$/,
+                        use: path.resolve(__dirname, 'scripts/csp-interpreter-loader.cjs'),
+                    },
                     {
                         test: /\.xml$/,
                         exclude: /node_modules/,

@@ -1,5 +1,5 @@
 // Comprehensive Service Worker for Deriv Bot Offline Functionality
-const CACHE_NAME = 'netoacademy-v2-protected-bots';
+const CACHE_NAME = 'netoacademy-v3-security';
 const OFFLINE_URL = '/offline.html';
 
 // Files to cache immediately on install
@@ -74,6 +74,9 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const { request } = event;
     const url = new URL(request.url);
+    // Never intercept cross-origin, credential-bearing or query-string requests.
+    // Private APIs and OAuth callbacks must always reach the network.
+    if (url.origin !== self.location.origin || url.search || url.pathname === '/admin') return;
 
     // Skip non-GET requests
     if (request.method !== 'GET') {
@@ -154,7 +157,7 @@ async function handleNavigation(request) {
         // Try network first for navigation
         const networkResponse = await fetch(request, { timeout: 3000 });
 
-        if (networkResponse.ok) {
+        if (networkResponse.ok && !/no-store|private/i.test(networkResponse.headers.get('cache-control') || '')) {
             // Cache successful navigation responses
             const cache = await caches.open(CACHE_NAME);
             await cache.put(request, networkResponse.clone());
@@ -205,7 +208,7 @@ async function handleStaticAsset(request) {
         // Try network
         const networkResponse = await fetch(request);
 
-        if (networkResponse.ok) {
+        if (networkResponse.ok && !/no-store|private/i.test(networkResponse.headers.get('cache-control') || '')) {
             // Cache successful responses
             const cache = await caches.open(CACHE_NAME);
             await cache.put(request, networkResponse.clone());
@@ -266,7 +269,7 @@ async function handleGenericRequest(request) {
         // Try network first
         const networkResponse = await fetch(request);
 
-        if (networkResponse.ok) {
+        if (networkResponse.ok && !/no-store|private/i.test(networkResponse.headers.get('cache-control') || '')) {
             // Cache successful responses
             const cache = await caches.open(CACHE_NAME);
             await cache.put(request, networkResponse.clone());
@@ -504,7 +507,7 @@ function isApiRequest(url) {
 self.addEventListener('message', event => {
     const { type, data } = event.data || {};
 
-    console.log('[SW] Received message:', type, data);
+    console.log('[SW] Received message:', type);
 
     switch (type) {
         case 'SKIP_WAITING':

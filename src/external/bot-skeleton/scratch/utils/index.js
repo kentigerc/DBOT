@@ -1,3 +1,4 @@
+import { assertStrategyXml, fetchStrategyXml } from '@/utils/strategy-xml';
 import {
     HOSTED_BOT_NOTICE,
     installBotProtection,
@@ -182,6 +183,7 @@ export const load = async ({
 
     // Check if XML can be parsed correctly.
     try {
+        assertStrategyXml(block_string);
         const xmlDoc = new DOMParser().parseFromString(block_string, 'application/xml');
         if (xmlDoc.getElementsByTagName('parsererror').length) {
             return showInvalidStrategyError();
@@ -291,6 +293,7 @@ const loadBlocksFromHeader = (xml_string, block) => {
         let xml;
 
         try {
+            assertStrategyXml(xml_string);
             xml = window.Blockly.utils.xml.textToDom(xml_string);
         } catch (error) {
             return reject(localize('Unrecognized file format'));
@@ -323,7 +326,7 @@ export const loadBlocksFromRemote = block => {
         let url = block.getFieldValue('URL');
 
         if (url.indexOf('http') === -1) {
-            url = `http://${url}`;
+            url = `https://${url}`;
         }
 
         const url_pattern = /[^/]*\.[a-zA-Z]{3}$/;
@@ -344,18 +347,9 @@ export const loadBlocksFromRemote = block => {
 
         const onFetchError = () => reject(localize('An error occured while trying to load the URL'));
 
-        fetch(url)
-            .then(response => {
-                if (response.ok) {
-                    response.text().then(xml_string => {
-                        loadBlocksFromHeader(xml_string, block)
-                            .then(() => resolve(block))
-                            .catch(onFetchError);
-                    });
-                } else {
-                    onFetchError();
-                }
-            })
+        fetchStrategyXml(url)
+            .then(xml_string => loadBlocksFromHeader(xml_string, block))
+            .then(() => resolve(block))
             .catch(onFetchError);
     });
 };
@@ -721,16 +715,7 @@ export const modifyContextMenu = (menu, add_new_items = []) => {
     }
 };
 
-export const evaluateExpression = value => {
-    if (!value) return 'invalid_input';
-    try {
-        // eslint-disable-next-line no-new-func
-        const result = new Function(`return ${value.trim()}`)();
-        return isNaN(result) ? 'invalid_input' : result;
-    } catch (e) {
-        return 'invalid_input';
-    }
-};
+export { evaluateExpression } from '@/utils/arithmetic-expression';
 
 export const appendCollapsedMainBlocksFields = block_instance => {
     try {

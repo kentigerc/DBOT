@@ -159,3 +159,23 @@ describe('<PageError/>', () => {
         expect(heading).toHaveStyle('--text-size: var(--text-size-s)');
     });
 });
+
+it('removes executable markup and unsafe links from HTML error messages while retaining simple formatting', () => {
+    const { container } = render(
+        <PageError
+            header='Error'
+            redirect_labels={[]}
+            should_redirect={false}
+            messages={[
+                {
+                    has_html: true,
+                    message:
+                        '<strong>Try again</strong><img src=x onerror="alert(1)"><script>alert(1)</script><a href="javascript:alert(1)">unsafe</a>',
+                },
+            ]}
+        />
+    );
+    expect(screen.getByText('Try again').tagName).toBe('STRONG');
+    expect(container.querySelector('img,script,[onerror],[onclick]')).toBeNull();
+    expect(container.querySelector('a')?.getAttribute('href')).toBeNull();
+});

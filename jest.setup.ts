@@ -1,3 +1,8 @@
+import { TextEncoder, TextDecoder } from 'node:util';
+Object.defineProperties(globalThis, {
+    TextEncoder: { value: TextEncoder, configurable: true },
+    TextDecoder: { value: TextDecoder, configurable: true },
+});
 import '@testing-library/jest-dom/jest-globals';
 import '@testing-library/jest-dom';
 

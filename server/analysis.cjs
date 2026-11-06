@@ -64,6 +64,11 @@ function createAnalysisService(
             value = { account, starting: false, request: undefined };
             const brokerForRun = async () => {
                 const broker = await brokerFactory(await auth.connectionUrl(value.request, account.account_id));
+                const send = broker.send.bind(broker);
+                broker.send = async body => {
+                    if (body.buy) await auth.verifySession?.(value.request);
+                    return send(body);
+                };
                 const reporting = broker.onMessage?.().subscribe(({ data }) => {
                     const packet = data.buy?.contract_id
                         ? data.buy

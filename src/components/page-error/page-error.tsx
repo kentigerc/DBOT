@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import React from 'react';
 import classNames from 'classnames';
 import { Button, useDevice } from '@deriv-com/ui';
@@ -104,7 +105,24 @@ const PageError = ({
                                     lineHeight='x'
                                     key={index}
                                     className='dc-page-error__message-paragraph'
-                                    dangerouslySetInnerHTML={{ __html: (message as TMessageObject)?.message }}
+                                    dangerouslySetInnerHTML={{
+                                        __html: DOMPurify.sanitize((message as TMessageObject).message, {
+                                            ALLOWED_TAGS: [
+                                                'p',
+                                                'br',
+                                                'strong',
+                                                'b',
+                                                'em',
+                                                'i',
+                                                'a',
+                                                'span',
+                                                'ul',
+                                                'ol',
+                                                'li',
+                                            ],
+                                            ALLOWED_ATTR: ['href', 'title'],
+                                        }),
+                                    }}
                                 />
                             ) : (
                                 <Text
@@ -124,7 +142,7 @@ const PageError = ({
                 <div className='dc-page-error__btn-wrapper' data-testid='dc-page-error__btn-wrapper'>
                     {should_redirect &&
                         redirect_labels.length !== 0 &&
-                        redirect_urls?.map?.((url, index) => (
+                        redirect_urls?.map?.((_url, index) => (
                             <ButtonLink
                                 className='dc-page-error__btn'
                                 // to={url} // TODO: NEED TO FIX THIS TO REDIRECT TO THE CORRECT URL
