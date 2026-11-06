@@ -22,7 +22,7 @@ beforeEach(() => {
     (getDerivAccount as jest.Mock).mockReturnValue({ account_id: 'TEST-DEMO' });
     (getDerivSession as jest.Mock).mockReturnValue({ authenticated: true, accounts: [] });
 });
-it('starts the distinct strategy with same-contract recovery and editable risk settings', async () => {
+it('starts the distinct strategy with shared parity recovery and editable risk settings', async () => {
     render(<Momentum />);
     expect(screen.getByRole('heading', { name: 'Momentum 70' })).toBeTruthy();
     expect(screen.getAllByRole('meter')).toHaveLength(2);
@@ -32,7 +32,7 @@ it('starts the distinct strategy with same-contract recovery and editable risk s
         expect(client.start).toHaveBeenCalledWith(
             expect.objectContaining({
                 strategy: 'momentum-70',
-                recoveryMode: 'same_contract',
+                recoveryMode: 'parity_percentage',
                 stake: 0.5,
                 multiplier: 2.1,
                 duration: 2,
@@ -52,7 +52,7 @@ it('keeps risk settings locked and allows STOP for its own running session', asy
     client.getSnapshot.mockReturnValue({
         ...empty(),
         active: true,
-        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' },
+        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'parity_percentage' },
     });
     render(<Momentum />);
     expect((screen.getByLabelText('Starting stake (USD)') as HTMLInputElement).disabled).toBe(true);
@@ -65,18 +65,17 @@ it('does not start a trade session for a logged-out visitor', () => {
     expect((screen.getByRole('button', { name: 'RUN MOMENTUM' }) as HTMLButtonElement).disabled).toBe(true);
     expect(client.start).not.toHaveBeenCalled();
 });
-it('shows the actual recovery barrier in the journal and indicates the locked recovery market', () => {
+it('shows the actual recovery contract in the journal and indicates the locked recovery market', () => {
     client.getSnapshot.mockReturnValue({
         ...empty(),
-        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' },
-        recovery: { streak: 0, deficit: 15, lockedSymbol: 'R_50', lockedDirection: 'DIGITOVER', recoveryLocked: true },
+        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'parity_percentage' },
+        recovery: { streak: 0, deficit: 15, lockedSymbol: 'R_50', lockedDirection: 'DIGITEVEN', recoveryLocked: true },
         trades: [
             {
                 id: 'test',
                 contractId: 123,
                 market: 'R_50',
-                direction: 'DIGITOVER',
-                barrier: '3',
+                direction: 'DIGITEVEN',
                 recovery: true,
                 at: 1700000000000,
                 stake: 35,
@@ -86,9 +85,9 @@ it('shows the actual recovery barrier in the journal and indicates the locked re
         ],
     });
     render(<Momentum />);
-    expect(screen.getByText('OVER 3')).toBeTruthy();
-    expect(screen.getByText('UNDER 6')).toBeTruthy();
-    expect(screen.getByText('Over 3 · Recovery')).toBeTruthy();
+    expect(screen.getByText('EVEN')).toBeTruthy();
+    expect(screen.getByText('ODD')).toBeTruthy();
+    expect(screen.getByText('Even · Recovery')).toBeTruthy();
     expect(screen.getByText('Locked recovery market')).toBeTruthy();
 });
 
@@ -105,7 +104,7 @@ it('rotates the preview across live markets during the recovery search rather th
         });
         client.getSnapshot.mockReturnValue({
             ...empty(),
-            settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' },
+            settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'parity_percentage' },
             recovery: { streak: 1, deficit: 35, countAfter: 0, pauseUntil: 0 },
             markets: [m('R_10', 'Volatility 10 Index'), m('R_50', 'Volatility 50 Index')],
         });

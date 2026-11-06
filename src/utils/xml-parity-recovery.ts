@@ -1,4 +1,4 @@
-import { parityRecoveryDirection } from '@/services/digit-strategy/strategy';
+import { ParityRecoveryEntries, parityRecoveryReady } from '@/services/digit-strategy/parity-recovery';
 import { freshVolatilityEpoch, observeVolatilityMarkets } from './live-volatility-markets';
 import { lastDigit } from '@/pages/digit-analysis/digits';
 export type RecoveryTick = {
@@ -40,138 +40,7 @@ type Api = {
 export type ParityRecovery = { symbol: string; direction: 'DIGITEVEN' | 'DIGITODD'; epoch: number };
 const fresh = (epoch: number) =>
     Number.isFinite(epoch) && Date.now() / 1000 - epoch <= 6 && epoch <= Date.now() / 1000 + 2;
-export async function waitForXmlParityFormation(
-    api: Api,
-    request: (body: Record<string, unknown>) => Promise<RecoveryResponse>,
-    symbol: string,
-    direction: 'DIGITEVEN' | 'DIGITODD',
-    sampleSize: number,
-    signal: AbortSignal,
-    status: (message: string) => void
-): Promise<ParityRecovery | undefined> {
-    let ready = false,
-        finished = false;
-    let digits: number[] = [],
-        pattern: number[] = [];
-    let lastEpoch = 0,
-        lastArrival = Date.now();
-    let subscriptionId: string | undefined;
-    let resolve!: (plan?: ParityRecovery) => void, reject!: (error: Error) => void;
-    const result = new Promise<ParityRecovery | undefined>((yes, no) => {
-        resolve = yes;
-        reject = no;
-    });
-    void result.catch(() => {});
-    const finish = (plan?: ParityRecovery) => {
-        if (!finished) {
-            finished = true;
-            resolve(plan);
-        }
-    };
-    const fail = () => {
-        if (!finished) {
-            finished = true;
-            reject(new Error('Recovery live feed unavailable'));
-        }
-    };
-    const abort = () => finish();
-    const queued: RecoveryTick[] = [];
-    const accept = (tick: RecoveryTick) => {
-        if (finished || signal.aborted || tick.epoch <= lastEpoch) return;
-        const digit = lastDigit(tick.quote, tick.pip_size);
-        if (digit === null || !fresh(tick.epoch) || tick.epoch - lastEpoch > 6) {
-            fail();
-            return;
-        }
-        lastEpoch = tick.epoch;
-        lastArrival = Date.now();
-        digits = [...digits, digit].slice(-sampleSize);
-        const counts = Array<number>(10).fill(0);
-        digits.forEach(value => counts[value]++);
-        if (parityRecoveryDirection(counts) !== direction) {
-            status(`Recovery candidate changed · ${symbol} · Continuing market search.`);
-            finish();
-            return;
-        }
-        pattern = [...pattern, digit % 2].slice(-3);
-        const chosen = direction === 'DIGITEVEN' ? 0 : 1;
-        if (pattern.length === 3 && pattern[0] === chosen && pattern[1] === chosen && pattern[2] !== chosen) {
-            status(`Recovery entry ready · ${symbol}`);
-            finish({ symbol, direction, epoch: lastEpoch });
-        }
-    };
-    signal.addEventListener('abort', abort, { once: true });
-    api.connection?.addEventListener('close', fail);
-    api.connection?.addEventListener('error', fail);
-    const listener = api.onMessage().subscribe(({ data }) => {
-        if (finished) return;
-        if (data.error) {
-            fail();
-            return;
-        }
-        if (!data.tick) return;
-        const market = data.tick.symbol || data.tick.underlying_symbol;
-        if (market && market !== symbol) return;
-        if (!ready) queued.push(data.tick);
-        else accept(data.tick);
-    });
-    let lastStatus = Date.now();
-    const watchdog = setInterval(() => {
-        if (ready && Date.now() - lastArrival > 6000) fail();
-        else if (ready && !finished && Date.now() - lastStatus >= 10000) {
-            lastStatus = Date.now();
-            status(`Waiting for recovery entry · ${symbol} · Live data current.`);
-        }
-    }, 1000);
-    try {
-        if (signal.aborted) return;
-        status(`Waiting for recovery entry · ${symbol}`);
-        const response = await request({
-            ticks_history: symbol,
-            style: 'ticks',
-            end: 'latest',
-            count: sampleSize,
-            subscribe: 1,
-        });
-        subscriptionId = response.subscription?.id;
-        if (finished || signal.aborted) return await result;
-        const prices = response.history?.prices;
-        lastEpoch = Number(response.history?.times?.slice(-1)[0]);
-        if (
-            !Array.isArray(prices) ||
-            prices.length < sampleSize ||
-            !Number.isInteger(response.pip_size) ||
-            !fresh(lastEpoch)
-        ) {
-            fail();
-            return await result;
-        }
-        const parsed = prices.slice(-sampleSize).map(price => lastDigit(price, response.pip_size!));
-        if (parsed.some(d => d === null)) {
-            fail();
-            return await result;
-        }
-        digits = parsed as number[];
-        const counts = Array<number>(10).fill(0);
-        digits.forEach(d => counts[d]++);
-        if (parityRecoveryDirection(counts) !== direction) return;
-        ready = true;
-        lastArrival = Date.now();
-        queued.forEach(accept);
-        return await result;
-    } finally {
-        finished = true;
-        clearInterval(watchdog);
-        listener.unsubscribe();
-        signal.removeEventListener('abort', abort);
-        api.connection?.removeEventListener('close', fail);
-        api.connection?.removeEventListener('error', fail);
-        if (subscriptionId && !signal.aborted) void api.send({ forget: subscriptionId }).catch(() => {});
-    }
-}
-
-// Legacy quote-check helper. XML Auto's current recovery path uses a fresh
-// percentage scan for every attempt instead of this locked-market policy.
+// Refresh only the locked recovery market; no new market analysis or formation.
 export async function refreshXmlParityRecovery(
     api: Pick<Api, 'send'>,
     plan: ParityRecovery,
@@ -216,10 +85,12 @@ export type XmlRecoveryScope = {
 };
 
 type RecoveryScanner = ReturnType<typeof createRecoveryScanner>;
-let retained: { key: number; sampleSize: number; scanner: RecoveryScanner; unsubscribe: () => void } | undefined;
+let retained:
+    | { key: number; sampleSize: number; duration: number; scanner: RecoveryScanner; unsubscribe: () => void }
+    | undefined;
 
-// Keep every recovery feed warm for the active XML Auto session. Each purchase
-// reselects the best current percentage without repeating discovery/history loads.
+// Keep all recovery feeds warm; each new loss episode waits for a fresh formation.
+// Confirmed recovery purchases retain their chosen market until the first win.
 function recoveryDataReason(error: unknown, depth = 0): string {
     if (depth > 2) return 'market data request failed';
     const value = error as
@@ -241,7 +112,7 @@ function recoveryDataReason(error: unknown, depth = 0): string {
     return (typeof value?.message === 'string' && reasons[value.message]) || 'market data request failed';
 }
 
-function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number) {
+function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number, duration = 1) {
     const lifetime = new AbortController();
     const signal = lifetime.signal;
     let api: Api | undefined;
@@ -250,6 +121,7 @@ function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number
     let fatal: Error | undefined;
     let message = 'Loading simultaneous recovery feeds…';
     const candidates = new Map<string, { plan: ParityRecovery; share: number }>();
+    const trackers = new Map<string, ParityRecoveryEntries>();
     let waiter:
         | {
               resolve: (plan?: ParityRecovery) => void;
@@ -312,6 +184,7 @@ function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number
         while (!signal.aborted) {
             initialized = false;
             candidates.clear();
+            trackers.clear();
             let unwatch = () => {};
             try {
                 status('Loading simultaneous recovery feeds…');
@@ -336,22 +209,22 @@ function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number
                     sample => {
                         if (signal.aborted) return;
                         if (sample.live) failures = 0;
-                        const counts = Array<number>(10).fill(0);
-                        sample.digits.forEach(d => counts[d]++);
-                        const direction = parityRecoveryDirection(counts),
-                            symbol = sample.market.symbol;
-                        if (!direction || !supported.get(symbol)?.has(direction)) {
-                            candidates.delete(symbol);
-                            return;
+                        const symbol = sample.market.symbol;
+                        let tracker = trackers.get(symbol);
+                        if (!tracker) {
+                            tracker = new ParityRecoveryEntries();
+                            trackers.set(symbol, tracker);
                         }
-                        const parity = direction === 'DIGITEVEN' ? 0 : 1;
-                        candidates.set(symbol, {
-                            plan: { symbol, direction, epoch: sample.epoch },
-                            share: counts.reduce(
-                                (total, count, digit) => total + (digit % 2 === parity ? count : 0),
-                                0
-                            ),
-                        });
+                        tracker.observe(sample.digits, sample.epoch, sample.live);
+                        candidates.delete(symbol);
+                        for (const direction of ['DIGITEVEN', 'DIGITODD'] as const) {
+                            const reading = tracker.readings[direction];
+                            if (sample.live && supported.get(symbol)?.has(direction) && parityRecoveryReady(reading))
+                                candidates.set(symbol, {
+                                    plan: { symbol, direction, epoch: sample.epoch },
+                                    share: reading.percentage,
+                                });
+                        }
                         select();
                     },
                     text => status(`Searching recovery markets · ${text}`),
@@ -365,16 +238,19 @@ function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number
                                             ['DIGITEVEN', 'DIGITODD'].includes(c.contract_type) &&
                                             c.expiry_type === 'tick' &&
                                             /^\d+t$/.test(c.min_contract_duration) &&
-                                            parseInt(c.min_contract_duration, 10) <= 1 &&
+                                            parseInt(c.min_contract_duration, 10) <= duration &&
                                             /^\d+t$/.test(c.max_contract_duration) &&
-                                            parseInt(c.max_contract_duration, 10) >= 1
+                                            parseInt(c.max_contract_duration, 10) >= duration
                                     )
                                     .map(c => c.contract_type)
                             );
                             supported.set(market.symbol, types);
                             return types.size > 0;
                         },
-                        stale: symbol => candidates.delete(symbol),
+                        stale: symbol => {
+                            candidates.delete(symbol);
+                            trackers.delete(symbol);
+                        },
                         ready: () => {
                             initialized = true;
                             select();
@@ -415,6 +291,8 @@ function createRecoveryScanner(createApi: () => Promise<Api>, sampleSize: number
                 void run();
             }
             if (waiter) return Promise.reject(new Error('A recovery selection is already pending.'));
+            candidates.clear();
+            for (const tracker of trackers.values()) tracker.reset();
             return new Promise((resolve, reject) => {
                 const abort = () => settle();
                 waiter = {
@@ -442,18 +320,22 @@ export async function scanXmlParityRecovery(
     sampleSize: number,
     signal: AbortSignal,
     status: (message: string) => void,
-    scope?: XmlRecoveryScope
+    scope?: XmlRecoveryScope,
+    duration = 1
 ): Promise<ParityRecovery | undefined> {
     if (signal.aborted || (scope && !scope.valid())) return;
     if (!scope) {
-        const scanner = createRecoveryScanner(createApi, sampleSize);
+        const scanner = createRecoveryScanner(createApi, sampleSize, duration);
         try {
             return await scanner.next(signal, status);
         } finally {
             scanner.stop();
         }
     }
-    if (retained && (retained.key !== scope.key || retained.sampleSize !== sampleSize)) {
+    if (
+        retained &&
+        (retained.key !== scope.key || retained.sampleSize !== sampleSize || retained.duration !== duration)
+    ) {
         retained.scanner.stop();
         retained.unsubscribe();
         retained = undefined;
@@ -462,7 +344,8 @@ export async function scanXmlParityRecovery(
         const entry = {
             key: scope.key,
             sampleSize,
-            scanner: createRecoveryScanner(createApi, sampleSize),
+            duration,
+            scanner: createRecoveryScanner(createApi, sampleSize, duration),
             unsubscribe: () => {},
         };
         retained = entry;

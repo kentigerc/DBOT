@@ -3,7 +3,6 @@ import {
     DEFAULT_SETTINGS,
     DigitMarket,
     nextRecoveryStake,
-    recoverySignal,
     riskReason,
     validateSettings,
     type Settings,
@@ -51,90 +50,6 @@ describe('uploaded digit strategy rules', () => {
         expect(m.frequencies()[Number(s.barrier)].most).toBe(false);
         expect(m.frequencies()[Number(s.barrier)].least).toBe(false);
     });
-    it.each(['R_100', '1HZ100V'])('uses last digit 5/7/9 on every filtered Under 5 entry on %s', symbol => {
-        for (let digit = 0; digit <= 9; digit++) {
-            const m = market();
-            m.symbol = symbol;
-            m.digits.splice(-3, 3, 1, 2, digit);
-            for (const locked of [false, true]) {
-                const signal = recoverySignal(
-                    m,
-                    {
-                        streak: locked ? 2 : 1,
-                        countAfter: 0,
-                        pauseUntil: 0,
-                        ...(locked ? { lockedSymbol: symbol } : {}),
-                    },
-                    { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' },
-                    10000
-                );
-                if ([5, 7, 9].includes(digit))
-                    expect(signal).toMatchObject({
-                        direction: 'DIGITUNDER',
-                        barrier: '5',
-                        epoch: m.epoch,
-                        formation: true,
-                    });
-                else expect(signal).toBeUndefined();
-            }
-        }
-    });
-    it('retains frequency filters, freshness, market locking and pauses for last-digit recovery', () => {
-        const m = market();
-        const s = { streak: 1, countAfter: 0, pauseUntil: 0 };
-        expect(
-            recoverySignal(
-                m,
-                { ...s, lockedSymbol: 'R_50' },
-                { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' },
-                10000
-            )
-        ).toBeUndefined();
-        expect(
-            recoverySignal(
-                m,
-                { ...s, pauseUntil: 11000 },
-                { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' },
-                10000
-            )
-        ).toBeUndefined();
-        expect(
-            recoverySignal(m, s, { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' }, 14000)
-        ).toBeUndefined();
-        m.symbol = '1HZ100V';
-        m.digits = Array(1000).fill(9);
-        expect(
-            recoverySignal(m, s, { ...DEFAULT_SETTINGS, recoveryMode: 'under5_filtered_once' }, 10000)
-        ).toBeUndefined();
-    });
-    it('uses Under 4/6 barriers and opposite ten-digit parity formations', () => {
-        const m = market();
-        expect(
-            recoverySignal(
-                m,
-                { streak: 1, countAfter: 0, pauseUntil: 0 },
-                { ...DEFAULT_SETTINGS, recoveryMode: 'under4_filtered_once' },
-                10000
-            )?.barrier
-        ).toBe('4');
-        expect(
-            recoverySignal(
-                m,
-                { streak: 1, countAfter: 0, pauseUntil: 0 },
-                { ...DEFAULT_SETTINGS, recoveryMode: 'under6_filtered_once' },
-                10000
-            )?.barrier
-        ).toBe('6');
-        m.digits.splice(-10, 10, ...Array(10).fill(2));
-        expect(
-            recoverySignal(
-                m,
-                { streak: 1, countAfter: 0, pauseUntil: 0 },
-                { ...DEFAULT_SETTINGS, recoveryMode: 'parity_pair' },
-                10000
-            )?.direction
-        ).toBe('DIGITODD');
-    });
     it('rounds every recovery stake half-up to cents and enforces both risk caps before a buy', () => {
         expect(nextRecoveryStake(35)).toBe(74);
         expect(nextRecoveryStake(74)).toBe(155);
@@ -165,51 +80,6 @@ describe('uploaded digit strategy rules', () => {
     });
 });
 
-describe('percentage-based Even/Odd recovery', () => {
-    const recovery = { streak: 1, countAfter: 0, pauseUntil: 0 };
-    const parityMarket = (evenCount: number, symbol = 'R_100') => {
-        const m = market();
-        m.symbol = symbol;
-        m.digits = [...Array<number>(evenCount).fill(0), ...Array<number>(1000 - evenCount).fill(1)];
-        return m;
-    };
-    it.each([
-        [550, 'DIGITEVEN'],
-        [450, 'DIGITODD'],
-        [531, 'DIGITEVEN'],
-        [469, 'DIGITODD'],
-        [540, 'DIGITEVEN'],
-        [460, 'DIGITODD'],
-        [530, undefined],
-        [520, undefined],
-        [480, undefined],
-        [470, undefined],
-        [500, undefined],
-    ])('evaluates %i even digits with strict thresholds', (count, expected) => {
-        expect(recoverySignal(parityMarket(count as number), recovery, DEFAULT_SETTINGS, 10000)?.direction).toBe(
-            expected
-        );
-    });
-    it('compares both sides on every market, includes 1s, ignores old locks and selects the strongest eligible share', () => {
-        const even = parityMarket(550),
-            odd = parityMarket(400, '1HZ100V');
-        expect(
-            chooseSignal(
-                [even, odd],
-                { ...recovery, lockedSymbol: even.symbol, lockedDirection: 'DIGITEVEN' },
-                DEFAULT_SETTINGS,
-                10000
-            )
-        ).toMatchObject({ symbol: odd.symbol, direction: 'DIGITODD', recovery: true, formation: false });
-        odd.digits = [...Array<number>(650).fill(0), ...Array<number>(350).fill(1)];
-        expect(chooseSignal([even, odd], recovery, DEFAULT_SETTINGS, 10000)).toMatchObject({
-            symbol: odd.symbol,
-            direction: 'DIGITEVEN',
-        });
-        expect(chooseSignal([even, odd], recovery, DEFAULT_SETTINGS, 14000)).toBeUndefined();
-    });
-});
-
 describe('standalone Even/Odd strategy', () => {
     const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'even-odd' };
     const state = { streak: 0, countAfter: 0, pauseUntil: 0 };
@@ -236,89 +106,92 @@ describe('standalone Even/Odd strategy', () => {
     });
 });
 
-describe('Even/Odd recovery requires a rising 52% share and three matching digits', () => {
-    const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'even-odd' };
-    const state = { streak: 1, deficit: 35, countAfter: 9999, pauseUntil: 0, momentumPending: true };
-    const ready = (symbol: string, direction: 'DIGITEVEN' | 'DIGITODD', percentage: number) => {
-        const m = market();
-        m.symbol = symbol;
-        m.digits.splice(-3, 3, ...(direction === 'DIGITEVEN' ? [2, 4, 8] : [1, 5, 9]));
-        m.parityMomentum[direction] = { percentage, change: 0.1, run: 3, armed: true, epoch: 1000 };
-        return m;
-    };
-    it('compares both sides across markets and picks the highest qualifying share', () => {
-        const even = ready('R_10', 'DIGITEVEN', 52);
-        const odd = ready('1HZ50V', 'DIGITODD', 64);
-        expect(chooseSignal([even, odd], state, settings, 10000)).toMatchObject({
-            symbol: odd.symbol,
-            direction: 'DIGITODD',
-            recovery: true,
-            formation: true,
-        });
-        even.parityMomentum.DIGITEVEN.percentage = 65;
-        expect(chooseSignal([even, odd], state, settings, 10000)).toMatchObject({
-            symbol: even.symbol,
-            direction: 'DIGITEVEN',
-            recovery: true,
-        });
-        expect(chooseSignal([even], state, settings, 10000)?.barrier).toBeUndefined();
-    });
-    it.each(['DIGITEVEN', 'DIGITODD'] as const)(
-        'requires 52%%, increasing momentum and three fresh matching digits for %s',
-        direction => {
-            const m = ready('R_10', direction, 52);
-            expect(chooseSignal([m], state, settings, 10000)?.direction).toBe(direction);
-            for (const change of [
-                { percentage: 51.9 },
-                { change: 0 },
-                { change: -0.1 },
-                { run: 2 },
-                { armed: false },
-            ]) {
-                const original = { ...m.parityMomentum[direction] };
-                m.parityMomentum[direction] = { ...original, ...change };
-                expect(chooseSignal([m], state, settings, 10000)).toBeUndefined();
-                m.parityMomentum[direction] = original;
-            }
-            expect(chooseSignal([m], { ...state, countAfter: 10000 }, settings, 10000)).toBeUndefined();
-            expect(chooseSignal([m], state, settings, 14000)).toBeUndefined();
-            m.digits[m.digits.length - 1] = direction === 'DIGITEVEN' ? 1 : 2;
-            expect(chooseSignal([m], state, settings, 10000)).toBeUndefined();
-        }
-    );
-    it('keeps the purchased market and parity through drift without a second formation', () => {
-        const locked = ready('R_10', 'DIGITEVEN', 52);
-        const stronger = ready('1HZ50V', 'DIGITODD', 90);
-        locked.resetMomentum();
-        locked.parityMomentum.DIGITEVEN.percentage = 20;
-        locked.digits.splice(-3, 3, 1, 3, 5);
-        const recovery = {
-            ...state,
-            recoveryLocked: true,
-            lockedSymbol: locked.symbol,
-            lockedDirection: 'DIGITEVEN' as const,
+describe.each([undefined, 'even-odd', 'over2-under7', 'momentum-70'] as const)(
+    'shared parity recovery for %s',
+    strategy => {
+        const settings: Settings = { ...DEFAULT_SETTINGS, strategy };
+        const state = { streak: 1, deficit: 35, countAfter: 9999, pauseUntil: 0, momentumPending: true };
+        const ready = (symbol: string, direction: 'DIGITEVEN' | 'DIGITODD', percentage: number) => {
+            const m = market();
+            m.symbol = symbol;
+            m.digits.splice(-3, 3, ...(direction === 'DIGITEVEN' ? [2, 4, 8] : [1, 5, 9]));
+            m.parityMomentum[direction] = { percentage, change: 0.1, run: 3, armed: true, epoch: 1000 };
+            return m;
         };
-        expect(chooseSignal([locked, stronger], recovery, settings, 10000)).toMatchObject({
-            symbol: locked.symbol,
-            direction: 'DIGITEVEN',
-            recovery: true,
-            formation: false,
+        it('compares both sides across markets and picks the highest qualifying share', () => {
+            const even = ready('R_10', 'DIGITEVEN', 52);
+            const odd = ready('1HZ50V', 'DIGITODD', 64);
+            expect(chooseSignal([even, odd], state, settings, 10000)).toMatchObject({
+                symbol: odd.symbol,
+                direction: 'DIGITODD',
+                recovery: true,
+                formation: true,
+            });
+            even.parityMomentum.DIGITEVEN.percentage = 65;
+            expect(chooseSignal([even, odd], state, settings, 10000)).toMatchObject({
+                symbol: even.symbol,
+                direction: 'DIGITEVEN',
+                recovery: true,
+            });
+            expect(chooseSignal([even], state, settings, 10000)?.barrier).toBeUndefined();
         });
-        expect(chooseSignal([stronger], recovery, settings, 10000)).toBeUndefined();
-        expect(chooseSignal([locked], recovery, settings, 14000)).toBeUndefined();
-    });
-    it('does not reuse an obsolete Over/Under recovery lock for new entries', () => {
-        const m = ready('1HZ50V', 'DIGITODD', 64);
-        expect(
-            chooseSignal(
-                [m],
-                { ...state, lockedSymbol: 'old-market', lockedDirection: 'DIGITUNDER', recoveryLocked: true },
-                settings,
-                10000
-            )
-        ).toMatchObject({ symbol: m.symbol, direction: 'DIGITODD' });
-    });
-});
+        it.each(['DIGITEVEN', 'DIGITODD'] as const)(
+            'requires 52%%, increasing momentum and three fresh matching digits for %s',
+            direction => {
+                const m = ready('R_10', direction, 52);
+                expect(chooseSignal([m], state, settings, 10000)?.direction).toBe(direction);
+                for (const change of [
+                    { percentage: 51.9 },
+                    { change: 0 },
+                    { change: -0.1 },
+                    { run: 2 },
+                    { armed: false },
+                ]) {
+                    const original = { ...m.parityMomentum[direction] };
+                    m.parityMomentum[direction] = { ...original, ...change };
+                    expect(chooseSignal([m], state, settings, 10000)).toBeUndefined();
+                    m.parityMomentum[direction] = original;
+                }
+                expect(chooseSignal([m], { ...state, countAfter: 10000 }, settings, 10000)).toBeUndefined();
+                expect(chooseSignal([m], state, settings, 14000)).toBeUndefined();
+                m.digits[m.digits.length - 1] = direction === 'DIGITEVEN' ? 1 : 2;
+                expect(chooseSignal([m], state, settings, 10000)).toBeUndefined();
+            }
+        );
+        it('keeps the purchased market and parity through drift without a second formation', () => {
+            const locked = ready('R_10', 'DIGITEVEN', 52);
+            const stronger = ready('1HZ50V', 'DIGITODD', 90);
+            locked.resetMomentum();
+            locked.parityMomentum.DIGITEVEN.percentage = 20;
+            locked.digits.splice(-3, 3, 1, 3, 5);
+            const recovery = {
+                ...state,
+                recoveryLocked: true,
+                lockedSymbol: locked.symbol,
+                lockedDirection: 'DIGITEVEN' as const,
+            };
+            expect(chooseSignal([locked, stronger], recovery, settings, 10000)).toMatchObject({
+                symbol: locked.symbol,
+                direction: 'DIGITEVEN',
+                recovery: true,
+                formation: false,
+            });
+            expect(chooseSignal([stronger], recovery, settings, 10000)).toBeUndefined();
+            expect(chooseSignal([locked], recovery, settings, 14000)).toBeUndefined();
+        });
+        it('does not reuse an obsolete Over/Under recovery lock for new entries', () => {
+            const m = ready('1HZ50V', 'DIGITODD', 64);
+            expect(
+                chooseSignal(
+                    [m],
+                    { ...state, lockedSymbol: 'old-market', lockedDirection: 'DIGITUNDER', recoveryLocked: true },
+                    settings,
+                    10000
+                )
+            ).toMatchObject({ symbol: m.symbol, direction: 'DIGITODD' });
+        });
+    }
+);
 
 it('keeps Under 7 in Analysis Tool and requires its live winning-digit formation', () => {
     const m = new DigitMarket('R_100', 2, 'Volatility 100 Index');

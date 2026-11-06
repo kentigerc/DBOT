@@ -9,9 +9,8 @@ import {
     DEFAULT_SETTINGS,
     DigitMarket,
     type Direction,
-    isPaired,
     nextRecoveryStake,
-    recoverySignal,
+    sharedRecoverySettings,
     type RecoveryState,
     riskReason,
     type Settings,
@@ -54,6 +53,7 @@ export type MarketView = {
     entryDirections?: Direction[];
     momentum?: DigitMarket['momentum'];
     recoveryMomentum?: DigitMarket['recoveryMomentum'];
+    parityMomentum?: DigitMarket['parityMomentum'];
     symbol: string;
     name: string;
     price: string;
@@ -205,6 +205,7 @@ export class DigitStrategyEngine {
                     if (data.version === 1 && data.accountId === account.account_id) {
                         data.settings = { ...DEFAULT_SETTINGS, ...data.settings };
                         validateSettings(data.settings);
+                        data.settings = sharedRecoverySettings(data.settings);
                         saved = data;
                     }
                 } catch {
@@ -235,6 +236,7 @@ export class DigitStrategyEngine {
     async start(settings: Settings, reconcileId?: number) {
         if (this.state.active) return;
         validateSettings(settings);
+        settings = sharedRecoverySettings(settings);
         const account = this.account();
         if (!account || account.status !== 'active')
             throw new Error('Log in with Deriv and select an active account first.');
@@ -358,18 +360,8 @@ export class DigitStrategyEngine {
                                         r.expiry_type === 'tick' &&
                                         lo &&
                                         hi &&
-                                        +lo[1] <=
-                                            (settings.strategy !== 'even-odd' &&
-                                            settings.recoveryMode === 'parity_percentage' &&
-                                            ['DIGITEVEN', 'DIGITODD'].includes(type)
-                                                ? 1
-                                                : settings.duration) &&
-                                        +hi[1] >=
-                                            (settings.strategy !== 'even-odd' &&
-                                            settings.recoveryMode === 'parity_percentage' &&
-                                            ['DIGITEVEN', 'DIGITODD'].includes(type)
-                                                ? 1
-                                                : settings.duration)
+                                        +lo[1] <= settings.duration &&
+                                        +hi[1] >= settings.duration
                                     );
                                 })
                             )
@@ -472,6 +464,7 @@ export class DigitStrategyEngine {
                 entryDirections: cycleDirections(m.entries),
                 momentum: { ...m.momentum },
                 recoveryMomentum: { ...m.recoveryMomentum },
+                parityMomentum: { ...m.parityMomentum },
                 status: m.ready(this.now()) ? 'Live' : m.liveTicks < 3 ? 'Warming up' : 'Stale / refilling',
             }));
             this.update({ markets, liveUntil: this.state.active ? this.now() + 15000 : 0 });
@@ -499,31 +492,12 @@ export class DigitStrategyEngine {
             this.now(),
             this.deps.random
         );
-        if (
-            !signal ||
-            (!(
-                this.state.settings.strategy === 'over2-under7' &&
-                this.state.recovery.lockedSymbol &&
-                !(this.state.settings.hitRecovery === 'analysis' && this.state.streak)
-            ) &&
-                this.attempts.get(signal.symbol) === signal.epoch)
-        ) {
+        if (!signal || this.attempts.get(signal.symbol) === signal.epoch) {
             this.update({
                 phase:
-                    this.state.settings.strategy === 'over2-under7' &&
-                    this.state.recovery.lockedSymbol &&
-                    !(this.state.settings.hitRecovery === 'analysis' && this.state.streak)
-                        ? 'Waiting for fresh data on selected market'
-                        : (
-                                this.state.settings.strategy === 'momentum-70'
-                                    ? (this.state.recovery.momentumPending ??
-                                      (this.state.streak > 0 || (this.state.recovery.deficit || 0) > 0))
-                                    : this.state.streak ||
-                                      (this.state.settings.strategy === 'even-odd' &&
-                                          (this.state.recovery.deficit || 0) > 0)
-                            )
-                          ? 'Scanning recovery opportunities'
-                          : 'Waiting for eligible digit entry',
+                    (this.state.recovery.momentumPending ?? this.state.streak > 0)
+                        ? 'Scanning recovery opportunities'
+                        : 'Waiting for eligible digit entry',
             });
             return;
         }
@@ -533,10 +507,21 @@ export class DigitStrategyEngine {
     private current(signal: Signal) {
         const market = this.markets.get(signal.symbol);
         if (!market?.ready(this.now())) return false;
-        if (
-            this.state.settings.strategy === 'over2-under7' &&
-            !(this.state.settings.hitRecovery === 'analysis' && signal.recovery)
-        ) {
+        if (signal.recovery) {
+            const fresh = chooseSignal(
+                [...this.markets.values()],
+                this.state.recovery,
+                this.state.settings,
+                this.now(),
+                this.deps.random
+            );
+            return (
+                fresh?.symbol === signal.symbol &&
+                fresh.direction === signal.direction &&
+                (!signal.formation || fresh.epoch === signal.epoch)
+            );
+        }
+        if (this.state.settings.strategy === 'over2-under7') {
             const fresh = cycleSignal(market, this.state.recovery, this.now());
             return (
                 fresh?.direction === signal.direction &&
@@ -567,14 +552,6 @@ export class DigitStrategyEngine {
                 (!signal.formation || fresh.epoch === signal.epoch)
             );
         }
-        if (signal.recovery) {
-            const s = recoverySignal(market, this.state.recovery, this.state.settings, this.now());
-            return (
-                s?.direction === signal.direction &&
-                s.barrier === signal.barrier &&
-                (!signal.formation || s.epoch === signal.epoch)
-            );
-        }
         if (signal.direction === 'DIGITOVER' || signal.direction === 'DIGITUNDER')
             return (
                 market.entries.ready(signal.direction, Number(signal.barrier)) &&
@@ -594,13 +571,7 @@ export class DigitStrategyEngine {
                 basis: 'stake',
                 contract_type: signal.direction,
                 currency: 'USD',
-                duration:
-                    this.state.settings.strategy !== 'even-odd' &&
-                    signal.recovery &&
-                    this.state.settings.recoveryMode === 'parity_percentage' &&
-                    (this.state.settings.strategy !== 'over2-under7' || this.state.settings.hitRecovery === 'analysis')
-                        ? 1
-                        : this.state.settings.duration,
+                duration: this.state.settings.duration,
                 duration_unit: 't',
                 symbol: signal.symbol,
                 ...(signal.barrier !== undefined ? { barrier: signal.barrier } : {}),
@@ -733,24 +704,9 @@ export class DigitStrategyEngine {
             this.update({
                 recovery: {
                     ...this.state.recovery,
-                    lockedSymbol:
-                        this.state.settings.strategy === 'even-odd'
-                            ? p.signal.symbol
-                            : this.state.settings.recoveryMode === 'parity' ||
-                                (this.state.settings.recoveryMode === 'parity_percentage' &&
-                                    (this.state.settings.strategy !== 'over2-under7' ||
-                                        this.state.settings.hitRecovery === 'analysis'))
-                              ? undefined
-                              : p.signal.symbol,
+                    lockedSymbol: p.signal.symbol,
                     lockedDirection: p.signal.direction,
-                    ...(['momentum-70', 'even-odd'].includes(this.state.settings.strategy || '')
-                        ? {
-                              recoveryLocked: (this.state.settings.strategy === 'even-odd'
-                                  ? ['DIGITEVEN', 'DIGITODD']
-                                  : ['DIGITOVER', 'DIGITUNDER']
-                              ).includes(p.signal.direction),
-                          }
-                        : {}),
+                    recoveryLocked: ['DIGITEVEN', 'DIGITODD'].includes(p.signal.direction),
                     countAfter: 0,
                 },
             });
@@ -810,93 +766,42 @@ export class DigitStrategyEngine {
                 : profit > 0
                   ? cents(this.state.settings.stake)
                   : this.state.stake;
-        let recovery = { ...this.state.recovery, streak },
-            recoveryLosses = this.state.recoveryLosses;
-        if (profit > 0 || (profit < 0 && !p.signal.recovery)) {
-            recovery = {
-                streak,
-                previous: p.signal.recovery ? recovery.previous : p.signal.direction,
-                countAfter: 0,
-                pauseUntil: 0,
-            };
-            recoveryLosses = 0;
+        const momentumPending = profit < 0 || (p.signal.recovery && profit === 0);
+        const batch =
+            this.state.settings.strategy === 'even-odd' || profit < 0 || p.signal.recovery
+                ? 0
+                : profit > 0
+                  ? this.state.batch + 1
+                  : this.state.batch;
+        const pause = batch >= 3 && !momentumPending;
+        const recovery: RecoveryState = {
+            streak,
+            momentumPending,
+            deficit: momentumPending ? Math.max(0, (this.state.recovery.deficit || 0) - profit) : 0,
+            previous: p.signal.recovery ? this.state.recovery.previous : p.signal.direction,
+            countAfter: this.now(),
+            pauseUntil: pause ? this.now() + 5000 : 0,
+            ...(momentumPending && p.signal.recovery && ['DIGITEVEN', 'DIGITODD'].includes(p.signal.direction)
+                ? { lockedSymbol: p.signal.symbol, lockedDirection: p.signal.direction, recoveryLocked: true }
+                : {}),
+        };
+        if (this.state.settings.strategy === 'over2-under7' && !pause) {
+            const batchMarket = this.state.recovery.batchMarket || (!p.signal.recovery ? p.signal.symbol : undefined);
+            const batchDirection =
+                this.state.recovery.batchDirection || (!p.signal.recovery ? p.signal.direction : undefined);
+            Object.assign(recovery, { batchMarket, batchDirection });
+            if (!momentumPending)
+                Object.assign(recovery, { lockedSymbol: batchMarket, lockedDirection: batchDirection });
         }
-        if (profit < 0 && this.state.settings.recoveryMode === 'parity')
-            recovery.lockedDirection = p.signal.recovery
-                ? p.signal.direction === 'DIGITEVEN'
-                    ? 'DIGITODD'
-                    : 'DIGITEVEN'
-                : Math.random() < 0.5
-                  ? 'DIGITEVEN'
-                  : 'DIGITODD';
-        if (profit < 0 && p.signal.recovery && isPaired(this.state.settings.recoveryMode)) {
-            recoveryLosses++;
-            if (recoveryLosses >= 2) {
-                recoveryLosses = 0;
-                recovery.pauseUntil = this.now() + 5000;
-                recovery.countAfter = this.state.settings.recoveryMode === 'under5_plain' ? 0 : recovery.pauseUntil;
-            }
+        if (p.signal.recovery && profit > 0) {
+            next = cents(this.state.settings.stake);
+            this.log('Recovery win complete. Returning to normal entries at the starting stake.');
         }
-        if (!p.signal.recovery) recovery.previous = p.signal.direction;
-        let batch = this.state.batch + 1;
-        let pause = batch >= 3 && streak === 0;
-        if (this.state.settings.strategy === 'over2-under7') {
-            // Recovery is separate from the three normal wins that complete a batch.
-            batch = profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
-            pause = batch >= 3 && streak === 0;
-            const batchMarket = this.state.recovery.batchMarket || p.signal.symbol;
-            const batchDirection = this.state.recovery.batchDirection || p.signal.direction;
-            if (this.state.settings.hitRecovery === 'analysis' && streak > 0) {
-                // Preserve the original policy's locks, formation counters and paired-loss pauses.
-                recovery = { ...recovery, batchMarket, batchDirection };
-            } else {
-                recovery = {
-                    streak,
-                    countAfter: pause ? this.now() + 5000 : 0,
-                    pauseUntil: pause ? this.now() + 5000 : 0,
-                    ...(pause ? {} : { lockedSymbol: batchMarket, lockedDirection: batchDirection }),
-                };
-                recoveryLosses = 0;
-            }
-            if (pause) this.log('Three-win batch complete. Returning to fresh market analysis after five seconds.');
+        for (const market of this.markets.values()) {
+            market.resetMomentum();
+            market.entries.reset();
         }
-        if (['momentum-70', 'even-odd'].includes(this.state.settings.strategy || '')) {
-            const parity = this.state.settings.strategy === 'even-odd';
-            const validRecoveryDirection = (parity ? ['DIGITEVEN', 'DIGITODD'] : ['DIGITOVER', 'DIGITUNDER']).includes(
-                p.signal.direction
-            );
-            const momentumPending = profit < 0 || (p.signal.recovery && profit === 0);
-            batch =
-                parity || profit < 0 || p.signal.recovery ? 0 : profit > 0 ? this.state.batch + 1 : this.state.batch;
-            pause = !parity && batch >= 3 && !momentumPending;
-            recovery = {
-                streak,
-                momentumPending,
-                deficit: momentumPending ? Math.max(0, (this.state.recovery.deficit || 0) - profit) : 0,
-                previous: p.signal.recovery ? this.state.recovery.previous : p.signal.direction,
-                countAfter: this.now(),
-                pauseUntil: pause ? this.now() + 5000 : 0,
-                ...(momentumPending
-                    ? {
-                          ...(!parity || (p.signal.recovery && validRecoveryDirection)
-                              ? { lockedDirection: p.signal.direction }
-                              : {}),
-                          ...(p.signal.recovery && validRecoveryDirection
-                              ? { lockedSymbol: p.signal.symbol, recoveryLocked: true }
-                              : {}),
-                      }
-                    : {}),
-            };
-            if (p.signal.recovery && profit > 0) {
-                next = cents(this.state.settings.stake);
-                this.log('Recovery win complete. Returning to normal entries at the starting stake.');
-            }
-            recoveryLosses = 0;
-            for (const market of this.markets.values()) market.resetMomentum();
-            if (pause) this.log('Three-win batch complete. Returning to live market analysis after five seconds.');
-        }
-        if (this.state.settings.strategy === undefined || this.state.settings.strategy === 'over2-under7')
-            for (const market of this.markets.values()) market.entries.reset();
+        if (pause) this.log('Three-win batch complete. Returning to live market analysis after five seconds.');
         const pnl = this.state.pnl + profit,
             peak = Math.max(this.state.peak, pnl);
         this.update({
@@ -906,7 +811,7 @@ export class DigitStrategyEngine {
             streak,
             stake: next,
             recovery,
-            recoveryLosses,
+            recoveryLosses: 0,
             wins: this.state.wins + (profit > 0 ? 1 : 0),
             losses: this.state.losses + (profit < 0 ? 1 : 0),
             voids: this.state.voids + (profit === 0 ? 1 : 0),

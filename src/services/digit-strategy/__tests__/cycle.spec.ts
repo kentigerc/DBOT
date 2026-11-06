@@ -46,7 +46,7 @@ describe('HIT AND RUN entry rules', () => {
             'DIGITOVER'
         );
     });
-    it('scans both directions initially, then retains the selected contract without reanalysis', () => {
+    it('scans both normal directions and requires parity formation before recovery', () => {
         const over = market(),
             under = market(true);
         under.symbol = 'R_50';
@@ -55,14 +55,12 @@ describe('HIT AND RUN entry rules', () => {
         expect(chooseSignal([under], recovery, settings, 10000)?.direction).toBe('DIGITUNDER');
         const locked = { ...recovery, streak: 1, lockedSymbol: 'R_100', lockedDirection: 'DIGITOVER' as const };
         expect(chooseSignal([under], locked, settings, 10000)).toBeUndefined();
-        expect(cycleSignal(over, locked, 10000)?.recovery).toBe(true);
-        over.entries.reset();
-        expect(cycleSignal(over, recovery, 10000)).toBeUndefined();
-        expect(cycleSignal(over, { ...locked, countAfter: 10000 }, 10000)).toMatchObject({
-            direction: 'DIGITOVER',
-            barrier: '2',
+        expect(cycleSignal(over, locked, 10000)).toBeUndefined();
+        over.parityMomentum.DIGITODD = { percentage: 52, change: 0.1, run: 3, armed: true, epoch: over.epoch };
+        expect(cycleSignal(over, locked, 10000)).toMatchObject({
+            direction: 'DIGITODD',
             recovery: true,
-            formation: false,
+            formation: true,
         });
         expect(cycleSignal(over, locked, 14000)).toBeUndefined();
         expect(() => validateSettings({ ...settings, strategy: 'bad' } as never)).toThrow('Invalid trading strategy');
@@ -100,8 +98,14 @@ describe('HIT AND RUN direction selection across fresh analyses', () => {
         const over = market(),
             under = market(true);
         under.symbol = 'R_50';
-        const locked = { ...recovery, streak: 1, lockedSymbol: 'R_50', lockedDirection: 'DIGITUNDER' as const };
-        expect(chooseSignal([over, under], locked, settings, 10000, () => 0)?.direction).toBe('DIGITUNDER');
+        const locked = {
+            ...recovery,
+            streak: 1,
+            lockedSymbol: 'R_50',
+            lockedDirection: 'DIGITODD' as const,
+            recoveryLocked: true,
+        };
+        expect(chooseSignal([over, under], locked, settings, 10000, () => 0)?.direction).toBe('DIGITODD');
         expect(chooseSignal([over, under], recovery, settings, 10000, () => 0)?.direction).toBe('DIGITOVER');
     });
 });

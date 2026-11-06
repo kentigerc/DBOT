@@ -1,3 +1,4 @@
+import type { ParityRecovery } from './xml-parity-recovery';
 import { OverUnderEntries, type OverUnderDirection } from '@/services/digit-strategy/over-under-entry';
 import { startXmlRecoveryProgress } from './xml-recovery-progress';
 import { DEFAULT_XML_AUTO_SETTINGS, validateXmlAutoSettings, type XmlAutoSettings } from './xml-auto-settings';
@@ -67,6 +68,7 @@ export class XmlScannerCycle {
     private entryContract?: { direction: OverUnderDirection; barrier: number };
     private entered = false;
     private recovery = false;
+    private parityPlan?: ParityRecovery;
     private lastSettlementProfit?: number;
     private inFlight = false;
     private contractId?: number;
@@ -105,6 +107,7 @@ export class XmlScannerCycle {
         if (!accountId || ![100, 500, 1000].includes(sampleSize))
             throw new Error('Select an active Deriv account and sample size.');
         const validatedSettings = validateXmlAutoSettings(settings);
+        this.parityPlan = undefined;
         this.entries = new OverUnderEntries();
         this.entryContract = undefined;
         this.sessionSequence++;
@@ -145,6 +148,7 @@ export class XmlScannerCycle {
         if (!this.state.enabled || this.state.phase !== 'scanning' || match.sampleSize !== this.state.sampleSize)
             return;
         this.settled.clear();
+        this.parityPlan = undefined;
         this.entries = new OverUnderEntries();
         this.entryContract = undefined;
         this.lastDigits = [];
@@ -186,6 +190,7 @@ export class XmlScannerCycle {
     stop(message = 'XML Auto stopped.', notifyRunner = true) {
         if (!this.state.enabled) return;
         clearTimeout(this.timer);
+        this.parityPlan = undefined;
         this.recoveryJournal?.stop();
         this.recoveryJournal = undefined;
         this.waiter?.(false);
@@ -246,6 +251,12 @@ export class XmlScannerCycle {
     }
     isRecovering() {
         return this.state.enabled && this.recovery;
+    }
+    recoveryPlan() {
+        return this.isRecovering() ? this.parityPlan : undefined;
+    }
+    lockRecoveryPlan(plan: ParityRecovery) {
+        if (this.isRecovering() && !this.parityPlan) this.parityPlan = { ...plan };
     }
     recoveryStake(previousAmount: number) {
         if (!this.isRecovering()) return;
@@ -438,7 +449,7 @@ export class XmlScannerCycle {
         this.inFlight = false;
         const profit = Math.round(Number(value.profit) * 100);
         const pnl = this.state.pnl + profit;
-        const deficit = Math.max(0, this.state.deficit - profit);
+        const deficit = profit > 0 ? 0 : Math.max(0, this.state.deficit - profit);
         this.lastSettlementProfit = profit;
         const losses = profit < 0 ? this.state.losses + 1 : profit > 0 ? 0 : this.state.losses;
         const wins = profit < 0 || this.recovery ? 0 : profit > 0 ? this.state.wins + 1 : this.state.wins;
@@ -446,13 +457,17 @@ export class XmlScannerCycle {
         if (!this.recovery) this.entered = false;
         if (profit < 0) {
             this.recovery = true;
-            // Preserve the normal XML market; each recovery purchase selects a fresh parity opportunity.
+            // Preserve the normal XML batch and the confirmed parity recovery market through losses.
             this.entered = true;
             this.nextRecoveryMarket = undefined;
             this.rejectedRecoveryMarkets.clear();
             const lossEpoch = Number(value.exit_tick_time ?? value.exit_spot_time ?? value.sell_time);
             this.recoveryAfterEpoch = Math.max(this.lastEpoch, Number.isFinite(lossEpoch) ? lossEpoch : 0);
-        } else if (profit > 0) this.recovery = deficit > 0;
+        } else if (profit > 0) {
+            this.recovery = false;
+            this.parityPlan = undefined;
+            this.entered = false;
+        }
         this.update({
             pnl,
             deficit,

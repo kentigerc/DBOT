@@ -6,6 +6,7 @@ fs.mkdirSync(path.join(root, '.server-build'), { recursive: true });
 for (const [source, name] of [
     ['src/services/digit-strategy/strategy.ts', 'strategy'],
     ['src/services/digit-strategy/over-under-entry.ts', 'over-under-entry'],
+    ['src/services/digit-strategy/parity-recovery.ts', 'parity-recovery'],
     ['src/services/digit-strategy/engine.ts', 'engine'],
     ['src/services/digit-strategy/balance.ts', 'balance'],
     ['src/external/bot-skeleton/services/api/new-api-transport.js', 'transport'],

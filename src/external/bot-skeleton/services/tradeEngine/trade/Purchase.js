@@ -1,5 +1,5 @@
 import { checkTradingBalance } from '@/services/digit-strategy/balance';
-import { scanXmlParityRecovery } from '@/utils/xml-parity-recovery';
+import { scanXmlParityRecovery, refreshXmlParityRecovery } from '@/utils/xml-parity-recovery';
 import { generateDerivApiInstance } from '../../api/appId';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { LogTypes } from '../../../constants/messages';
@@ -28,6 +28,7 @@ export default Engine =>
             let purchaseOptions = prediction === undefined ? this.tradeOptions : { ...this.tradeOptions, prediction };
             const parityRecovery = xmlScannerCycle.isRecovering();
             const generation = xmlScannerCycle.getSnapshot().generation;
+            let recoveryPlan;
             if (parityRecovery) {
                 const stake = xmlScannerCycle.recoveryStake(this.xmlLastPurchaseStake);
                 if (stake === undefined) return;
@@ -41,23 +42,28 @@ export default Engine =>
                 });
                 try {
                     while (valid()) {
-                        const plan = await scanXmlParityRecovery(
-                            () => generateDerivApiInstance({ publicOnly: true }),
-                            1000,
-                            controller.signal,
-                            message => xmlScannerCycle.recoveryStatus(message),
-                            xmlScannerCycle.recoveryScope()
-                        );
+                        const locked = xmlScannerCycle.recoveryPlan();
+                        const plan = locked
+                            ? await refreshXmlParityRecovery(api_base.api, locked, controller.signal)
+                            : await scanXmlParityRecovery(
+                                  () => generateDerivApiInstance({ publicOnly: true }),
+                                  1000,
+                                  controller.signal,
+                                  message => xmlScannerCycle.recoveryStatus(message),
+                                  xmlScannerCycle.recoveryScope(),
+                                  this.tradeOptions.duration || 1
+                              );
                         if (!plan || !valid()) return;
                         // Recheck the original market's live guard after the recovery scan.
                         if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol)) || !valid()) return;
                         if (Date.now() / 1000 - plan.epoch > 6) continue;
+                        recoveryPlan = plan;
                         contract_type = plan.direction;
                         purchaseOptions = {
                             amount: stake,
                             basis: 'stake',
                             currency: this.tradeOptions.currency,
-                            duration: 1,
+                            duration: this.tradeOptions.duration || 1,
                             duration_unit: 't',
                             symbol: plan.symbol,
                             app_markup_percentage: this.tradeOptions.app_markup_percentage,
@@ -76,6 +82,7 @@ export default Engine =>
                 // Don't unnecessarily send a forget request for a purchased contract.
                 const { buy } = response;
                 this.xmlLastPurchaseStake = Number(buy.buy_price);
+                if (parityRecovery && recoveryPlan) xmlScannerCycle.lockRecoveryPlan(recoveryPlan);
 
                 contractStatus({
                     id: 'contract.purchase_received',

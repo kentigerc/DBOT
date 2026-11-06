@@ -429,26 +429,22 @@ it('keeps recovery wait progress visible in the journal and cancels it when reco
     expect(write).toHaveBeenCalledTimes(count);
     cycle.stop();
 });
-it('spreads an unpaid XML recovery deficit over base-stake trades until it clears', async () => {
+it('ends XML recovery on its first win even if the session remains negative, and clears the market lock', async () => {
     const { cycle } = setup();
     await settle(cycle, 1, -0.35);
+    const plan = { symbol: '1HZ50V', direction: 'DIGITEVEN' as const, epoch: Date.now() / 1000 };
+    cycle.lockRecoveryPlan(plan);
     await settle(cycle, 2, -0.74);
-    await settle(cycle, 3, 0.99);
-    expect(cycle.isRecovering()).toBe(true);
-    expect(cycle.getSnapshot()).toMatchObject({ pnl: -10, deficit: 10, wins: 0, losses: 0 });
-    expect(cycle.recoveryStake(1.55)).toBe(0.35);
-    await settle(cycle, 4, 0.04);
-    expect(cycle.getSnapshot().deficit).toBe(6);
-    expect(cycle.isRecovering()).toBe(true);
-    expect(cycle.recoveryStake(0.35)).toBe(0.35);
-    await settle(cycle, 5, -0.35);
-    expect(cycle.getSnapshot().deficit).toBe(41);
-    expect(cycle.recoveryStake(0.35)).toBe(0.74);
-    await settle(cycle, 6, 0.65);
+    expect(cycle.recoveryPlan()).toEqual(plan);
+    expect(cycle.recoveryStake(0.74)).toBe(1.55);
+    await settle(cycle, 3, 0.1);
     expect(cycle.isRecovering()).toBe(false);
-    expect(cycle.getSnapshot()).toMatchObject({ deficit: 0, wins: 0 });
-    await settle(cycle, 7, 0.12);
+    expect(cycle.recoveryPlan()).toBeUndefined();
+    expect(cycle.getSnapshot()).toMatchObject({ pnl: -99, deficit: 0, wins: 0 });
+    await settle(cycle, 4, 0.12);
     expect(cycle.getSnapshot().wins).toBe(1);
+    await settle(cycle, 5, -0.35);
+    expect(cycle.recoveryPlan()).toBeUndefined(); // A new loss must scan afresh.
     cycle.stop();
 });
 it('retains the last stake after a void recovery instead of multiplying it', async () => {

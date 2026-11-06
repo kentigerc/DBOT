@@ -46,7 +46,9 @@ export default function AnalysisTool() {
         setError('');
         try {
             await digitStrategyEngine.start(
-                reconcile ? state.settings : { ...draft, strategy: undefined, hitRecovery: undefined },
+                reconcile
+                    ? state.settings
+                    : { ...draft, strategy: undefined, hitRecovery: undefined, recoveryMode: 'parity_percentage' },
                 reconcile
             );
         } catch (reason) {
@@ -144,29 +146,6 @@ export default function AnalysisTool() {
                 <details className='analysis-tool__advanced'>
                     <summary>Strategy settings</summary>
                     <div className='analysis-tool__settings'>
-                        <label>
-                            Recovery policy
-                            <select
-                                value={draft.recoveryMode}
-                                disabled={locked}
-                                onChange={event =>
-                                    setDraft(previous => ({
-                                        ...previous,
-                                        recoveryMode: event.target.value as Settings['recoveryMode'],
-                                    }))
-                                }
-                            >
-                                {Object.entries(RECOVERY_MODES)
-                                    .filter(([value]) => value !== 'same_contract')
-                                    .map(([value, label]) => (
-                                        <option key={value} value={value}>
-                                            {label}
-                                        </option>
-                                    ))}
-                            </select>
-                        </label>
-                        {!['under5_filtered_once', 'parity_percentage'].includes(draft.recoveryMode) &&
-                            field('Recovery trigger count', 'triggerCount', 1, 1)}
                         <label>
                             Contract duration
                             <select

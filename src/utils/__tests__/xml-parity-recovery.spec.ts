@@ -1,14 +1,19 @@
-import {
-    refreshXmlParityRecovery,
-    scanXmlParityRecovery,
-    waitForXmlParityFormation,
-    type RecoveryTick,
-} from '../xml-parity-recovery';
+import { refreshXmlParityRecovery, scanXmlParityRecovery, type RecoveryTick } from '../xml-parity-recovery';
 const counts = [12, 8, 12, 8, 12, 8, 12, 8, 12, 8];
 const now = 1700000000;
 const data = (values = counts) => ({
     pip_size: 2,
-    history: { prices: values.flatMap((n, d) => Array(n).fill(100 + d / 100)), times: [Date.now() / 1000 - 3] },
+    history: {
+        prices: values
+            .flatMap((n, d) => Array(n).fill(d))
+            .sort((a, b) => {
+                const even = values.reduce((sum, n, d) => sum + (d % 2 === 0 ? n : 0), 0);
+                const selected = even >= values.reduce((sum, n) => sum + n, 0) / 2 ? 0 : 1;
+                return Number(a % 2 === selected) - Number(b % 2 === selected);
+            })
+            .map(d => 100 + d / 100),
+        times: [Date.now() / 1000 - 3],
+    },
     subscription: { id: 'feed' },
 });
 const contracts = (direction = 'DIGITEVEN') => ({
@@ -58,12 +63,12 @@ function createApi(
                       : counts
             );
             if (options.manual)
-                response.history.prices.splice(-3, 3, ...(options.odd ? [3, 5, 2] : [2, 4, 1]).map(d => 100 + d / 100));
+                response.history.prices.splice(-3, 3, ...(options.odd ? [3, 5, 7] : [2, 4, 6]).map(d => 100 + d / 100));
             if (options.stale && body.ticks_history === 'R_10') response.history.times = [Date.now() / 1000 - 30];
             if (body.subscribe && !options.manual)
                 queueMicrotask(() => {
                     const epoch = Date.now() / 1000;
-                    const pattern = options.odd ? [3, 5, 2] : [2, 4, 1];
+                    const pattern = options.odd ? [3, 5, 7] : [2, 4, 6];
                     pattern.forEach((digit, i) => emit(digit, epoch - 2 + i, String(body.ticks_history)));
                 });
             return response;
@@ -71,12 +76,16 @@ function createApi(
     };
     return api;
 }
+const qualify = (api: ReturnType<typeof createApi>, symbol = 'R_10', odd = false) => {
+    const epoch = Date.now() / 1000;
+    (odd ? [3, 5, 7] : [2, 4, 6]).forEach((digit, i) => api.emit(digit, epoch - 2 + i, symbol));
+};
 beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(now * 1000);
 });
 afterEach(() => jest.useRealTimers());
-it('selects a qualifying parity market directly without a formation wait', async () => {
+it('selects a live rising parity market after three matching digits', async () => {
     const api = createApi({ neutralFirst: true });
     const pending = scanXmlParityRecovery(async () => api, 100, new AbortController().signal, jest.fn());
     await jest.advanceTimersByTimeAsync(1000);
@@ -84,7 +93,7 @@ it('selects a qualifying parity market directly without a formation wait', async
     expect(api.disconnect).toHaveBeenCalled();
     expect(api.send.mock.calls.some(([body]) => body.buy)).toBe(false);
 });
-it('can choose Odd directly from qualifying percentages', async () => {
+it('can choose Odd from rising percentages and three odd digits', async () => {
     const api = createApi({ odd: true });
     const pending = scanXmlParityRecovery(async () => api, 100, new AbortController().signal, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
@@ -105,108 +114,6 @@ it.each(['unsupported', 'stale'] as const)('skips a %s candidate and continues s
     await jest.advanceTimersByTimeAsync(1000);
     expect(await pending).toMatchObject({ symbol: '1HZ50V', direction: 'DIGITEVEN' });
 });
-it.each([false, true])('waits for three new consecutive ticks instead of using history (Odd=%s)', async odd => {
-    const api = createApi({ manual: true, odd });
-    const controller = new AbortController();
-    let finished = false;
-    const pending = waitForXmlParityFormation(
-        api,
-        body => api.send(body),
-        'R_10',
-        odd ? 'DIGITODD' : 'DIGITEVEN',
-        100,
-        controller.signal,
-        jest.fn()
-    ).then(plan => {
-        finished = true;
-        return plan;
-    });
-    await jest.advanceTimersByTimeAsync(0);
-    expect(finished).toBe(false);
-    api.emit(odd ? 3 : 2, now - 2);
-    api.emit(odd ? 5 : 4, now - 1);
-    await jest.advanceTimersByTimeAsync(0);
-    expect(finished).toBe(false);
-    api.emit(odd ? 2 : 1, now);
-    expect(await pending).toMatchObject({ direction: odd ? 'DIGITODD' : 'DIGITEVEN', epoch: now });
-});
-it('STOP during formation cancels the entry without completing it', async () => {
-    const api = createApi({ manual: true });
-    const controller = new AbortController();
-    const pending = waitForXmlParityFormation(
-        api,
-        body => api.send(body),
-        'R_10',
-        'DIGITEVEN',
-        100,
-        controller.signal,
-        jest.fn()
-    );
-    await jest.advanceTimersByTimeAsync(0);
-    api.emit(2, now - 2);
-    api.emit(4, now - 1);
-    controller.abort();
-    api.emit(1, now);
-    expect(await pending).toBeUndefined();
-});
-it('a stalled formation feed cannot authorize an entry', async () => {
-    const api = createApi({ manual: true });
-    const pending = waitForXmlParityFormation(
-        api,
-        body => api.send(body),
-        'R_10',
-        'DIGITEVEN',
-        100,
-        new AbortController().signal,
-        jest.fn()
-    );
-    const rejected = expect(pending).rejects.toThrow('live feed unavailable');
-    await jest.advanceTimersByTimeAsync(7000);
-    await rejected;
-});
-
-it('a broken sequence does not enter until a new consecutive EEO is observed', async () => {
-    const api = createApi({ manual: true });
-    const response = data();
-    response.history.times = [now - 5];
-    api.send.mockResolvedValue(response);
-    let entered = false;
-    const pending = waitForXmlParityFormation(
-        api,
-        body => api.send(body),
-        'R_10',
-        'DIGITEVEN',
-        100,
-        new AbortController().signal,
-        jest.fn()
-    ).then(plan => {
-        entered = true;
-        return plan;
-    });
-    await jest.advanceTimersByTimeAsync(0);
-    [2, 1, 4, 6, 8].forEach((digit, i) => api.emit(digit, now - 4 + i));
-    await jest.advanceTimersByTimeAsync(0);
-    expect(entered).toBe(false);
-    api.emit(3, now + 1);
-    expect(await pending).toMatchObject({ direction: 'DIGITEVEN' });
-});
-it('abandons an entry if parity percentages cease to qualify during observation', async () => {
-    const api = createApi({ manual: true });
-    api.send.mockResolvedValue(data([11, 9, 11, 9, 11, 9, 11, 9, 10, 10]));
-    const pending = waitForXmlParityFormation(
-        api,
-        body => api.send(body),
-        'R_10',
-        'DIGITEVEN',
-        100,
-        new AbortController().signal,
-        jest.fn()
-    );
-    await jest.advanceTimersByTimeAsync(0);
-    api.emit(1, now - 2);
-    expect(await pending).toBeUndefined();
-});
-
 it('checks only a fresh quote on the locked market without repeating parity analysis or a formation', async () => {
     const api = createApi({ odd: true });
     const plan = { symbol: '1HZ50V', direction: 'DIGITEVEN' as const, epoch: now - 10 };
@@ -269,7 +176,7 @@ it('continues healthy scans without forcing an entry when no market qualifies', 
     controller.abort();
     expect(await pending).toBeUndefined();
 });
-it('chooses the strongest supported percentage across all live market samples without waiting for a pattern', async () => {
+it('selects a supported market only after its fresh rising formation qualifies', async () => {
     const api = createApi({ manual: true });
     api.send.mockImplementation(async body =>
         body.active_symbols
@@ -280,10 +187,11 @@ it('chooses the strongest supported percentage across all live market samples wi
     );
     const pending = scanXmlParityRecovery(async () => api, 100, new AbortController().signal, jest.fn());
     await jest.advanceTimersByTimeAsync(0);
+    qualify(api, '1HZ50V');
     expect(await pending).toMatchObject({ symbol: '1HZ50V', direction: 'DIGITEVEN' });
     expect(api.disconnect).toHaveBeenCalled();
 });
-it('retains all live feeds between recovery attempts and reselects without reloading histories', async () => {
+it('retains all live feeds between independent loss episodes but requires a fresh formation', async () => {
     const api = createApi({ manual: true });
     const create = jest.fn().mockResolvedValue(api);
     let active = true;
@@ -299,16 +207,14 @@ it('retains all live feeds between recovery attempts and reselects without reloa
     };
     const first = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
     await jest.advanceTimersByTimeAsync(0);
+    qualify(api);
     expect(await first).toMatchObject({ symbol: 'R_10', direction: 'DIGITEVEN' });
     expect(api.disconnect).not.toHaveBeenCalled();
     const requests = api.send.mock.calls.length;
-    // The first market becomes weaker while no selection is pending. All feeds
-    // must continue to update so the next attempt immediately chooses the second.
-    api.emit(1, now, 'R_10');
-    expect(await scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope)).toMatchObject({
-        symbol: '1HZ50V',
-        direction: 'DIGITEVEN',
-    });
+    const next = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
+    await jest.advanceTimersByTimeAsync(3000);
+    qualify(api, '1HZ50V');
+    expect(await next).toMatchObject({ symbol: '1HZ50V', direction: 'DIGITEVEN' });
     expect(create).toHaveBeenCalledTimes(1);
     expect(api.send.mock.calls.length).toBe(requests);
     active = false;
@@ -365,6 +271,7 @@ it('discards cached candidates immediately on disconnect before reconnecting all
     };
     const first = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
     await jest.advanceTimersByTimeAsync(0);
+    qualify(firstApi);
     expect(await first).toBeDefined();
     firstApi.connection.dispatchEvent(new Event('close'));
     let resolved = false;
@@ -375,6 +282,7 @@ it('discards cached candidates immediately on disconnect before reconnecting all
     await jest.advanceTimersByTimeAsync(0);
     expect(resolved).toBe(false);
     await jest.advanceTimersByTimeAsync(1000);
+    qualify(replacement);
     expect(await next).toMatchObject({ symbol: 'R_10' });
     expect(create).toHaveBeenCalledTimes(2);
     active = false;
@@ -403,6 +311,7 @@ it('retries fresh connections for a new recovery after the idle cache exhausted 
     };
     const first = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
     await jest.advanceTimersByTimeAsync(0);
+    qualify(api);
     expect(await first).toBeDefined();
     // No recovery order is waiting when the feed closes and its idle retries fail.
     api.connection.dispatchEvent(new Event('close'));
@@ -410,6 +319,7 @@ it('retries fresh connections for a new recovery after the idle cache exhausted 
     expect(create).toHaveBeenCalledTimes(3);
     const next = scanXmlParityRecovery(create, 100, new AbortController().signal, jest.fn(), scope);
     await jest.advanceTimersByTimeAsync(0);
+    qualify(restored);
     expect(await next).toMatchObject({ symbol: 'R_10' });
     expect(create).toHaveBeenCalledTimes(4);
     active = false;

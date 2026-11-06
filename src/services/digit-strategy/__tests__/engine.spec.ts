@@ -6,6 +6,7 @@ jest.mock('@/utils/deriv-session', () => ({ getDerivAccount: () => undefined }))
 jest.mock('@/utils/trading-lock', () => ({ setAnalysisTrading: jest.fn() }));
 class FakeBroker implements Broker {
     availableBalance = 1000;
+    lastEpoch = 1000;
     connection = new EventTarget();
     listeners = new Set<(event: { data: Record<string, any> }) => void>();
     buys: Record<string, any>[] = [];
@@ -43,7 +44,11 @@ class FakeBroker implements Broker {
             return {
                 pip_size: 2,
                 history: {
-                    prices: Array.from({ length: 1000 }, (_, i) => 100 + (i < 20 ? 0 : i % 10) / 100),
+                    prices: [
+                        ...Array<number>(40).fill(1),
+                        ...Array<number>(560).fill(0),
+                        ...Array<number>(400).fill(3),
+                    ].map(d => 100 + d / 100),
                     times: Array.from({ length: 1000 }, (_, i) => i + 1),
                 },
             };
@@ -91,6 +96,7 @@ class FakeBroker implements Broker {
     });
     disconnect = jest.fn();
     emit(data: Record<string, any>) {
+        if (data.tick) this.lastEpoch = data.tick.epoch;
         this.listeners.forEach(fn => fn({ data }));
     }
     settle(profit: number) {
@@ -129,6 +135,14 @@ async function setup(
     await jest.advanceTimersByTimeAsync(150);
     return { engine, broker, settings };
 }
+async function liveTick(broker: FakeBroker, digit = 8) {
+    await jest.advanceTimersByTimeAsync(1000);
+    broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: broker.lastEpoch + 1, pip_size: 2 } });
+    await jest.advanceTimersByTimeAsync(150);
+}
+async function recoveryEntry(engine: DigitStrategyEngine, broker: FakeBroker) {
+    for (let i = 0; i < (engine.getSnapshot().recovery.recoveryLocked ? 1 : 3); i++) await liveTick(broker);
+}
 beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(1000000);
@@ -158,9 +172,7 @@ describe('strategy execution and exposure controls', () => {
         const { engine, broker } = await setup();
         broker.availableBalance = 0.5;
         broker.settle(-0.35);
-        await jest.advanceTimersByTimeAsync(1000);
-        broker.emit({ tick: { symbol: 'R_100', quote: 100.08, epoch: 1004, pip_size: 2 } });
-        await jest.advanceTimersByTimeAsync(150);
+        await recoveryEntry(engine, broker);
         expect(engine.getSnapshot()).toMatchObject({ active: false, pending: undefined, losses: 1 });
         expect(engine.getSnapshot().phase).toMatch(/Insufficient balance.*required USD 0.74/);
         expect(broker.buys).toHaveLength(1);
@@ -232,9 +244,7 @@ describe('strategy execution and exposure controls', () => {
             expect(Math.round(broker.buys[i].price * 100)).toBe(stakes[i]);
             broker.settle(-stakes[i] / 100);
             if (i < 4) {
-                await jest.advanceTimersByTimeAsync(1000);
-                broker.emit({ tick: { symbol: 'R_100', quote: 100.08, epoch: 1004 + i, pip_size: 2 } });
-                await jest.advanceTimersByTimeAsync(150);
+                await recoveryEntry(engine, broker);
             }
         }
         expect(engine.getSnapshot()).toMatchObject({ active: false, streak: 5, losses: 5 });
@@ -243,19 +253,15 @@ describe('strategy execution and exposure controls', () => {
     it('uses a custom multiplier for the next recovery purchase', async () => {
         const { engine, broker } = await setup({ multiplier: 3 });
         broker.settle(-0.35);
-        await jest.advanceTimersByTimeAsync(1000);
-        broker.emit({ tick: { symbol: 'R_100', quote: 100.08, epoch: 1004, pip_size: 2 } });
-        await jest.advanceTimersByTimeAsync(150);
+        await recoveryEntry(engine, broker);
         expect(broker.buys[1].parameters.amount).toBe(1.05);
         engine.stop();
     });
     it('resets recovery and stake after one recovery win', async () => {
         const { engine, broker } = await setup();
         broker.settle(-0.35);
-        await jest.advanceTimersByTimeAsync(1000);
-        broker.emit({ tick: { symbol: 'R_100', quote: 100.08, epoch: 1004, pip_size: 2 } });
-        await jest.advanceTimersByTimeAsync(150);
-        expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 0.74 });
+        await recoveryEntry(engine, broker);
+        expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', amount: 0.74 });
         broker.settle(0.67);
         expect(engine.getSnapshot()).toMatchObject({ pnl: 32, streak: 0, stake: 35 });
         expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
@@ -289,6 +295,8 @@ describe('strategy execution and exposure controls', () => {
         expect(engine.getSnapshot().pending?.contractId).toBe(101);
         const saved = JSON.parse(localStorage.getItem('neto.digit-strategy.v1.DEMO-TEST')!);
         delete saved.settings.multiplier;
+        saved.settings.recoveryMode = 'under5_pairs';
+        saved.settings.triggerCount = 7;
         localStorage.setItem('neto.digit-strategy.v1.DEMO-TEST', JSON.stringify(saved));
         const next = new FakeBroker();
         next.latest = { ...broker.latest, is_sold: 1, profit: -0.35 };
@@ -300,7 +308,11 @@ describe('strategy execution and exposure controls', () => {
         });
         await restored.start(settings);
         expect(next.buys).toHaveLength(0);
-        expect(restored.getSnapshot().settings.multiplier).toBe(2.1);
+        expect(restored.getSnapshot().settings).toMatchObject({
+            multiplier: 2.1,
+            recoveryMode: 'parity_percentage',
+            triggerCount: 3,
+        });
         expect(restored.getSnapshot()).toMatchObject({ pnl: -35, losses: 1, active: false, pending: undefined });
         next.emit({ proposal_open_contract: next.latest });
         expect(restored.getSnapshot().pnl).toBe(-35);
@@ -384,43 +396,6 @@ describe('HIT AND RUN execution', () => {
         expect(broker.buys).toHaveLength(4);
         engine.stop();
     });
-    it('continues recovery without analysis, then restarts a three-win batch on the same market', async () => {
-        const { broker, engine, tick, entry } = await setupCycle({ multiplier: 3 });
-        broker.settle(-0.35);
-        expect(engine.getSnapshot()).toMatchObject({
-            streak: 1,
-            stake: 105,
-            recovery: { lockedSymbol: 'R_100', lockedDirection: 'DIGITOVER' },
-        });
-        await tick(5);
-        expect(broker.buys).toHaveLength(2);
-        expect(broker.buys[1].price).toBe(1.05);
-        expect(engine.getSnapshot().pending?.signal.recovery).toBe(true);
-        broker.settle(-1.05);
-        await jest.advanceTimersByTimeAsync(150);
-        expect(broker.buys).toHaveLength(3);
-        expect(broker.buys[2].price).toBe(3.15);
-        broker.settle(2.84);
-        expect(engine.getSnapshot()).toMatchObject({ streak: 0, stake: 35, batch: 0, batchPause: 0 });
-        await entry();
-        expect(broker.buys).toHaveLength(4);
-        expect(broker.buys[3].price).toBe(0.35);
-        expect(broker.buys[3].parameters).toMatchObject({ symbol: 'R_100', contract_type: 'DIGITOVER', barrier: '2' });
-        broker.settle(0.32);
-        await entry();
-        expect(engine.getSnapshot().batch).toBe(1);
-        expect(broker.buys).toHaveLength(5);
-        broker.settle(0.32);
-        await entry();
-        expect(engine.getSnapshot().batch).toBe(2);
-        expect(broker.buys).toHaveLength(6);
-        broker.settle(0.32);
-        await jest.advanceTimersByTimeAsync(150);
-        expect(engine.getSnapshot().batch).toBe(0);
-        expect(broker.buys).toHaveLength(6);
-        expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
-        engine.stop();
-    });
     it('halts at a risk limit instead of attempting recovery', async () => {
         const { broker, engine, tick } = await setupCycle({ maxLosses: 1 });
         broker.settle(-0.35);
@@ -463,192 +438,6 @@ it('executes Under 7 with the same HIT AND RUN safeguards', async () => {
     broker.settle(0.32);
     expect(engine.getSnapshot().active).toBe(false);
 });
-it('recovers a loss in a later HIT AND RUN session and then starts a full new three-win batch', async () => {
-    const { broker, engine, entry } = await setupCycle();
-    for (let i = 0; i < 3; i++) {
-        broker.settle(0.32);
-        if (i < 2) await entry();
-        else await jest.advanceTimersByTimeAsync(150);
-    }
-    expect(broker.buys).toHaveLength(3);
-    expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
-    await jest.advanceTimersByTimeAsync(5000);
-    await entry();
-    expect(broker.buys).toHaveLength(4);
-    // Two successful normal trades do not count toward the next batch after a loss.
-    for (let i = 0; i < 2; i++) {
-        broker.settle(0.32);
-        await entry();
-    }
-    expect(broker.buys).toHaveLength(6);
-    expect(engine.getSnapshot().batch).toBe(2);
-    broker.settle(-0.35);
-    await jest.advanceTimersByTimeAsync(150);
-    expect(broker.buys).toHaveLength(7);
-    expect(broker.buys[6].price).toBe(0.74);
-    expect(engine.getSnapshot()).toMatchObject({ batch: 0, recovery: { lockedSymbol: 'R_100' } });
-    broker.settle(0.67);
-    await entry();
-    expect(broker.buys).toHaveLength(8);
-    expect(broker.buys[7].price).toBe(0.35);
-    expect(engine.getSnapshot()).toMatchObject({ batch: 0, recovery: { lockedSymbol: 'R_100' } });
-    for (let i = 0; i < 3; i++) {
-        broker.settle(0.32);
-        if (i < 2) await entry();
-        else await jest.advanceTimersByTimeAsync(150);
-    }
-    expect(broker.buys).toHaveLength(10);
-    expect(engine.getSnapshot().batch).toBe(0);
-    expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
-    engine.stop();
-});
-describe('HIT AND RUN Analysis Tool recovery policies', () => {
-    it('waits for the chosen formation, buys Under 5 recovery, and restores the original Over 2 batch', async () => {
-        const { broker, engine, tick, entry } = await setupCycle({
-            hitRecovery: 'analysis',
-            recoveryMode: 'under5_run',
-            triggerCount: 3,
-        });
-        broker.settle(-0.35);
-        expect(engine.getSnapshot().recovery).toMatchObject({ batchMarket: 'R_100', batchDirection: 'DIGITOVER' });
-        await tick(2);
-        await tick(5);
-        await tick(6);
-        expect(broker.buys).toHaveLength(1);
-        await tick(7);
-        expect(broker.buys).toHaveLength(2);
-        expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 0.74 });
-        broker.settle(0.67);
-        await entry();
-        expect(broker.buys).toHaveLength(3);
-        expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '2', amount: 0.35 });
-        expect(engine.getSnapshot()).toMatchObject({
-            batch: 0,
-            recovery: { lockedSymbol: 'R_100', lockedDirection: 'DIGITOVER' },
-        });
-        engine.stop();
-    });
-    it('retains paired-loss pauses and requires the next fresh recovery formation', async () => {
-        const { broker, engine, tick } = await setupCycle({
-            hitRecovery: 'analysis',
-            recoveryMode: 'under5_pairs',
-            triggerCount: 3,
-        });
-        broker.settle(-0.35);
-        await tick(5);
-        await tick(6);
-        await tick(7);
-        expect(broker.buys).toHaveLength(2);
-        broker.settle(-0.74);
-        await tick(6);
-        expect(broker.buys).toHaveLength(3);
-        broker.settle(-1.55);
-        const state = engine.getSnapshot();
-        expect(state.recovery.pauseUntil).toBeGreaterThan(Date.now());
-        expect(state.recovery.countAfter).toBe(state.recovery.pauseUntil);
-        await jest.advanceTimersByTimeAsync(5000);
-        expect(broker.buys).toHaveLength(3);
-        await tick(5);
-        await tick(6);
-        expect(broker.buys).toHaveLength(3);
-        await tick(7);
-        expect(broker.buys).toHaveLength(4);
-        engine.stop();
-    });
-    it('uses parity recovery and alternates after a recovery loss instead of reusing the normal entry direction', async () => {
-        const { broker, engine, tick } = await setupCycle({ hitRecovery: 'analysis', recoveryMode: 'parity' });
-        broker.settle(-0.35);
-        await tick(5);
-        expect(broker.buys).toHaveLength(2);
-        const first = broker.buys[1].parameters.contract_type;
-        expect(['DIGITEVEN', 'DIGITODD']).toContain(first);
-        expect(broker.buys[1].parameters.barrier).toBeUndefined();
-        broker.settle(-0.74);
-        await tick(6);
-        expect(broker.buys).toHaveLength(3);
-        expect(broker.buys[2].parameters.contract_type).toBe(first === 'DIGITEVEN' ? 'DIGITODD' : 'DIGITEVEN');
-        engine.stop();
-    });
-});
-
-it('rechecks last-digit Under 5 triggers after every recovery loss', async () => {
-    const broker = new FakeBroker();
-    const send = broker.send;
-    broker.send = jest.fn(async body => {
-        if (body.ticks_history) {
-            const digits = [180, 70, 100, 100, 100, 90, 90, 90, 90, 90].flatMap((count, digit) =>
-                Array<number>(count).fill(digit)
-            );
-            return {
-                pip_size: 2,
-                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
-            };
-        }
-        return send(body);
-    });
-    const { engine } = await setup({ recoveryMode: 'under5_filtered_once' }, broker);
-    expect(broker.buys).toHaveLength(1);
-    broker.settle(-0.35);
-    let epoch = 1003;
-    const tick = async (digit: number) => {
-        await jest.advanceTimersByTimeAsync(1000);
-        broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
-        await jest.advanceTimersByTimeAsync(150);
-    };
-    await tick(2);
-    expect(broker.buys).toHaveLength(1);
-    await tick(5);
-    expect(broker.buys).toHaveLength(2);
-    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 0.74 });
-    broker.settle(-0.74);
-    await tick(6);
-    expect(broker.buys).toHaveLength(2);
-    await tick(9);
-    expect(broker.buys).toHaveLength(3);
-    expect(broker.buys[2].parameters).toMatchObject({ contract_type: 'DIGITUNDER', barrier: '5', amount: 1.55 });
-    engine.stop();
-});
-
-it('executes percentage recovery immediately at one tick and returns to normal two-tick trades after a win', async () => {
-    const broker = new FakeBroker();
-    const send = broker.send;
-    broker.send = jest.fn(async body => {
-        if (body.ticks_history) {
-            const digits = [...Array<number>(20).fill(9), ...Array<number>(550).fill(0), ...Array<number>(430).fill(1)];
-            return {
-                pip_size: 2,
-                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
-            };
-        }
-        return send(body);
-    });
-    const { engine } = await setup({ recoveryMode: 'parity_percentage', duration: 2 }, broker);
-    expect(broker.buys).toHaveLength(1);
-    expect(broker.buys[0].parameters.duration).toBe(2);
-    // A fresh tick during the open normal contract; no formation follows the loss.
-    await jest.advanceTimersByTimeAsync(1000);
-    broker.emit({ tick: { symbol: 'R_100', quote: 100.02, epoch: 1004, pip_size: 2 } });
-    broker.settle(-0.35);
-    await jest.advanceTimersByTimeAsync(150);
-    expect(broker.buys).toHaveLength(2);
-    expect(broker.buys[1].parameters).toMatchObject({ contract_type: 'DIGITEVEN', duration: 1, amount: 0.74 });
-    expect(broker.buys[1].parameters.barrier).toBeUndefined();
-    expect(engine.getSnapshot().pending?.duration).toBe(1);
-    broker.settle(0.67);
-    expect(engine.getSnapshot()).toMatchObject({ streak: 0, wins: 1, losses: 1, stake: 35 });
-    await jest.advanceTimersByTimeAsync(1000);
-    broker.emit({ tick: { symbol: 'R_100', quote: 100.03, epoch: 1005, pip_size: 2 } });
-    await jest.advanceTimersByTimeAsync(150);
-    expect(broker.buys).toHaveLength(2);
-    for (let epoch = 1006; epoch <= 1008; epoch++) {
-        await jest.advanceTimersByTimeAsync(1000);
-        broker.emit({ tick: { symbol: 'R_100', quote: 100.07, epoch, pip_size: 2 } });
-        await jest.advanceTimersByTimeAsync(150);
-    }
-    expect(broker.buys[2].parameters.duration).toBe(2);
-    engine.stop();
-});
-
 it('excludes markets that do not offer one-tick Even/Odd recovery contracts', async () => {
     const broker = new FakeBroker();
     const send = broker.send;
@@ -802,146 +591,6 @@ it('initializes other market feeds while an earlier contract-capability request 
     expect(broker.buys).toHaveLength(0);
 });
 
-it('trades Momentum 70 in three-win batches and initially waits for a qualifying Over 3 recovery entry', async () => {
-    const broker = new FakeBroker(),
-        send = broker.send;
-    broker.send = jest.fn(async body => {
-        if (body.ticks_history) {
-            const digits = [
-                ...Array<number>(300).fill(0),
-                ...Array<number>(600).fill(8),
-                ...Array<number>(100).fill(4),
-            ];
-            return {
-                pip_size: 2,
-                history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
-            };
-        }
-        return send(body);
-    });
-    const { engine } = await setup({ strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2 }, broker);
-    let epoch = 1003;
-    const tick = async (digit = 4) => {
-        await jest.advanceTimersByTimeAsync(1000);
-        broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
-        await jest.advanceTimersByTimeAsync(150);
-    };
-    expect(broker.buys).toHaveLength(0);
-    await tick(3);
-    await tick(8);
-    expect(broker.buys).toHaveLength(1);
-    expect(broker.buys[0].parameters).toMatchObject({ contract_type: 'DIGITOVER', barrier: '1', amount: 0.35 });
-    broker.settle(-0.35);
-    await jest.advanceTimersByTimeAsync(500);
-    expect(broker.buys).toHaveLength(1);
-    await tick(5);
-    await tick(6);
-    expect(broker.buys).toHaveLength(1);
-    broker.holdQuote = true;
-    await tick(7);
-    expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
-    expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
-    expect(broker.buys).toHaveLength(1);
-    broker.holdQuote = false;
-    broker.quoteResolve?.({ proposal: { ask_price: 0.7, payout: 1.33 } });
-    await jest.advanceTimersByTimeAsync(150);
-    expect(engine.getSnapshot().recovery).toMatchObject({ recoveryLocked: true, lockedSymbol: 'R_100' });
-    expect(broker.buys[1].parameters).toMatchObject({
-        symbol: 'R_100',
-        contract_type: 'DIGITOVER',
-        barrier: '3',
-        amount: 0.7,
-    });
-    broker.settle(0.6);
-    expect(engine.getSnapshot().batch).toBe(0);
-    for (let i = 0; i < 3; i++) {
-        await tick(3);
-        await tick(4);
-        await tick(5);
-        broker.settle(0.12);
-    }
-    expect(broker.buys).toHaveLength(5);
-    expect(engine.getSnapshot().batch).toBe(0);
-    expect(engine.getSnapshot().batchPause).toBeGreaterThan(Date.now());
-    await jest.advanceTimersByTimeAsync(1000);
-    expect(broker.buys).toHaveLength(5);
-    engine.stop();
-});
-
-it.each([0.2, -0.7, 0])(
-    'continues Momentum recovery after losses or voids, and returns to normal immediately after its first win (%s)',
-    async result => {
-        const broker = new FakeBroker(),
-            send = broker.send;
-        broker.send = jest.fn(async body => {
-            if (body.ticks_history) {
-                const digits = [
-                    ...Array<number>(300).fill(0),
-                    ...Array<number>(600).fill(8),
-                    ...Array<number>(100).fill(4),
-                ];
-                return {
-                    pip_size: 2,
-                    history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
-                };
-            }
-            return send(body);
-        });
-        const { engine } = await setup(
-            { strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2 },
-            broker
-        );
-        let epoch = 1003;
-        const tick = async () => {
-            await jest.advanceTimersByTimeAsync(1000);
-            broker.emit({ tick: { symbol: 'R_100', quote: 100.08, epoch: ++epoch, pip_size: 2 } });
-            await jest.advanceTimersByTimeAsync(150);
-        };
-        await tick();
-        await tick();
-        broker.settle(-0.35);
-        await tick();
-        await tick();
-        await tick();
-        broker.settle(result);
-        if (result <= 0) {
-            expect(engine.getSnapshot()).toMatchObject({
-                recovery: { momentumPending: true, recoveryLocked: true, lockedSymbol: 'R_100' },
-            });
-            await tick();
-            expect(broker.buys[2].parameters).toMatchObject({ barrier: '3', amount: result < 0 ? 1.4 : 0.7 });
-            broker.settle(0.2);
-        }
-        const normalIndex = broker.buys.length;
-        expect(engine.getSnapshot()).toMatchObject({
-            stake: 35,
-            batch: 0,
-            recovery: { deficit: 0, momentumPending: false },
-        });
-        expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
-        await tick();
-        expect(broker.buys).toHaveLength(normalIndex);
-        await tick();
-        expect(broker.buys).toHaveLength(normalIndex);
-        await tick();
-        expect(broker.buys[normalIndex].parameters).toMatchObject({
-            symbol: 'R_100',
-            contract_type: 'DIGITOVER',
-            barrier: '1',
-            amount: 0.35,
-        });
-        broker.settle(-0.35);
-        expect(engine.getSnapshot().recovery.momentumPending).toBe(true);
-        await tick();
-        await tick();
-        await tick();
-        expect(broker.buys[normalIndex + 1].parameters).toMatchObject({ barrier: '3', amount: 0.7 });
-        engine.stop();
-        broker.settle(0.6);
-        expect(engine.getSnapshot().recovery.momentumPending).toBe(false);
-    }
-);
-
 it.each([1, 2, 3, 4, 5])(
     'uses %s ticks for normal trades and repeated Momentum recovery with a 2.1 multiplier',
     async duration => {
@@ -979,10 +628,9 @@ it.each([1, 2, 3, 4, 5])(
         broker.settle(-0.35);
         await tick(2);
         await tick(4);
-        await tick(5);
+        await tick(6);
         expect(broker.buys[1].parameters).toMatchObject({
-            contract_type: 'DIGITUNDER',
-            barrier: '6',
+            contract_type: 'DIGITEVEN',
             amount: 0.74,
             duration,
         });
@@ -994,14 +642,13 @@ it.each([1, 2, 3, 4, 5])(
                 momentumPending: true,
                 recoveryLocked: true,
                 lockedSymbol: 'R_100',
-                lockedDirection: 'DIGITUNDER',
+                lockedDirection: 'DIGITEVEN',
             },
         });
         await tick(7);
         expect(broker.buys[2].parameters).toMatchObject({
             symbol: 'R_100',
-            contract_type: 'DIGITUNDER',
-            barrier: '6',
+            contract_type: 'DIGITEVEN',
             amount: 1.55,
             duration,
         });
@@ -1018,5 +665,80 @@ it.each([1, 2, 3, 4, 5])(
         });
         engine.stop();
         broker.settle(0.06);
+    }
+);
+
+it.each([
+    [undefined, false],
+    [undefined, true],
+    ['over2-under7', false],
+    ['over2-under7', true],
+    ['momentum-70', false],
+    ['momentum-70', true],
+] as const)(
+    'uses shared parity recovery for %s (Odd=%s), locks after confirmation and ends on the first win',
+    async (strategy, odd) => {
+        const broker = new FakeBroker();
+        const send = broker.send;
+        broker.send = jest.fn(async body => {
+            if (body.ticks_history) {
+                const digits = [
+                    ...Array<number>(200).fill(1),
+                    ...Array<number>(560).fill(4),
+                    ...Array<number>(240).fill(5),
+                ].map(d => (odd ? 9 - d : d));
+                return {
+                    pip_size: 2,
+                    history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
+                };
+            }
+            return send(body);
+        });
+        const { engine } = await setup(
+            { strategy, recoveryMode: strategy === 'momentum-70' ? 'same_contract' : 'under5_run', duration: 2 },
+            broker
+        );
+        for (let i = 0; i < 3 && !broker.buys.length; i++) await liveTick(broker, odd ? 5 : 4);
+        expect(broker.buys).toHaveLength(1);
+        expect(broker.buys[0].parameters.duration).toBe(2);
+        expect(engine.getSnapshot().settings.recoveryMode).toBe('parity_percentage');
+        broker.settle(-0.35);
+        expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
+        for (let i = 0; i < 2; i++) await liveTick(broker, odd ? 3 : 2);
+        expect(broker.buys).toHaveLength(1);
+        broker.holdQuote = true;
+        await liveTick(broker, odd ? 5 : 4);
+        expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
+        broker.holdQuote = false;
+        broker.quoteResolve!({ proposal: { ask_price: 0.74, payout: 1.41 } });
+        await jest.advanceTimersByTimeAsync(150);
+        const direction = odd ? 'DIGITODD' : 'DIGITEVEN';
+        expect(broker.buys[1].parameters).toMatchObject({ contract_type: direction, amount: 0.74, duration: 2 });
+        expect(broker.buys[1].parameters.barrier).toBeUndefined();
+        expect(engine.getSnapshot().recovery).toMatchObject({
+            lockedSymbol: 'R_100',
+            lockedDirection: direction,
+            recoveryLocked: true,
+        });
+        broker.settle(-0.74);
+        await liveTick(broker, odd ? 2 : 1); // Deliberately opposite parity; direct continuation must stay locked.
+        expect(broker.buys[2].parameters).toMatchObject({ contract_type: direction, amount: 1.55, duration: 2 });
+        broker.settle(0); // Voids preserve the lock and stake.
+        await liveTick(broker, odd ? 2 : 1);
+        expect(broker.buys[3].price).toBe(1.55);
+        broker.settle(0.1);
+        expect(engine.getSnapshot()).toMatchObject({
+            stake: 35,
+            batch: 0,
+            pnl: -99,
+            recovery: { momentumPending: false, deficit: 0 },
+        });
+        expect(engine.getSnapshot().recovery.recoveryLocked).not.toBe(true);
+        expect(broker.buys).toHaveLength(4);
+        for (let i = 0; i < 3; i++) await liveTick(broker, odd ? 5 : 4);
+        expect(broker.buys).toHaveLength(5);
+        expect(engine.getSnapshot().pending?.signal.recovery).toBe(false);
+        expect(broker.buys[4].price).toBe(0.35);
+        engine.stop();
     }
 );

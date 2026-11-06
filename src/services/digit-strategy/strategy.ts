@@ -1,3 +1,4 @@
+import { advanceParityRecovery, parityRecoveryReady } from './parity-recovery';
 import { OverUnderEntries } from './over-under-entry';
 // Ported from the uploaded fastbot/digits.py, recovery_filters.py and storage.py.
 export type Direction = 'DIGITOVER' | 'DIGITUNDER' | 'DIGITDIFF' | 'DIGITEVEN' | 'DIGITODD';
@@ -56,7 +57,7 @@ export function validateSettings(s: Settings) {
         throw new Error('Invalid recovery method.');
     if (s.strategy !== undefined && !['over2-under7', 'even-odd', 'momentum-70'].includes(s.strategy))
         throw new Error('Invalid trading strategy.');
-    if ((s.recoveryMode === 'same_contract') !== (s.strategy === 'momentum-70'))
+    if (s.recoveryMode === 'same_contract' && s.strategy !== 'momentum-70')
         throw new Error('Invalid same-contract strategy settings.');
     if (s.strategy === 'even-odd' && s.recoveryMode !== 'parity_percentage')
         throw new Error('Invalid Even/Odd recovery settings.');
@@ -195,17 +196,15 @@ export class DigitMarket {
                 previous + (digit % 2 === parity ? 1 : 0) - (outgoing !== undefined && outgoing % 2 === parity ? 1 : 0);
             this.parityCounts[direction] = count;
             const change = full ? (count - previous) / 10 : 0;
-            const reading = this.parityMomentum[direction];
-            let armed = reading.armed,
-                run = reading.run;
-            if (!received || !this.ready(received) || count < 520 || change < 0) {
-                armed = false;
-                run = 0;
-            } else {
-                if (!armed && change > 0) armed = true;
-                run = armed && digit % 2 === parity ? Math.min(3, run + 1) : 0;
-            }
-            this.parityMomentum[direction] = { percentage: count / 10, change, armed, run, epoch };
+            this.parityMomentum[direction] = advanceParityRecovery(
+                this.parityMomentum[direction],
+                direction,
+                digit,
+                count / 10,
+                change,
+                epoch,
+                !!received && this.ready(received)
+            );
         }
         if (this.digits.length === 1000) this.entries.observe(this.digits, epoch, !!received && this.ready(received));
         return true;
@@ -280,8 +279,6 @@ const OPTIONS: [Direction, string?][] = [
     ['DIGITUNDER', '8'],
     ['DIGITDIFF'],
 ];
-export const isPaired = (mode: RecoveryMode) =>
-    ['under5_pairs', 'under5_plain', 'under5_filtered_pairs'].includes(mode);
 export function signalOn(
     m: DigitMarket,
     direction: Direction,
@@ -301,49 +298,6 @@ export function parityRecoveryDirection(counts: number[]): 'DIGITEVEN' | 'DIGITO
     if (odd * 100 > 52 * total && even * 100 < 47 * total) return 'DIGITODD';
 }
 
-export function recoverySignal(m: DigitMarket, s: RecoveryState, config: Settings, now: number): Signal | undefined {
-    const mode = config.recoveryMode;
-    if (
-        !m.ready(now) ||
-        now < s.pauseUntil ||
-        (mode !== 'parity_percentage' && s.lockedSymbol && m.symbol !== s.lockedSymbol)
-    )
-        return;
-    if (mode === 'parity_percentage') {
-        const direction = parityRecoveryDirection(m.frequencies().map(d => d.count));
-        if (direction) return signalOn(m, direction, undefined, true);
-        return;
-    }
-    if (mode === 'parity' || mode === 'parity_pair') {
-        if (s.lockedDirection) return signalOn(m, s.lockedDirection, undefined, true);
-        if (mode === 'parity_pair') {
-            const tail = m.digits.slice(-10);
-            if (!tail.every(d => d % 2 === tail[0] % 2)) return;
-            return signalOn(m, tail[0] % 2 === 0 ? 'DIGITODD' : 'DIGITEVEN', undefined, true, true);
-        }
-        return;
-    }
-    const barrier = mode === 'under4_filtered_once' ? '4' : mode === 'under6_filtered_once' ? '6' : '5';
-    const lastDigitEntry = mode === 'under5_filtered_once';
-    const filtered = mode.includes('filtered') || mode === 'under5_plain';
-    if (
-        filtered &&
-        ((!lastDigitEntry && !m.standard) ||
-            m
-                .frequencies()
-                .slice(Number(barrier))
-                .some(d => d.most || d.least))
-    )
-        return;
-    if (lastDigitEntry) {
-        if (![5, 7, 9].includes(m.digits[m.digits.length - 1])) return;
-        // Pin the entry tick so an in-flight quote cannot buy after the trigger changes.
-        return signalOn(m, 'DIGITUNDER', '5', true, true);
-    }
-    const needsFormation = mode !== 'under5' && mode !== 'under5_plain' && (!s.lockedSymbol || s.countAfter > 0);
-    if (needsFormation && !m.highRun(config.triggerCount, s.countAfter)) return;
-    return signalOn(m, 'DIGITUNDER', barrier, true, needsFormation);
-}
 // Entry directions are derived from live formation readings, not static frequency marks.
 export function cycleDirections(entries: OverUnderEntries): Direction[] {
     return (['DIGITOVER', 'DIGITUNDER'] as const).filter(direction =>
@@ -351,50 +305,66 @@ export function cycleDirections(entries: OverUnderEntries): Direction[] {
     );
 }
 export function cycleSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
-    if (!m.ready(now) || now < state.pauseUntil) return;
-    const locked = state.lockedSymbol;
-    if (locked && m.symbol !== locked) return;
-    if (!(locked && state.streak > 0) && m.received <= state.countAfter) return;
-    const direction = (['DIGITOVER', 'DIGITUNDER'] as const).find(
-        direction =>
-            (!state.lockedDirection || state.lockedDirection === direction) &&
-            ((locked && state.streak > 0) || m.entries.ready(direction, direction === 'DIGITOVER' ? 2 : 7))
-    );
-    return direction
-        ? signalOn(m, direction, direction === 'DIGITOVER' ? '2' : '7', state.streak > 0, !(locked && state.streak > 0))
-        : undefined;
+    if (state.momentumPending ?? (state.streak > 0 || (state.deficit || 0) > 0))
+        return chooseParityRecovery([m], state, now);
+    if (!m.ready(now) || now < state.pauseUntil || m.received <= state.countAfter) return;
+    if (state.lockedSymbol && m.symbol !== state.lockedSymbol) return;
+    const direction = cycleDirections(m.entries).find(d => !state.lockedDirection || state.lockedDirection === d);
+    return direction ? signalOn(m, direction, direction === 'DIGITOVER' ? '2' : '7', false, true) : undefined;
 }
 export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
     const recovering = state.momentumPending ?? (state.streak > 0 || (state.deficit || 0) > 0);
     if (!m.ready(now) || now < state.pauseUntil) return;
-    if (recovering && state.recoveryLocked) {
-        if (m.symbol !== state.lockedSymbol || !['DIGITOVER', 'DIGITUNDER'].includes(state.lockedDirection || ''))
-            return;
-        return signalOn(m, state.lockedDirection!, state.lockedDirection === 'DIGITOVER' ? '3' : '6', true);
-    }
-    const readings = recovering ? m.recoveryMomentum : m.momentum;
+    if (recovering) return chooseParityRecovery([m], state, now);
+    const readings = m.momentum;
     const direction = (['DIGITOVER', 'DIGITUNDER'] as const)
-        .filter(d => !recovering || !state.lockedDirection || state.lockedDirection === d)
         .filter(d => {
             const r = readings[d];
             return (
                 r.armed &&
                 r.run >= 2 &&
-                r.percentage >= (recovering ? 52 : 70) &&
+                r.percentage >= 70 &&
                 r.change > 0 &&
                 m.arrivals.slice(-2).every(at => at > state.countAfter)
             );
         })
         .sort((a, b) => readings[b].percentage - readings[a].percentage)[0];
-    return direction
-        ? signalOn(
-              m,
-              direction,
-              recovering ? (direction === 'DIGITOVER' ? '3' : '6') : direction === 'DIGITOVER' ? '1' : '8',
-              recovering,
-              true
-          )
-        : undefined;
+    return direction ? signalOn(m, direction, direction === 'DIGITOVER' ? '1' : '8', recovering, true) : undefined;
+}
+export function sharedRecoverySettings(settings: Settings): Settings {
+    return {
+        ...settings,
+        recoveryMode: 'parity_percentage',
+        hitRecovery: settings.strategy === 'over2-under7' ? 'analysis' : undefined,
+        triggerCount: 3,
+    };
+}
+export function chooseParityRecovery(markets: DigitMarket[], state: RecoveryState, now: number): Signal | undefined {
+    if (state.recoveryLocked && ['DIGITEVEN', 'DIGITODD'].includes(state.lockedDirection || '')) {
+        const market = markets.find(m => m.symbol === state.lockedSymbol);
+        return market?.ready(now) && now >= state.pauseUntil
+            ? signalOn(market, state.lockedDirection!, undefined, true)
+            : undefined;
+    }
+    const candidates = markets.flatMap(m => {
+        if (!m.ready(now) || now < state.pauseUntil) return [];
+        return (['DIGITEVEN', 'DIGITODD'] as const).flatMap(direction => {
+            const parity = direction === 'DIGITEVEN' ? 0 : 1;
+            if (
+                !parityRecoveryReady(m.parityMomentum[direction]) ||
+                !m.digits.slice(-3).every(d => d % 2 === parity) ||
+                !m.arrivals.slice(-3).every(at => at > state.countAfter)
+            )
+                return [];
+            return [signalOn(m, direction, undefined, true, true)];
+        });
+    });
+    return candidates.sort(
+        (a, b) =>
+            markets.find(m => m.symbol === b.symbol)!.parityMomentum[b.direction as 'DIGITEVEN' | 'DIGITODD']
+                .percentage -
+            markets.find(m => m.symbol === a.symbol)!.parityMomentum[a.direction as 'DIGITEVEN' | 'DIGITODD'].percentage
+    )[0];
 }
 export function chooseSignal(
     markets: DigitMarket[],
@@ -403,6 +373,8 @@ export function chooseSignal(
     now: number,
     random = Math.random
 ): Signal | undefined {
+    if (state.momentumPending ?? (state.streak > 0 || (state.deficit || 0) > 0))
+        return chooseParityRecovery(markets, state, now);
     if (config.strategy === 'momentum-70') {
         return markets
             .map(m => momentumSignal(m, state, now))
@@ -420,38 +392,6 @@ export function chooseSignal(
             )[0];
     }
     if (config.strategy === 'even-odd') {
-        const recovering = state.momentumPending ?? ((state.deficit || 0) > 0 || state.streak > 0);
-        if (recovering) {
-            const locked = state.recoveryLocked && ['DIGITEVEN', 'DIGITODD'].includes(state.lockedDirection || '');
-            if (locked) {
-                const market = markets.find(m => m.symbol === state.lockedSymbol);
-                return market?.ready(now) ? signalOn(market, state.lockedDirection!, undefined, true) : undefined;
-            }
-            const candidates = markets.flatMap(m => {
-                if (!m.ready(now) || now < state.pauseUntil) return [];
-                return (['DIGITEVEN', 'DIGITODD'] as const).flatMap(direction => {
-                    const reading = m.parityMomentum[direction];
-                    const parity = direction === 'DIGITEVEN' ? 0 : 1;
-                    if (
-                        !reading.armed ||
-                        reading.percentage < 52 ||
-                        reading.change <= 0 ||
-                        reading.run < 3 ||
-                        !m.digits.slice(-3).every(digit => digit % 2 === parity) ||
-                        !m.arrivals.slice(-3).every(at => at > state.countAfter)
-                    )
-                        return [];
-                    return [signalOn(m, direction, undefined, true, true)];
-                });
-            });
-            return candidates.sort(
-                (a, b) =>
-                    markets.find(m => m.symbol === b.symbol)!.parityMomentum[b.direction as 'DIGITEVEN' | 'DIGITODD']
-                        .percentage -
-                    markets.find(m => m.symbol === a.symbol)!.parityMomentum[a.direction as 'DIGITEVEN' | 'DIGITODD']
-                        .percentage
-            )[0];
-        }
         const candidates = markets.flatMap(m => {
             if (!m.ready(now)) return [];
             const direction = parityRecoveryDirection(m.frequencies().map(d => d.count));
@@ -465,7 +405,7 @@ export function chooseSignal(
                 !m.arrivals.slice(-3).every(at => at > (state.countAfter || 0))
             )
                 return [];
-            return [signalOn(m, direction, undefined, recovering, true)];
+            return [signalOn(m, direction, undefined, false, true)];
         });
         const share = (s: Signal) =>
             markets
@@ -476,8 +416,6 @@ export function chooseSignal(
         return candidates.sort((a, b) => share(b) - share(a))[0];
     }
     if (config.strategy === 'over2-under7') {
-        if (config.hitRecovery === 'analysis' && state.streak)
-            return chooseSignal(markets, state, { ...config, strategy: undefined }, now, random);
         if (state.lockedSymbol) {
             const selected = markets.find(m => m.symbol === state.lockedSymbol);
             return selected ? cycleSignal(selected, state, now) : undefined;
@@ -490,24 +428,6 @@ export function chooseSignal(
             : undefined;
     }
     const pick = <T>(rows: T[]) => rows[Math.min(rows.length - 1, Math.floor(random() * rows.length))];
-    if (state.streak) {
-        const signals = markets.map(m => recoverySignal(m, state, config, now)).filter((s): s is Signal => !!s);
-        if (!signals.length) return;
-        if (config.recoveryMode === 'parity_percentage') {
-            const share = (signal: Signal) =>
-                markets
-                    .find(m => m.symbol === signal.symbol)!
-                    .frequencies()
-                    .filter(d => d.digit % 2 === (signal.direction === 'DIGITEVEN' ? 0 : 1))
-                    .reduce((total, d) => total + d.count, 0);
-            return signals.sort((a, b) => share(b) - share(a))[0];
-        }
-        if (config.recoveryMode === 'under5' || config.recoveryMode === 'parity') return pick(signals);
-        return signals.sort(
-            (a, b) =>
-                markets.find(m => m.symbol === b.symbol)!.received - markets.find(m => m.symbol === a.symbol)!.received
-        )[0];
-    }
     const groups: Signal[][] = [];
     for (const [direction, value] of OPTIONS) {
         if (direction === state.previous) continue;

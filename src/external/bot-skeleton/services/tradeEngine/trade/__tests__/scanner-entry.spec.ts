@@ -28,11 +28,15 @@ jest.mock('../../utils/helpers', () => ({
 jest.mock('../state/actions', () => ({ purchaseSuccessful: () => ({ type: 'purchase' }) }));
 class Base {
     store = { getState: () => ({ scope: BEFORE_PURCHASE }), dispatch: jest.fn() };
-    tradeOptions = { symbol: 'R_100', amount: 0.35, prediction: 4, currency: 'USD' };
+    tradeOptions = { symbol: 'R_100', amount: 0.35, prediction: 4, currency: 'USD', duration: 1 };
     options = { timeMachineEnabled: false };
     accountInfo = { loginid: 'TEST' };
     updateAndReturnTotalRuns = () => 1;
 }
+beforeEach(() => {
+    jest.spyOn(xmlScannerCycle, 'recoveryPlan').mockReturnValue(undefined);
+    jest.spyOn(xmlScannerCycle, 'lockRecoveryPlan').mockImplementation(() => {});
+});
 afterEach(() => jest.restoreAllMocks());
 it('does not send the XML purchase until the scanner entry gate allows it', async () => {
     let release!: (allow: boolean) => void;
@@ -63,7 +67,7 @@ it('STOP while waiting for entry prevents a wire purchase', async () => {
     expect(api_base.api.send).not.toHaveBeenCalled();
 });
 
-it('overrides only XML Auto recovery with a 1-tick parity order on the selected market and preserves the normal XML settings', async () => {
+it('overrides only XML Auto recovery with a parity order using its selected tick duration on the selected market and preserves the normal XML settings', async () => {
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
     jest.spyOn(xmlScannerCycle, 'isRecovering').mockReturnValue(true);
     jest.spyOn(xmlScannerCycle, 'valid').mockReturnValue(true);
@@ -78,6 +82,7 @@ it('overrides only XML Auto recovery with a 1-tick parity order on the selected 
     });
     const engine = new (Purchase(Base))();
     engine.xmlLastPurchaseStake = 0.35;
+    engine.tradeOptions.duration = 2;
     await engine.purchase('DIGITUNDER');
     expect(api_base.api.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -86,7 +91,7 @@ it('overrides only XML Auto recovery with a 1-tick parity order on the selected 
                 amount: 0.7,
                 basis: 'stake',
                 currency: 'USD',
-                duration: 1,
+                duration: 2,
                 duration_unit: 't',
                 contract_type: 'DIGITEVEN',
                 app_markup_percentage: undefined,
@@ -104,7 +109,8 @@ it('overrides only XML Auto recovery with a 1-tick parity order on the selected 
             key: expect.any(Number),
             valid: expect.any(Function),
             subscribe: expect.any(Function),
-        })
+        }),
+        2
     );
 });
 it('STOP cancels parity selection before any recovery purchase is submitted', async () => {
@@ -131,12 +137,17 @@ it('STOP cancels parity selection before any recovery purchase is submitted', as
     await pending;
     expect(api_base.api.send).not.toHaveBeenCalled();
 });
-it('reselects after every recovery loss and can switch both volatility and parity', async () => {
+it('keeps the purchased recovery market and parity after losses without another analysis', async () => {
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
     jest.spyOn(xmlScannerCycle, 'isRecovering').mockReturnValue(true);
     jest.spyOn(xmlScannerCycle, 'valid').mockReturnValue(true);
     jest.spyOn(xmlScannerCycle, 'recoveryStake').mockImplementation(amount => Number(amount) * 2);
-    const plan = { symbol: '1HZ50V', direction: 'DIGITEVEN', epoch: Date.now() / 1000 };
+    const plan = { symbol: '1HZ50V', direction: 'DIGITEVEN' as const, epoch: Date.now() / 1000 };
+    let locked: typeof plan | undefined;
+    jest.spyOn(xmlScannerCycle, 'recoveryPlan').mockImplementation(() => locked);
+    jest.spyOn(xmlScannerCycle, 'lockRecoveryPlan').mockImplementation(value => {
+        locked = value as typeof plan;
+    });
     (scanXmlParityRecovery as jest.Mock)
         .mockResolvedValueOnce(plan)
         .mockResolvedValue({ ...plan, symbol: 'R_50', direction: 'DIGITODD' });
@@ -151,11 +162,11 @@ it('reselects after every recovery loss and can switch both volatility and parit
     engine.xmlLastPurchaseStake = 0.35;
     await engine.purchase('DIGITUNDER');
     await engine.purchase('DIGITUNDER');
-    expect(scanXmlParityRecovery).toHaveBeenCalledTimes(2);
-    expect(refreshXmlParityRecovery).not.toHaveBeenCalled();
+    expect(scanXmlParityRecovery).toHaveBeenCalledTimes(1);
+    expect(refreshXmlParityRecovery).toHaveBeenCalledTimes(1);
     expect((api_base.api.send as jest.Mock).mock.calls.map(([body]) => body.parameters)).toEqual([
         expect.objectContaining({ symbol: '1HZ50V', contract_type: 'DIGITEVEN', amount: 0.7, duration: 1 }),
-        expect.objectContaining({ symbol: 'R_50', contract_type: 'DIGITODD', amount: 1.4, duration: 1 }),
+        expect.objectContaining({ symbol: '1HZ50V', contract_type: 'DIGITEVEN', amount: 1.4, duration: 1 }),
     ]);
 });
 it('returns to the normal XML trade on a win and freshly scans on a later independent loss', async () => {

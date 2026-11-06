@@ -6,8 +6,7 @@ import './momentum.scss';
 const defaults = (): Settings => ({
     ...DEFAULT_SETTINGS,
     strategy: 'momentum-70',
-    recoveryMode: 'same_contract',
-    hitRecovery: 'same_contract',
+    recoveryMode: 'parity_percentage',
     multiplier: 2.1,
     duration: 2,
 });
@@ -100,7 +99,7 @@ export default function Momentum() {
                     <h2 id='momentum-title'>
                         Momentum <span>70</span>
                     </h2>
-                    <p>Over 1 & Under 8 · Three-win batches · Over 3 / Under 6 recovery</p>
+                    <p>Over 1 & Under 8 · Three-win batches · Even / Odd recovery</p>
                 </div>
                 <span className={`momentum__status${own && state.active ? ' is-live' : ''}`}>
                     {own && state.active ? 'LIVE SESSION' : 'READY WHEN YOU ARE'}
@@ -192,7 +191,9 @@ export default function Momentum() {
                     </div>
                     <div className='momentum__signals'>
                         {(['DIGITOVER', 'DIGITUNDER'] as const).map(direction => {
-                            const reading = (recovering ? focus?.recoveryMomentum : focus?.momentum)?.[direction];
+                            const reading = recovering
+                                ? focus?.parityMomentum?.[direction === 'DIGITOVER' ? 'DIGITEVEN' : 'DIGITODD']
+                                : focus?.momentum?.[direction];
                             const percent = reading?.percentage || 0,
                                 change = reading?.change || 0;
                             return (
@@ -203,10 +204,10 @@ export default function Momentum() {
                                     <span>
                                         {direction === 'DIGITOVER'
                                             ? recovering
-                                                ? 'OVER 3'
+                                                ? 'EVEN'
                                                 : 'OVER 1'
                                             : recovering
-                                              ? 'UNDER 6'
+                                              ? 'ODD'
                                               : 'UNDER 8'}
                                     </span>
                                     <strong>
@@ -216,7 +217,7 @@ export default function Momentum() {
                                     <div
                                         className='momentum__meter'
                                         role='meter'
-                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Over 3' : 'Over 1') : recovering ? 'Under 6' : 'Under 8'} cumulative percentage`}
+                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Even' : 'Over 1') : recovering ? 'Odd' : 'Under 8'} cumulative percentage`}
                                         aria-valuemin={0}
                                         aria-valuemax={100}
                                         aria-valuenow={percent}
@@ -227,7 +228,11 @@ export default function Momentum() {
                                         <span>
                                             {change > 0 ? '↑' : change < 0 ? '↓' : '—'} {Math.abs(change).toFixed(1)} pp
                                         </span>
-                                        <span>{reading?.armed ? `${reading.run}/2 observed` : 'Observing market'}</span>
+                                        <span>
+                                            {reading?.armed
+                                                ? `${reading.run}/${recovering ? 3 : 2} observed`
+                                                : 'Observing market'}
+                                        </span>
                                     </footer>
                                 </article>
                             );
@@ -264,8 +269,8 @@ export default function Momentum() {
                                 <thead>
                                     <tr>
                                         <th>Market</th>
-                                        <th>{recovering ? 'Over 3' : 'Over 1'}</th>
-                                        <th>{recovering ? 'Under 6' : 'Under 8'}</th>
+                                        <th>{recovering ? 'Even' : 'Over 1'}</th>
+                                        <th>{recovering ? 'Odd' : 'Under 8'}</th>
                                         <th>Feed</th>
                                     </tr>
                                 </thead>
@@ -275,14 +280,14 @@ export default function Momentum() {
                                             <td>{m.name}</td>
                                             <td>
                                                 {(
-                                                    (recovering ? m.recoveryMomentum : m.momentum)?.DIGITOVER
+                                                    (recovering ? m.parityMomentum?.DIGITEVEN : m.momentum?.DIGITOVER)
                                                         ?.percentage || 0
                                                 ).toFixed(1)}
                                                 %
                                             </td>
                                             <td>
                                                 {(
-                                                    (recovering ? m.recoveryMomentum : m.momentum)?.DIGITUNDER
+                                                    (recovering ? m.parityMomentum?.DIGITODD : m.momentum?.DIGITUNDER)
                                                         ?.percentage || 0
                                                 ).toFixed(1)}
                                                 %
@@ -321,9 +326,13 @@ export default function Momentum() {
                                             <td>
                                                 {t.market}
                                                 <small>
-                                                    {t.direction === 'DIGITOVER'
-                                                        ? `Over ${t.barrier ?? '1'}`
-                                                        : `Under ${t.barrier ?? '8'}`}
+                                                    {t.direction === 'DIGITEVEN'
+                                                        ? 'Even'
+                                                        : t.direction === 'DIGITODD'
+                                                          ? 'Odd'
+                                                          : t.direction === 'DIGITOVER'
+                                                            ? `Over ${t.barrier ?? '1'}`
+                                                            : `Under ${t.barrier ?? '8'}`}
                                                     {t.recovery ? ' · Recovery' : ''}
                                                 </small>
                                             </td>
