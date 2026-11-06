@@ -529,10 +529,6 @@ export default function Landing() {
                                 'Where are my funds held?',
                                 'Your trading account is with Deriv. NetoAcademy is an independent third-party interface that connects to Deriv to provide its trading tools.',
                             ],
-                            [
-                                'How does NetoAcademy earn commission?',
-                                'NetoAcademy may receive affiliate or application commission from eligible activity. Review the contract price and payout shown on the platform before trading.',
-                            ],
                         ].map(([q, a]) => (
                             <details key={q}>
                                 <summary>
@@ -590,6 +586,7 @@ export default function Landing() {
                     <a href={PLATFORM}>Trading platform</a>
                     <a href='/free-bots'>Trading bots</a>
                     <a href='#about'>About NetoAcademy</a>
+                    <a href='/terms'>Terms &amp; Conditions</a>
                     <a href='#risk-notice'>Risk &amp; responsibility</a>
                     <a href='#questions'>Questions</a>
                     <a href='https://deriv.com' target='_blank' rel='noopener noreferrer'>

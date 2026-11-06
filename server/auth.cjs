@@ -1,4 +1,6 @@
 const { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } = require('node:crypto');
+const terms = require('../config/terms.json');
+const TERMS_COOKIE = 'neto_terms';
 const configuration = require('../config/netoacademy.json');
 
 const AUTH_ORIGIN = 'https://auth.deriv.com';
@@ -232,8 +234,20 @@ function createAuthHandler({
         }
         return saved?.access_token && saved.expires > now() ? saved : null;
     }
+    function termsAccepted(req, saved) {
+        const accepted = readCookie(req, TERMS_COOKIE);
+        return !!accepted && accepted.sid === saved.sid && accepted.version === terms.version;
+    }
+    function requireTerms(req, saved) {
+        if (!termsAccepted(req, saved)) {
+            const error = new HttpError(403, 'Accept NetoAcademy Terms & Conditions before trading.');
+            error.code = 'TermsAcceptanceRequired';
+            throw error;
+        }
+    }
     async function connectionUrl(req, account_id) {
         const saved = session(req);
+        requireTerms(req, saved);
         const accounts = await getAccounts(saved.access_token);
         if (!accounts.some(account => account.account_id === account_id && account.status === 'active')) {
             throw new HttpError(403, 'This trading account is not available in your Deriv session.');
@@ -345,6 +359,7 @@ function createAuthHandler({
                     return json(res, 200, { authenticated: true, returnTo: '/admin' });
                 }
                 setCookie(res, REPORTING_COOKIE, null, 0);
+                setCookie(res, TERMS_COOKIE, null, 0);
                 const sid = randomBytes(24).toString('base64url');
                 const refresh = refreshData(tokens, sid);
                 setCookie(res, REFRESH_COOKIE, null, 0);
@@ -354,7 +369,23 @@ function createAuthHandler({
                     returnTo: flow.admin || flow.returnTo === '/admin' ? '/admin' : '/',
                 });
             }
+            if (url.pathname === '/api/auth/terms' && req.method === 'POST') {
+                const saved = await browserSession(req, res);
+                if (!saved?.access_token) throw new HttpError(401, 'Log in before accepting the terms.');
+                const body = await readBody(req);
+                if (body.accepted !== true || body.version !== terms.version)
+                    throw new HttpError(400, 'Read and accept the current terms before continuing.');
+                const expires = readCookie(req, REFRESH_COOKIE)?.expires || saved.expires;
+                setCookie(
+                    res,
+                    TERMS_COOKIE,
+                    { sid: saved.sid, version: terms.version, acceptedAt: now(), expires },
+                    Math.max(1, Math.ceil((expires - now()) / 1000))
+                );
+                return json(res, 200, { termsAccepted: true, termsVersion: terms.version });
+            }
             if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+                setCookie(res, TERMS_COOKIE, null, 0);
                 setCookie(res, REPORTING_COOKIE, null, 0);
                 const value = readCookie(req, SESSION_COOKIE) || readCookie(req, REFRESH_COOKIE);
                 if (value?.sid) renewed.set(value.sid, { revoked: true, until: now() + REFRESH_SECONDS * 1000 });
@@ -372,6 +403,8 @@ function createAuthHandler({
                     .map(account => account.account_id);
                 return json(res, 200, {
                     authenticated: true,
+                    termsAccepted: termsAccepted(req, saved),
+                    termsVersion: terms.version,
                     accounts,
                     isAdmin: adminAccounts.length > 0,
                     adminAccounts,
@@ -406,8 +439,10 @@ function createAuthHandler({
         }
         return cached.accounts;
     };
+    handle.requireTerms = req => requireTerms(req, session(req));
     handle.authorizeAccount = async (req, accountId) => {
-        const accounts = await cachedAccounts(session(req));
+        const saved = session(req);
+        const accounts = await cachedAccounts(saved);
         const account = accounts.find(item => item.account_id === accountId && item.status === 'active');
         if (!account) throw new HttpError(403, 'This trading account is not available in your Deriv session.');
         return account;

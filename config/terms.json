@@ -1,0 +1,47 @@
+{
+    "version": "2026-11-06",
+    "title": "NetoAcademy Terms & Conditions",
+    "sections": [
+        {
+            "title": "1. Eligibility and agreement",
+            "text": "You must be at least 18 and legally permitted to use these services in your country. You must have an eligible Deriv account to trade. By accepting, you agree to these NetoAcademy terms for your use of the platform. Do not use the trading workspace if you do not agree."
+        },
+        {
+            "title": "2. Independent third-party platform",
+            "text": "NetoAcademy provides tools for market analysis, visual bot building and automated trading connected to Deriv. It is an independent third-party platform, not Deriv, a broker, an investment adviser or a custodian of your funds. Deriv operates your trading account and executes contracts under its own applicable agreements."
+        },
+        {
+            "title": "3. Trading risk and responsibility",
+            "text": "Trading can result in the loss of all funds you allocate to it. Automated strategies, historical percentages, indicators and past results do not guarantee future performance or profits. You are responsible for your decisions, stake, contract duration, risk limits and account activity. Use a demo account to understand a tool before using real funds, and only trade money you can afford to lose."
+        },
+        {
+            "title": "4. Automation and risk controls",
+            "text": "Starting a bot or strategy authorizes it to submit trades using your selected account and settings until stopped or a configured limit is reached. Recovery and martingale strategies can increase stakes and losses rapidly; a recovery win may not repay earlier losses. Risk controls reduce some risks but cannot guarantee a maximum loss, uninterrupted operation or timely execution. Stopping a bot prevents new entries where possible; an already submitted or open contract may still settle."
+        },
+        {
+            "title": "5. Account security and acceptable use",
+            "text": "Connect only accounts you own or are authorized to operate. Keep your Deriv credentials secure, use the official Deriv authorization flow and review your connected applications. Do not share unauthorized access, attempt to bypass platform protections, interfere with other users, exploit the service or use it unlawfully. You are responsible for the bots and files you upload and for having the rights to use them."
+        },
+        {
+            "title": "6. Availability and third-party services",
+            "text": "NetoAcademy depends on internet connectivity, hosting and Deriv services. Data may be delayed, connections may fail and services may be interrupted or changed. Check open contracts in Deriv if a connection fails. Contract availability, account restrictions, balances, prices, payouts, withdrawals and settlements remain subject to Deriv's rules and your account eligibility."
+        },
+        {
+            "title": "7. Platform content and intellectual property",
+            "text": "NetoAcademy branding, platform content and hosted bots remain the property of their respective owners. Access does not transfer ownership or grant permission to redistribute protected material. You retain your rights in your own uploaded content. Deriv's trademarks and other third-party materials belong to their respective owners."
+        },
+        {
+            "title": "8. Data and session handling",
+            "text": "The platform processes account information, trading activity, usage data and technical connection information needed to operate its tools and analytics. Deriv authorization credentials are handled by the server; NetoAcademy does not ask you to enter your Deriv password into its own forms. Acceptance of these terms is recorded for the current login session. Logging out ends that acceptance and a new login requires acceptance again."
+        },
+        {
+            "title": "9. Limits of liability",
+            "text": "To the fullest extent permitted by applicable law, NetoAcademy is not liable for trading losses or financial losses arising from your decisions, uploaded bots, use of automated strategies, delayed data, interruptions or third-party services. Tools are provided without a guarantee of profitability, suitability or uninterrupted availability. Nothing in these terms excludes or limits liability, consumer rights or other protections that cannot lawfully be excluded or limited."
+        },
+        {
+            "title": "10. Deriv terms and changes",
+            "text": "Your use of Deriv remains subject to the terms, risk disclosures and policies applicable to your Deriv account and jurisdiction. These NetoAcademy terms do not replace them. Review the current Deriv terms using the link below. NetoAcademy may update its terms; an updated version may require fresh acceptance before workspace access. You can stop using the platform and log out if you no longer agree."
+        }
+    ],
+    "derivTermsUrl": "https://deriv.com/terms-and-conditions"
+}

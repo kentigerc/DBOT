@@ -219,6 +219,7 @@ function createAnalysisService(
                     const imported = entry(account);
                     return json(200, { ...imported.engine.getSnapshot(), serverExecution: true, demoOnly: false });
                 } else if (body.action === 'start') {
+                    auth.requireTerms?.(req);
                     if (value.engine.getSnapshot().active)
                         throw fail(409, 'This account already has an Analysis Tool running.');
                     if ((builderBuys.get(id)?.size || 0) > 0)

@@ -1,4 +1,5 @@
 import { lazy } from 'react';
+import TermsGate from '@/components/terms-gate';
 import RoutePromptDialog from '@/components/route-prompt-dialog';
 import { StoreProvider } from '@/hooks/useStore';
 import { initializeI18n, TranslationProvider } from '@deriv-com/translations';
@@ -11,13 +12,15 @@ const i18nInstance = initializeI18n({
 
 export default function TradingLayout() {
     return (
-        <TranslationProvider defaultLang='EN' i18nInstance={i18nInstance}>
-            <StoreProvider>
-                <RoutePromptDialog />
-                <CoreStoreProvider>
-                    <Layout />
-                </CoreStoreProvider>
-            </StoreProvider>
-        </TranslationProvider>
+        <TermsGate>
+            <TranslationProvider defaultLang='EN' i18nInstance={i18nInstance}>
+                <StoreProvider>
+                    <RoutePromptDialog />
+                    <CoreStoreProvider>
+                        <Layout />
+                    </CoreStoreProvider>
+                </StoreProvider>
+            </TranslationProvider>
+        </TermsGate>
     );
 }

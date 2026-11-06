@@ -100,11 +100,12 @@ function attachSockets(
                             let body;
                             try {
                                 body = JSON.parse(data.toString());
+                                if (account && body.buy) auth.requireTerms?.(req);
                                 if (account) analysis?.beforeBuilder(account, body, clientKey);
                             } catch (error) {
                                 client.send(
                                     JSON.stringify({
-                                        error: { code: 'AnalysisToolRunning', message: error.message },
+                                        error: { code: error.code || 'AnalysisToolRunning', message: error.message },
                                         req_id: body?.req_id,
                                         echo_req: body,
                                     })

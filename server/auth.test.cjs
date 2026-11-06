@@ -59,10 +59,12 @@ async function fixture(t, options = {}) {
         const auth = new URL(response.headers.get('location'));
         return { auth, state: auth.searchParams.get('state') };
     }
-    async function authenticated() {
+    async function authenticated(acceptTerms = true) {
         const { auth, state } = await login();
         const response = await request('/api/auth/callback', { code: 'test-code', state });
         assert.equal(response.status, 200);
+        if (acceptTerms)
+            await request('/api/auth/terms', { accepted: true, version: require('../config/terms.json').version });
         return auth;
     }
     return { request, login, authenticated, cookies, calls, handler };
@@ -250,6 +252,7 @@ test('renews near expiry, rotates credentials privately and updates existing req
     const result = await response.json();
     assert.equal(result.authenticated, true);
     assert.equal(result.expiresAt, clock + 3600000);
+    assert.equal(result.termsAccepted, true);
     assert.equal(sequence, 1);
     assert.ok(!JSON.stringify(result).includes('private'));
     for (const header of response.headers.getSetCookie()) {
@@ -450,4 +453,31 @@ test('developer reporting credentials remain separate from the active trading se
     await app.request('/api/session');
     await app.request('/api/auth/logout', {});
     assert.equal(app.cookies.get('neto_reporting'), '');
+});
+
+test('terms acceptance belongs to this login, survives refresh and is cleared by logout/relogin', async t => {
+    const app = await fixture(t);
+    const version = require('../config/terms.json').version;
+    await app.authenticated(false);
+    assert.equal((await (await app.request('/api/session')).json()).termsAccepted, false);
+    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 403);
+    assert.equal((await app.request('/api/auth/terms', { accepted: false, version })).status, 400);
+    assert.equal((await app.request('/api/auth/terms', { accepted: true, version: 'old' })).status, 400);
+    assert.equal((await app.request('/api/auth/terms', { accepted: true, version })).status, 200);
+    assert.equal((await (await app.request('/api/session')).json()).termsAccepted, true);
+    const oldAcceptance = app.cookies.get('neto_terms');
+    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 200);
+    await app.request('/api/auth/logout', {});
+    assert.equal(app.cookies.get('neto_terms'), '');
+    await app.authenticated(false);
+    app.cookies.set('neto_terms', oldAcceptance);
+    assert.equal((await (await app.request('/api/session')).json()).termsAccepted, false);
+    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 403);
+});
+test('terms cannot be accepted by guests or from a foreign origin', async t => {
+    const app = await fixture(t);
+    const body = { accepted: true, version: require('../config/terms.json').version };
+    assert.equal((await app.request('/api/auth/terms', body)).status, 401);
+    await app.authenticated(false);
+    assert.equal((await app.request('/api/auth/terms', body, { origin: 'https://foreign.invalid' })).status, 403);
 });

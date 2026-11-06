@@ -8,6 +8,8 @@ export type DerivAccount = {
 export type DerivSession = {
     authenticated: boolean;
     accounts: DerivAccount[];
+    termsAccepted?: boolean;
+    termsVersion?: string;
     isAdmin?: boolean;
     adminAccounts?: string[];
 };

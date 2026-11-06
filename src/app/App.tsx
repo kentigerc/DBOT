@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from 'react-router-dom';
 import { useOfflineDetection } from '@/hooks/useOfflineDetection';
 import './app-root.scss';
+const TermsPage = lazy(() => import('../pages/terms'));
 const Landing = lazy(() => import('../pages/landing'));
 const TradingLayout = lazy(() => import('./TradingLayout'));
 const AppRoot = lazy(() => import('./app-root'));
@@ -28,6 +29,14 @@ const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => {
 const router = createBrowserRouter(
     createRoutesFromElements(
         <>
+            <Route
+                path='/terms'
+                element={
+                    <SuspenseWrapper>
+                        <TermsPage />
+                    </SuspenseWrapper>
+                }
+            />
             <Route
                 path='/'
                 element={

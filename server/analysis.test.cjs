@@ -36,6 +36,9 @@ async function fixture(t, options = {}) {
     const storage = { getItem: key => saved.get(key) || null, setItem: (key, value) => saved.set(key, value) };
     const auth = {
         publicOrigin: 'http://localhost',
+        requireTerms: () => {
+            if (options.termsDenied) throw Object.assign(new Error('Accept terms first'), { status: 403 });
+        },
         sessionExpires: () => Date.now() + 60000,
         authorizeAccount: async (req, id) => {
             if (!['device=phone', 'device=laptop'].includes(req.headers.cookie))
@@ -372,3 +375,12 @@ for (const real of [false, true]) {
         assert.ok(calls.every(body => body.portfolio || body.balance));
     });
 }
+
+test('terms gate blocks new starts but never blocks session status or STOP', async t => {
+    const { request } = await fixture(t, { termsDenied: true });
+    const before = ControlledEngine.starts;
+    assert.equal((await request('phone', { action: 'start', settings: DEFAULT_SETTINGS })).status, 403);
+    assert.equal(ControlledEngine.starts, before);
+    assert.equal((await request('phone')).status, 200);
+    assert.equal((await request('phone', { action: 'stop' })).status, 200);
+});
