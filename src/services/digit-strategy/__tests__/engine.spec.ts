@@ -689,7 +689,7 @@ it.each([
         const send = broker.send;
         broker.send = jest.fn(async body => {
             if (body.ticks_history) {
-                const digits = [...Array<number>(400).fill(loser), ...Array<number>(600).fill(winner)];
+                const digits = [...Array<number>(460).fill(loser), ...Array<number>(540).fill(winner)];
                 return {
                     pip_size: 2,
                     history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },

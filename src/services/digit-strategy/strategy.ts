@@ -195,7 +195,7 @@ export class DigitMarket {
             const reading = this.parityMomentum[direction];
             let armed = reading.armed,
                 run = reading.run;
-            if (!received || !this.ready(received) || count < 600 || change < 0) {
+            if (!received || !this.ready(received) || count < 520 || change < 0) {
                 armed = false;
                 run = 0;
             } else {
@@ -437,7 +437,7 @@ export function chooseSignal(
                     const parity = direction === 'DIGITEVEN' ? 0 : 1;
                     if (
                         !reading.armed ||
-                        reading.percentage < 60 ||
+                        reading.percentage < 52 ||
                         reading.change <= 0 ||
                         reading.run < 3 ||
                         !m.digits.slice(-3).every(digit => digit % 2 === parity) ||

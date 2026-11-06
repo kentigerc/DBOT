@@ -236,7 +236,7 @@ describe('standalone Even/Odd strategy', () => {
     });
 });
 
-describe('Even/Odd recovery requires a rising 60% share and three matching digits', () => {
+describe('Even/Odd recovery requires a rising 52% share and three matching digits', () => {
     const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'even-odd' };
     const state = { streak: 1, deficit: 35, countAfter: 9999, pauseUntil: 0, momentumPending: true };
     const ready = (symbol: string, direction: 'DIGITEVEN' | 'DIGITODD', percentage: number) => {
@@ -247,7 +247,7 @@ describe('Even/Odd recovery requires a rising 60% share and three matching digit
         return m;
     };
     it('compares both sides across markets and picks the highest qualifying share', () => {
-        const even = ready('R_10', 'DIGITEVEN', 60);
+        const even = ready('R_10', 'DIGITEVEN', 52);
         const odd = ready('1HZ50V', 'DIGITODD', 64);
         expect(chooseSignal([even, odd], state, settings, 10000)).toMatchObject({
             symbol: odd.symbol,
@@ -264,12 +264,12 @@ describe('Even/Odd recovery requires a rising 60% share and three matching digit
         expect(chooseSignal([even], state, settings, 10000)?.barrier).toBeUndefined();
     });
     it.each(['DIGITEVEN', 'DIGITODD'] as const)(
-        'requires 60%%, increasing momentum and three fresh matching digits for %s',
+        'requires 52%%, increasing momentum and three fresh matching digits for %s',
         direction => {
-            const m = ready('R_10', direction, 60);
+            const m = ready('R_10', direction, 52);
             expect(chooseSignal([m], state, settings, 10000)?.direction).toBe(direction);
             for (const change of [
-                { percentage: 59.9 },
+                { percentage: 51.9 },
                 { change: 0 },
                 { change: -0.1 },
                 { run: 2 },
@@ -287,7 +287,7 @@ describe('Even/Odd recovery requires a rising 60% share and three matching digit
         }
     );
     it('keeps the purchased market and parity through drift without a second formation', () => {
-        const locked = ready('R_10', 'DIGITEVEN', 60);
+        const locked = ready('R_10', 'DIGITEVEN', 52);
         const stronger = ready('1HZ50V', 'DIGITODD', 90);
         locked.resetMomentum();
         locked.parityMomentum.DIGITEVEN.percentage = 20;
