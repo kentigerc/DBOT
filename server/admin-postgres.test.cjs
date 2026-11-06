@@ -24,7 +24,14 @@ test(
             );
             await store.put({ ...event, id: id + '-old', at: Date.parse('2020-01-01') });
             await store.prune();
-            assert.equal((await store.list(Date.parse('2019-01-01'), Date.parse('2021-01-01'))).length, 0);
+            // Other tests deliberately preserve old account-link/switch markers.
+            // Assert pruning of this visit, not absence of unrelated history.
+            assert.equal(
+                (await store.list(Date.parse('2019-01-01'), Date.parse('2021-01-01'))).some(
+                    row => row.id === id + '-old'
+                ),
+                false
+            );
         } finally {
             await store.close();
         }

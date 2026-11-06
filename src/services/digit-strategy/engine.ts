@@ -160,7 +160,7 @@ export class DigitStrategyEngine {
             builderRunning?: () => boolean;
             now?: () => number;
             random?: () => number;
-            storage?: Storage;
+            storage?: Storage & { flush?: (key: string) => Promise<void> };
             lockChanged?: (locked: boolean) => void;
         } = {}
     ) {}
@@ -193,6 +193,12 @@ export class DigitStrategyEngine {
     private persist() {
         const saved = { ...this.state, markets: undefined };
         this.storage().setItem(this.key(), JSON.stringify({ ...saved, version: 1, owner: this.owner }));
+    }
+    private async checkpoint() {
+        // Browser/file Storage commits synchronously. Server database Storage
+        // must acknowledge the journal commit before any purchase is sent.
+        const storage = this.storage() as Storage & { flush?: (key: string) => Promise<void> };
+        await storage.flush?.(this.key());
     }
     selectAccount(account?: DerivAccount) {
         if (this.state.active || this.state.pending || this.state.accountId === account?.account_id) return;
@@ -287,6 +293,8 @@ export class DigitStrategyEngine {
         this.deps.lockChanged?.(true);
         try {
             this.persist();
+            await this.checkpoint();
+            if (generation !== this.generation || !this.state.active || (!this.state.wantsRun && !reconcileId)) return;
             if (!this.deps.createApi) throw new Error('Trading connection is unavailable.');
             const api: Broker = await this.deps.createApi();
             this.api = api;
@@ -623,11 +631,19 @@ export class DigitStrategyEngine {
             });
             try {
                 this.persist();
+                await this.checkpoint();
             } catch {
                 this.update({ pending: undefined });
                 this.halt('Unable to save purchase intent. No order was sent.');
                 return;
             } // Record the intent before sending money; never retry an uncertain buy.
+            if (!this.state.wantsRun || !this.state.active || !this.current(signal)) {
+                this.update({ pending: undefined });
+                this.persist();
+                await this.checkpoint();
+                this.log('Entry cancelled while saving purchase intent. No order was sent.');
+                return;
+            }
             this.log(
                 `${signal.recovery ? 'RECOVERY' : 'ENTRY'} ${signal.symbol} ${signal.direction} ${signal.barrier ?? ''} · $${(this.state.stake / 100).toFixed(2)}`
             );
@@ -837,6 +853,13 @@ export class DigitStrategyEngine {
         });
         this.log(reason);
         if (!this.state.pending && !this.busy) this.finish(reason);
+        else {
+            try {
+                this.persist();
+            } catch {
+                this.update({ error: 'Unable to save stop request. No new entries will be sent.' });
+            }
+        }
     }
     private halt(message: string) {
         this.update({ error: message, wantsRun: false });

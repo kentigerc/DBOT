@@ -5,7 +5,7 @@ const Client = require('ws');
 const { attachSockets } = require('./socket.cjs');
 const { createSecurity } = require('./security.cjs');
 
-async function fixture(t, expired = false, limits = {}) {
+async function fixture(t, expired = false, limits = {}, analysis) {
     const targets = [],
         upstreams = [],
         connections = [],
@@ -43,6 +43,7 @@ async function fixture(t, expired = false, limits = {}) {
         },
         undefined,
         {
+            analysis,
             createUpstream: url => new Upstream(url),
             security: createSecurity({ origin: 'http://neto.example', audit: () => {}, ...limits }),
             onConnection: (...args) => connections.push(args),
@@ -220,4 +221,34 @@ test('ambiguous account parameters cannot complete a socket upgrade', async t =>
         /400/
     );
     assert.equal(targets.length, 0);
+});
+
+test('Builder purchases wait for the account journal and cannot bypass a storage failure', async t => {
+    let fail = true;
+    let prepared = 0;
+    const { connect } = await fixture(
+        t,
+        false,
+        {},
+        {
+            prepareBuilder: async id => {
+                assert.equal(id, 'DOT100');
+                prepared++;
+                if (fail) throw new Error('Trading state storage is unavailable.');
+            },
+            beforeBuilder() {},
+        }
+    );
+    const client = connect('?account_id=DOT100', 'http://neto.example', 'session=owned');
+    await opened(client);
+    const receive = () => new Promise(resolve => client.once('message', raw => resolve(JSON.parse(raw))));
+    let result = receive();
+    client.send(JSON.stringify({ buy: 1, price: 0.35, req_id: 123 }));
+    assert.match((await result).error.message, /storage is unavailable/);
+    fail = false;
+    result = receive();
+    client.send(JSON.stringify({ buy: 1, price: 0.35, req_id: 124 }));
+    assert.equal((await result).req_id, 124);
+    assert.equal(prepared, 2);
+    client.close();
 });

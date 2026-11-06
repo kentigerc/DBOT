@@ -5,9 +5,9 @@ const { createHash } = require('node:crypto');
 const { DigitStrategyEngine, empty } = require('../.server-build/engine');
 const { DEFAULT_SETTINGS, validateSettings, cents } = require('../.server-build/strategy');
 const { createBroker } = require('./strategy-broker.cjs');
+const { createTradingStateStorage } = require('./trading-state.cjs');
 
 function fileStorage(directory) {
-    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     const filename = key => path.join(directory, createHash('sha256').update(key).digest('hex') + '.json');
     return {
         getItem(key) {
@@ -19,6 +19,7 @@ function fileStorage(directory) {
             }
         },
         setItem(key, value) {
+            fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
             const target = filename(key),
                 temporary = target + '.tmp';
             const fd = fs.openSync(temporary, 'w', 0o600);
@@ -43,30 +44,51 @@ function createAnalysisService(
     {
         dispatcher,
         onTrade = () => {},
-        storage = fileStorage(process.env.NETO_ANALYSIS_STATE_DIR || path.join(__dirname, '../.analysis-state')),
+        storage = createTradingStateStorage({
+            legacyStorage: fileStorage(
+                process.env.NETO_ANALYSIS_STATE_DIR || path.join(__dirname, '../.analysis-state')
+            ),
+        }),
         brokerFactory = url => createBroker(url, dispatcher),
         Engine = DigitStrategyEngine,
     } = {}
 ) {
     const sessions = new Map();
     const builderBuys = new Map();
+    let closing = false;
+    const key = id => `neto.digit-strategy.v1.${id}`;
+    const prepareAccount = async id => {
+        await storage.load?.(key(id));
+    };
     const busy = id => {
         const session = sessions.get(id);
         if (!session) {
             const saved = storage.getItem(`neto.digit-strategy.v1.${id}`);
-            if (saved && JSON.parse(saved).pending) return true;
+            if (saved) {
+                const state = JSON.parse(saved);
+                if (state.pending || (storage.mode === 'postgres' && state.liveUntil > Date.now())) return true;
+            }
         }
-        return !!(session?.starting || session?.engine.getSnapshot().active || session?.engine.getSnapshot().pending);
+        const state = session?.engine.getSnapshot();
+        return !!(
+            session?.starting ||
+            state?.active ||
+            state?.pending ||
+            (storage.mode === 'postgres' && state?.liveUntil > Date.now())
+        );
     };
     const entry = account => {
         let value = sessions.get(account.account_id);
         if (!value) {
             value = { account, starting: false, request: undefined };
             const brokerForRun = async () => {
-                const broker = await brokerFactory(await auth.connectionUrl(value.request, account.account_id));
+                // The runner outlives the HTTP start command; keep its verified
+                // request for later revocation checks after startup completes.
+                const request = value.request;
+                const broker = await brokerFactory(await auth.connectionUrl(request, account.account_id));
                 const send = broker.send.bind(broker);
                 broker.send = async body => {
-                    if (body.buy) await auth.verifySession?.(value.request);
+                    if (body.buy) await auth.verifySession?.(request);
                     return send(body);
                 };
                 const reporting = broker.onMessage?.().subscribe(({ data }) => {
@@ -94,9 +116,11 @@ function createAnalysisService(
                 createApi: brokerForRun,
             });
             value.engine.selectAccount(account);
-            // A restart never continues entries automatically. Clear an expired process lease.
+            // A restart never continues entries automatically.
             const state = value.engine.getSnapshot();
-            if (state.liveUntil || state.owner) {
+            // Database runs retain an unexpired prior-process lease. A manual
+            // restart can proceed once it expires; no run resumes itself.
+            if (storage.mode !== 'postgres' && (state.liveUntil || state.owner)) {
                 const key = `neto.digit-strategy.v1.${account.account_id}`;
                 const saved = JSON.parse(storage.getItem(key));
                 storage.setItem(key, JSON.stringify({ ...saved, liveUntil: 0, owner: '' }));
@@ -126,6 +150,7 @@ function createAnalysisService(
             const id = url.searchParams.get('account_id');
             if (!id || id.length > 128) throw fail(400, 'Select a trading account.');
             const account = await auth.authorizeAccount(req, id);
+            await prepareAccount(id);
             const value = entry(account);
             if (req.method === 'POST') {
                 if (!req.headers['content-type']?.startsWith('application/json')) throw fail(415, 'JSON required.');
@@ -140,6 +165,8 @@ function createAnalysisService(
                 } catch {
                     throw fail(400, 'Invalid JSON.');
                 }
+                if (!body || typeof body !== 'object' || Array.isArray(body)) throw fail(400, 'Invalid command.');
+                if (closing && body.action !== 'stop') throw fail(503, 'The server is shutting down.');
                 if (value.starting && body.action !== 'stop')
                     throw fail(409, 'This account is already processing a trading command.');
                 if (body.action === 'import-browser') {
@@ -222,6 +249,7 @@ function createAnalysisService(
                     storage.setItem(`neto.digit-strategy.v1.${id}`, JSON.stringify(restored));
                     sessions.delete(id);
                     const imported = entry(account);
+                    await storage.flush?.(key(id));
                     return json(200, { ...imported.engine.getSnapshot(), serverExecution: true, demoOnly: false });
                 } else if (body.action === 'start') {
                     auth.requireTerms?.(req);
@@ -245,6 +273,10 @@ function createAnalysisService(
                     value.task = (async () => {
                         let check;
                         try {
+                            // A prior journal failure cannot be bypassed by
+                            // starting another tool in this process.
+                            await storage.flush?.(key(id));
+                            if (value.cancelled) throw new Error('Start cancelled.');
                             if (!value.engine.getSnapshot().pending) {
                                 check = await brokerFactory(await auth.connectionUrl(req, id));
                                 const result = await Promise.race([
@@ -282,6 +314,7 @@ function createAnalysisService(
                     value.engine.reset();
                     value.commandError = '';
                 } else throw fail(400, 'Unknown trading command.');
+                await storage.flush?.(key(id));
             }
             return json(200, {
                 ...value.engine.getSnapshot(),
@@ -299,8 +332,14 @@ function createAnalysisService(
     return {
         handle,
         busy,
+        prepareAccount,
+        async prepareBuilder(id) {
+            await prepareAccount(id);
+            await storage.flush?.(key(id));
+        },
         beforeBuilder(id, body, clientKey = 'default') {
             if (!body.buy) return;
+            if (closing) throw new Error('The server is shutting down. No new purchases are allowed.');
             if (busy(id)) throw new Error('Stop and settle the server Analysis Tool before buying from Bot Builder.');
             if (!builderBuys.has(id)) builderBuys.set(id, new Set());
             builderBuys.get(id).add(`request:${clientKey}:${body.req_id}`);
@@ -316,12 +355,21 @@ function createAnalysisService(
             if (!tracked.size) builderBuys.delete(id);
         },
         stopAll() {
+            closing = true;
             for (const value of sessions.values()) {
                 value.cancelled = true;
                 value.expiry?.();
                 value.engine.stop('Server shutting down; no new entries.');
             }
         },
+        async close() {
+            this.stopAll();
+            // Start commands may be suspended at the portfolio or journal
+            // checkpoint. Cancellation is checked again before any purchase.
+            await Promise.allSettled([...sessions.values()].map(value => value.task));
+            await storage.close?.();
+        },
+        storageMode: storage.mode || 'custom',
         sessions,
     };
 }

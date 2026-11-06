@@ -68,6 +68,7 @@ analysis = createAnalysisService(handleAuth, {
             packet
         ),
 });
+console.log(`Server trading journal: ${analysis.storageMode}.`);
 const { createBotLoader } = require('./bots.cjs');
 const loadBot = createBotLoader(handleAuth);
 const root = path.resolve(__dirname, '../dist');
@@ -95,10 +96,11 @@ attachSockets(server, handleAuth, dispatcher, {
     onConnection: (account, key, open) => admin.connection(account, key, open),
     onTrade: (account, value) => admin.trade(account, 'bot_builder', value),
 });
-process.on('SIGTERM', () => {
+process.once('SIGTERM', () => {
+    // Stop accepting commands immediately, then drain journal commits before
+    // exiting. A pending trade stays recorded for explicit reconciliation.
     analysis.stopAll();
-    void admin.close().catch(() => {});
-    void revocations.close().catch(() => {});
+    void Promise.allSettled([analysis.close(), admin.close(), revocations.close()]);
     server.close();
     setTimeout(() => process.exit(0), 10000).unref();
 });

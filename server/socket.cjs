@@ -130,6 +130,7 @@ function attachSockets(
                             try {
                                 body = JSON.parse(data.toString());
                                 validateSocketMessage(body, account);
+                                if (account && body.buy) await analysis?.prepareBuilder?.(account);
                                 if (account) await auth.verifySession?.(req);
                                 if (account && body.buy) auth.requireTerms?.(req);
                                 if (client.readyState !== 1 || upstream.readyState !== 1) return;

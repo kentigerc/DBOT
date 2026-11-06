@@ -114,7 +114,8 @@ const account = {
 async function setup(
     options: Partial<typeof DEFAULT_SETTINGS> = {},
     broker = new FakeBroker(),
-    Engine = DigitStrategyEngine
+    Engine = DigitStrategyEngine,
+    storage: Storage & { flush?: (key: string) => Promise<void> } = localStorage
 ) {
     const engine = new Engine({
         createApi: async () => broker,
@@ -122,7 +123,7 @@ async function setup(
         builderRunning: () => false,
         now: () => Date.now(),
         random: () => 0,
-        storage: localStorage,
+        storage,
     });
     const settings = { ...DEFAULT_SETTINGS, recoveryMode: 'under5_run' as const, takeProfit: 0, ...options };
     const starting = engine.start(settings);
@@ -742,3 +743,91 @@ it.each([
         engine.stop();
     }
 );
+
+function checkpointStorage(flush: (key: string) => Promise<void>): Storage & { flush: typeof flush } {
+    return {
+        getItem: key => localStorage.getItem(key),
+        setItem: (key, value) => localStorage.setItem(key, value),
+        removeItem: key => localStorage.removeItem(key),
+        clear: () => localStorage.clear(),
+        key: index => localStorage.key(index),
+        get length() {
+            return localStorage.length;
+        },
+        flush,
+    };
+}
+describe('durable purchase checkpoints', () => {
+    it('does not send a purchase until its saved intent is acknowledged', async () => {
+        let release!: () => void;
+        let held = false;
+        const storage = checkpointStorage(key => {
+            const pending = JSON.parse(localStorage.getItem(key) || '{}').pending;
+            if (pending && !held) {
+                held = true;
+                return new Promise(resolve => {
+                    release = resolve;
+                });
+            }
+            return Promise.resolve();
+        });
+        const { engine, broker } = await setup({}, new FakeBroker(), DigitStrategyEngine, storage);
+        expect(engine.getSnapshot().pending?.nonce).toBeTruthy();
+        expect(broker.buys).toHaveLength(0);
+        release();
+        await jest.advanceTimersByTimeAsync(1);
+        expect(broker.buys).toHaveLength(1);
+        engine.stop();
+    });
+    it('halts without sending or retrying a buy when the durable intent cannot be committed', async () => {
+        const storage = checkpointStorage(async key => {
+            if (JSON.parse(localStorage.getItem(key) || '{}').pending) throw new Error('Database unavailable');
+        });
+        const { engine, broker } = await setup({}, new FakeBroker(), DigitStrategyEngine, storage);
+        expect(broker.buys).toHaveLength(0);
+        expect(engine.getSnapshot().active).toBe(false);
+        expect(engine.getSnapshot().phase).toMatch(/save purchase intent.*No order was sent/);
+        await jest.advanceTimersByTimeAsync(20000);
+        expect(broker.buys).toHaveLength(0);
+    });
+    it('honors STOP while the purchase checkpoint is in flight', async () => {
+        let release!: () => void;
+        let held = false;
+        const storage = checkpointStorage(key => {
+            if (JSON.parse(localStorage.getItem(key) || '{}').pending && !held) {
+                held = true;
+                return new Promise(resolve => {
+                    release = resolve;
+                });
+            }
+            return Promise.resolve();
+        });
+        const { engine, broker } = await setup({}, new FakeBroker(), DigitStrategyEngine, storage);
+        engine.stop();
+        release();
+        await jest.advanceTimersByTimeAsync(1);
+        expect(broker.buys).toHaveLength(0);
+        expect(engine.getSnapshot()).toMatchObject({ active: false, pending: undefined, wantsRun: false });
+        expect(JSON.parse(localStorage.getItem('neto.digit-strategy.v1.DEMO-TEST')!).pending).toBeUndefined();
+    });
+    it('rechecks the live signal after a delayed database commit', async () => {
+        let release!: () => void;
+        let held = false;
+        const storage = checkpointStorage(key => {
+            if (JSON.parse(localStorage.getItem(key) || '{}').pending && !held) {
+                held = true;
+                return new Promise(resolve => {
+                    release = resolve;
+                });
+            }
+            return Promise.resolve();
+        });
+        const { engine, broker } = await setup({}, new FakeBroker(), DigitStrategyEngine, storage);
+        broker.emit({ tick: { symbol: 'R_100', quote: 100, epoch: broker.lastEpoch + 1, pip_size: 2 } });
+        release();
+        await jest.advanceTimersByTimeAsync(1);
+        expect(broker.buys).toHaveLength(0);
+        expect(engine.getSnapshot().pending).toBeUndefined();
+        engine.stop();
+    });
+});

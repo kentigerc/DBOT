@@ -47,6 +47,7 @@ async function fixture(t, options = {}) {
             return { account_id: id, currency: 'USD', account_type: options.real ? 'real' : 'demo', status: 'active' };
         },
         connectionUrl: async () => 'wss://example.invalid/private',
+        ...options.auth,
     };
     const service = createAnalysisService(auth, {
         storage,
@@ -383,4 +384,64 @@ test('terms gate blocks new starts but never blocks session status or STOP', asy
     assert.equal(ControlledEngine.starts, before);
     assert.equal((await request('phone')).status, 200);
     assert.equal((await request('phone', { action: 'stop' })).status, 200);
+});
+
+test('a runner retains its authenticated request for buys after the start response has completed', async t => {
+    class ConnectedEngine extends ControlledEngine {
+        async start(settings) {
+            await super.start(settings);
+            this.api = await this.deps.createApi();
+        }
+    }
+    const checked = [];
+    const { request, service } = await fixture(t, {
+        Engine: ConnectedEngine,
+        auth: {
+            verifySession: async req => {
+                assert.equal(req?.headers.cookie, 'device=phone');
+                checked.push(req.headers.cookie);
+            },
+        },
+    });
+    await request('phone', { action: 'start', settings: DEFAULT_SETTINGS });
+    const value = service.sessions.get('demo');
+    await value.task;
+    assert.equal(value.request, undefined);
+    await value.engine.api.send({ buy: 1 });
+    assert.deepEqual(checked, ['device=phone']);
+});
+test('the service cannot authorize new Builder buys after shutdown begins', async t => {
+    const { service } = await fixture(t);
+    service.stopAll();
+    assert.throws(() => service.beforeBuilder('demo', { buy: 1 }), /shutting down/);
+});
+
+test('a restored unexpired PostgreSQL lease keeps Builder blocked even between server purchases', async t => {
+    const { DigitStrategyEngine } = require('../.server-build/engine');
+    const saved = new Map([
+        [
+            'neto.digit-strategy.v1.demo',
+            JSON.stringify({
+                ...empty(),
+                version: 1,
+                accountId: 'demo',
+                owner: 'old-server',
+                liveUntil: Date.now() + 15000,
+                active: true,
+                wantsRun: true,
+            }),
+        ],
+    ]);
+    const storage = {
+        mode: 'postgres',
+        getItem: key => saved.get(key) || null,
+        setItem: (key, value) => saved.set(key, value),
+    };
+    const { request, service } = await fixture(t, { Engine: DigitStrategyEngine, storage });
+    assert.equal(service.busy('demo'), true);
+    const state = (await request('phone')).data;
+    assert.equal(state.active, false);
+    assert.equal(state.owner, 'old-server');
+    assert.equal(service.busy('demo'), true);
+    assert.throws(() => service.beforeBuilder('demo', { buy: 1 }), /Stop and settle/);
 });
