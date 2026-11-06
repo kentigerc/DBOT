@@ -4,7 +4,7 @@ import { getDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/d
 import { affiliate_signup_url } from '@/utils/site-config';
 import UsageTracker from '@/components/usage-tracker';
 import './landing.scss';
-const LiveChart = lazy(() => import('./components/live-chart'));
+const LiveDigits = lazy(() => import('./components/live-digits'));
 const PLATFORM = '/platform#bot_builder';
 const tools = [
     {
@@ -170,24 +170,24 @@ export default function Landing() {
                 </div>
             </header>
             <main id='nl-main'>
-                <section className='nl-live-chart' aria-label='Live Deriv charts'>
-                    <div className='nl-live-chart__toolbar'>
+                <section className='nl-live-digits' aria-label='Live Deriv digit analysis'>
+                    <div className='nl-live-digits__toolbar'>
                         <h2>
                             <span aria-hidden='true' /> Live markets
                         </h2>
-                        <span className='nl-live-chart__provider'>Charts by Deriv</span>
-                        <a href='/platform#chart'>
-                            Open chart workspace <Arrow diagonal />
+                        <span className='nl-live-digits__provider'>Live digits from Deriv</span>
+                        <a href='/platform#digit_analysis'>
+                            Open digit analysis <Arrow diagonal />
                         </a>
                     </div>
                     <Suspense
                         fallback={
-                            <div className='nl-smart-chart__status' role='status'>
-                                Loading chart…
+                            <div className='nl-live-digits__loading' role='status'>
+                                Loading live digits…
                             </div>
                         }
                     >
-                        <LiveChart darkMode={darkMode} />
+                        <LiveDigits />
                     </Suspense>
                 </section>
                 <section className='nl-hero'>

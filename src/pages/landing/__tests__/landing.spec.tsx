@@ -8,11 +8,9 @@ jest.mock('@/utils/deriv-session', () => ({
     startDerivLogin: jest.fn(),
 }));
 jest.mock('@/components/usage-tracker', () => () => null);
-jest.mock('../components/live-chart', () => ({
+jest.mock('../components/live-digits', () => ({
     __esModule: true,
-    default: ({ darkMode }: { darkMode: boolean }) => (
-        <div data-testid='native-chart' data-theme={darkMode ? 'dark' : 'light'} />
-    ),
+    default: () => <div data-testid='live-digits' />,
 }));
 const show = (path = '/') =>
     render(
@@ -88,13 +86,17 @@ it('persists the selected theme across landing visits and applies it to the shar
     expect(document.querySelector('.neto-landing--light')).toBeNull();
 });
 
-it('shows native Charts below the top bar and updates its theme without using Tradingview', async () => {
+it('shows live digit circles below the top bar and retains them when switching theme', async () => {
     show();
-    const chart = await screen.findByTestId('native-chart');
-    expect(document.querySelector('#nl-main')?.firstElementChild?.getAttribute('aria-label')).toBe('Live Deriv charts');
-    expect(screen.getByRole('link', { name: /Open chart workspace/ }).getAttribute('href')).toBe('/platform#chart');
+    const chart = await screen.findByTestId('live-digits');
+    expect(document.querySelector('#nl-main')?.firstElementChild?.getAttribute('aria-label')).toBe(
+        'Live Deriv digit analysis'
+    );
+    expect(screen.getByRole('link', { name: /Open digit analysis/ }).getAttribute('href')).toBe(
+        '/platform#digit_analysis'
+    );
     expect(document.querySelector('iframe')).toBeNull();
     fireEvent.click(screen.getByRole('switch', { name: 'Dark mode' }));
-    expect(screen.getByTestId('native-chart')).toBe(chart);
-    expect(chart.getAttribute('data-theme')).toBe('light');
+    expect(screen.getByTestId('live-digits')).toBe(chart);
+    expect(document.querySelector('.neto-landing--light')).toBeTruthy();
 });
