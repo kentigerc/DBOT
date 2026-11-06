@@ -97,12 +97,25 @@ function createAuthHandler({
     async function requestJson(url, options, refresh = false, reporting = false) {
         let response;
         try {
-            response = await fetchImpl(url, { ...options, signal: AbortSignal.timeout(15000), redirect: 'error' });
+            // Retry only account discovery reads. Never replay token exchanges, OTP issuance or trading requests.
+            const retryAccounts =
+                url === `${API_ORIGIN}/trading/v1/options/accounts` && (!options.method || options.method === 'GET');
+            for (let attempt = 0; ; attempt++) {
+                response = await fetchImpl(url, { ...options, signal: AbortSignal.timeout(15000), redirect: 'error' });
+                if (!retryAccounts || ![502, 503, 504].includes(response.status) || attempt >= 2) break;
+                await response.body?.cancel().catch(() => {});
+                await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 300 : 900));
+            }
         } catch {
             throw new HttpError(502, 'Unable to reach Deriv. Please try again.');
         }
         // Do not forward upstream bodies: they can contain credentials or authorization codes.
         if (!response.ok) {
+            if ([502, 503, 504].includes(response.status))
+                throw new HttpError(
+                    503,
+                    `Deriv is temporarily unavailable (HTTP ${response.status}). Please try again shortly.`
+                );
             if (reporting && response.status === 403)
                 throw new HttpError(403, 'Connect your developer reporting authorization to view commission.');
             if (refresh && response.status === 400) {

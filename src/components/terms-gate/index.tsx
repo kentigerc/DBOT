@@ -36,8 +36,12 @@ export default function TermsGate({ children }: { children: React.ReactNode }) {
             await refreshDerivSession();
             setReady(true);
             setError('');
-        } catch {
-            setError('Unable to verify this login session. Reconnect and try again.');
+        } catch (reason) {
+            setError(
+                reason instanceof Error
+                    ? reason.message
+                    : 'Unable to verify this login session. Reconnect and try again.'
+            );
         }
     };
     useEffect(() => {

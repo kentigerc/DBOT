@@ -28,13 +28,22 @@ export async function sessionRequest(path: string, body?: unknown) {
             ? {}
             : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     });
-    const result = await response.json();
+    let result;
+    try {
+        result = await response.json();
+    } catch {
+        if (response.ok) throw new Error('NetoAcademy returned an unexpected response. Please refresh and try again.');
+    }
     if (!response.ok) {
         if (response.status === 401) {
             current = { authenticated: false, accounts: [] };
             window.dispatchEvent(new Event('neto-session'));
         }
-        throw new Error(result.error || 'Unable to connect to Deriv.');
+        throw new Error(
+            typeof result?.error === 'string'
+                ? result.error
+                : `NetoAcademy returned HTTP ${response.status}. Please try again shortly.`
+        );
     }
     return result;
 }

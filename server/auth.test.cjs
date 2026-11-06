@@ -481,3 +481,71 @@ test('terms cannot be accepted by guests or from a foreign origin', async t => {
     await app.authenticated(false);
     assert.equal((await app.request('/api/auth/terms', body, { origin: 'https://foreign.invalid' })).status, 403);
 });
+
+function availabilityUpstream(state) {
+    return async url => {
+        if (url.endsWith('/oauth2/token')) return Response.json({ access_token: 'test-only-bearer', expires_in: 3600 });
+        if (url.endsWith('/otp')) {
+            state.otpCalls++;
+            return Response.json({}, { status: 503 });
+        }
+        state.accountCalls++;
+        if (state.failures > 0) {
+            state.failures--;
+            return Response.json({}, { status: state.status || 503 });
+        }
+        return Response.json({
+            data: [{ account_id: 'DOT100', account_type: 'demo', currency: 'USD', status: 'active' }],
+        });
+    };
+}
+test('account discovery recovers from two transient 503 replies without logging the user out', async t => {
+    const state = { failures: 0, accountCalls: 0, otpCalls: 0 };
+    const app = await fixture(t, { upstream: availabilityUpstream(state) });
+    await app.authenticated();
+    const cookie = app.cookies.get('neto_session');
+    state.accountCalls = 0;
+    state.failures = 2;
+    const response = await app.request('/api/session');
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).authenticated, true);
+    assert.equal(state.accountCalls, 3);
+    assert.equal(app.cookies.get('neto_session'), cookie);
+});
+test('persistent Deriv 503 identifies upstream unavailability without suggesting an app registration problem', async t => {
+    const state = { failures: 0, accountCalls: 0, otpCalls: 0 };
+    const app = await fixture(t, { upstream: availabilityUpstream(state) });
+    await app.authenticated();
+    state.accountCalls = 0;
+    state.failures = 10;
+    const response = await app.request('/api/session');
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.match(body.error, /Deriv is temporarily unavailable.*503/);
+    assert.doesNotMatch(body.error, /registration|token|bearer/i);
+    assert.equal(state.accountCalls, 3);
+});
+test('permission failures are not retried and OTP POSTs are never replayed', async t => {
+    const state = { failures: 0, accountCalls: 0, otpCalls: 0, status: 403 };
+    const app = await fixture(t, { upstream: availabilityUpstream(state) });
+    await app.authenticated();
+    state.accountCalls = 0;
+    state.failures = 1;
+    assert.equal((await app.request('/api/session')).status, 502);
+    assert.equal(state.accountCalls, 1);
+    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 503);
+    assert.equal(state.otpCalls, 1);
+});
+test('an unavailable OAuth token endpoint is not retried', async t => {
+    let calls = 0;
+    const app = await fixture(t, {
+        upstream: async () => {
+            calls++;
+            return Response.json({}, { status: 503 });
+        },
+    });
+    const { state } = await app.login();
+    const response = await app.request('/api/auth/callback', { code: 'test-code', state });
+    assert.equal(response.status, 503);
+    assert.equal(calls, 1);
+});
