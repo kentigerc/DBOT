@@ -175,7 +175,7 @@
         "sass-embedded-android-arm": "1.85.1",
         "sass-embedded-android-arm64": "1.85.1",
         "sass-embedded-android-ia32": "1.85.1",
-        "sass-embedded-android-riscv64": "1.85.1",
+        "sass-embedded-android-riscv64": "1.107.1",
         "sass-embedded-android-x64": "1.85.1",
         "sass-embedded-darwin-arm64": "1.85.1",
         "sass-embedded-darwin-x64": "1.85.1",
