@@ -4,6 +4,7 @@ import { getDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/d
 import { affiliate_signup_url } from '@/utils/site-config';
 import UsageTracker from '@/components/usage-tracker';
 import TraderReviews from './components/trader-reviews';
+import SocialLinks from './components/social-links';
 import './landing.scss';
 const LiveDigits = lazy(() => import('./components/live-digits'));
 const PLATFORM = '/platform#bot_builder';
@@ -595,6 +596,7 @@ export default function Landing() {
                         Deriv <Arrow diagonal />
                     </a>
                 </div>
+                <SocialLinks />
                 <div className='nl-footer__legal'>
                     <p>
                         Trading involves risk. You can lose your stake. Only trade money you can afford to lose.
