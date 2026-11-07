@@ -18,10 +18,15 @@ class ServerStrategyClient {
             this.listeners.delete(listener);
         };
     };
-    private accept(data: Snapshot & { starting?: boolean; commandError?: string }, accountId: string) {
+    private accept(
+        data: Omit<Snapshot, 'markets'> & { markets?: Snapshot['markets']; starting?: boolean; commandError?: string },
+        accountId: string
+    ) {
         if (this.account?.account_id !== accountId) return;
         this.state = {
             ...data,
+            // Persisted journals omit live previews; every mounted tool needs an array.
+            markets: Array.isArray(data.markets) ? data.markets : [],
             active: data.active || !!data.starting,
             error: data.commandError || data.error,
             phase: data.starting && !data.active ? 'Starting on server' : data.phase,

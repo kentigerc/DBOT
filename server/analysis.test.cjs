@@ -154,10 +154,15 @@ for (const strategy of [undefined, 'over2-under7', 'even-odd', 'momentum-70']) {
                 saved = JSON.stringify(databaseJson(JSON.parse(text)));
             },
         };
+        // Exercise the PostgreSQL STOP response path as well as JSONB storage.
+        const { createAccountLocks } = require('./account-locks.cjs');
+        const locks = createAccountLocks({ databaseUrl: '', schedule: () => ({ unref() {} }), cancel() {} });
+        locks.mode = 'postgres';
         let buys = 0;
         const { request, service } = await fixture(t, {
             Engine: DigitStrategyEngine,
             storage,
+            locks,
             brokerFactory: async () => ({
                 connection: new EventTarget(),
                 disconnect() {},
@@ -205,7 +210,10 @@ for (const strategy of [undefined, 'over2-under7', 'even-odd', 'momentum-70']) {
         assert.equal((await request('phone', { action: 'start', settings })).status, 200);
         await service.sessions.get('demo').task;
         assert.equal((await request('phone')).data.active, true);
-        assert.equal((await request('laptop', { action: 'stop' })).status, 200);
+        const stopping = await request('laptop', { action: 'stop' });
+        assert.equal(stopping.status, 200);
+        assert.equal(stopping.data.active, false);
+        assert.deepEqual(stopping.data.markets, []);
         const stopped = (await request('phone')).data;
         assert.equal(stopped.active, false);
         assert.notDeepEqual(Object.keys(stopped.settings), Object.keys(settings));

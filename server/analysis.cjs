@@ -453,6 +453,7 @@ function createAnalysisService(
                         return json(200, {
                             ...(saved ? JSON.parse(saved) : value.engine.getSnapshot()),
                             wantsRun: false,
+                            markets: [],
                             phase: 'Stop requested. An open contract may still settle.',
                             serverExecution: true,
                             demoOnly: false,
