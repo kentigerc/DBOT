@@ -108,7 +108,10 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
         </label>
     );
     return (
-        <section className={`digit-cycle${parity ? ' digit-cycle--parity' : ''}`} aria-labelledby={titleId}>
+        <section
+            className={`digit-cycle ${parity ? 'digit-cycle--parity' : 'digit-cycle--hit-run'}`}
+            aria-labelledby={titleId}
+        >
             {parity ? (
                 <header className='digit-cycle__parity-header'>
                     <div>
@@ -128,17 +131,29 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                     </div>
                 </header>
             ) : (
-                <>
-                    <h2 id={titleId}>HIT AND RUN STRATEGY</h2>
-                    <p>Trading Under 7 and Over 2 · Even/Odd recovery.</p>
-                </>
+                <header className='digit-cycle__hit-header'>
+                    <div>
+                        <span className='digit-cycle__eyebrow'>BATCH TRADING WORKSPACE</span>
+                        <h2 id={titleId}>HIT AND RUN STRATEGY</h2>
+                        <p>Trading Under 7 and Over 2 · Even/Odd recovery.</p>
+                    </div>
+                    <div className='digit-cycle__hit-emblem' aria-hidden='true'>
+                        <svg viewBox='0 0 48 48' fill='none'>
+                            <path
+                                d='M28 6 12 26h12l-4 16 16-22H24l4-14Z'
+                                stroke='currentColor'
+                                strokeWidth='2.5'
+                                strokeLinejoin='round'
+                            />
+                        </svg>
+                        <span>H / R</span>
+                    </div>
+                </header>
             )}
-            {parity && (
-                <div className='digit-cycle__setup-heading'>
-                    <h3>Your trading setup</h3>
-                    <span>Stake, duration &amp; session limits</span>
-                </div>
-            )}
+            <div className='digit-cycle__setup-heading'>
+                <h3>{parity ? 'Your trading setup' : 'Set your session'}</h3>
+                <span>Stake, duration &amp; session limits</span>
+            </div>
 
             <div className='digit-cycle__fields'>
                 {field('Starting stake (USD)', 'stake', 0.35)}
@@ -226,6 +241,13 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                                 >
                                     {value}
                                 </strong>
+                                {label === 'Batch wins' && (
+                                    <div className='digit-cycle__batch-progress' aria-hidden='true'>
+                                        {[1, 2, 3].map(win => (
+                                            <i key={win} className={state.batch >= win ? 'is-complete' : undefined} />
+                                        ))}
+                                    </div>
+                                )}
                                 {label === 'Batch wins' && state.streak > 0 && <small>Recovery active</small>}
                             </div>
                         ))}
