@@ -416,11 +416,17 @@
         }
     }
     .digit-cycle__table {
+        max-height: 320px;
+        overflow: auto;
+        overscroll-behavior-y: auto;
         border-top: 1px solid var(--border-normal);
         caption {
             padding: 20px 28px;
         }
         th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
             background: var(--general-section-1);
         }
         th:first-child,
@@ -501,6 +507,9 @@
         }
         .digit-cycle__markets article {
             padding: 14px;
+        }
+        .digit-cycle__table {
+            max-height: 280px;
         }
     }
 }
