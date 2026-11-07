@@ -13,6 +13,7 @@ type Market = { symbol: string; display_name: string; submarket?: string };
 type Api = Awaited<ReturnType<typeof generateDerivApiInstance>>;
 type Snapshot = Market & ReturnType<typeof evaluateScan> & { checkedAt: number; digits: number[] };
 type Result = Snapshot & { side: ScanSide };
+type Preview = Snapshot & { matchedSides: ScanSide[] };
 
 function delay(ms: number, signal: AbortSignal) {
     return new Promise<void>(resolve => {
@@ -61,7 +62,8 @@ export default function MarketScanner({
     const [enabled, setEnabled] = useState(true);
     const [message, setMessage] = useState('Connecting to market data…');
     const [results, setResults] = useState<Result[]>([]);
-    const [preview, setPreview] = useState<Snapshot & { matchedSides: ScanSide[] }>();
+    const [preview, setPreview] = useState<Preview>();
+    const previews = useRef(new Map<string, Preview>());
     const [loadError, setLoadError] = useState('');
     const [preparing, setPreparing] = useState(false);
     const startAttempt = useRef(0);
@@ -72,10 +74,28 @@ export default function MarketScanner({
         []
     );
     useEffect(() => {
+        previews.current.clear();
         setResults([]);
         setPreview(undefined);
         setLoadError('');
     }, [sampleSize]);
+    useEffect(() => {
+        if (!scanning || !enabled) return;
+        const timer = window.setInterval(() => {
+            const markets = [...previews.current.values()];
+            if (!markets.length) return;
+            setPreview(previous => {
+                const current = markets.findIndex(market => market.symbol === previous?.symbol);
+                return markets[(current + 1) % markets.length];
+            });
+        }, 2000);
+        return () => window.clearInterval(timer);
+    }, [scanning, enabled, sampleSize]);
+    useEffect(() => {
+        if (auto.enabled && !scanning && auto.match) {
+            setPreview(previews.current.get(auto.match.symbol));
+        }
+    }, [auto.enabled, auto.match?.symbol, scanning]);
     useEffect(() => {
         if (!scanning || !enabled) {
             setMessage('Scanner paused. Displayed percentages are snapshots.');
@@ -111,7 +131,11 @@ export default function MarketScanner({
                                 side,
                             }));
                             const matches = evaluations.filter(result => result.matches);
-                            setPreview({ ...evaluations[0], matchedSides: matches.map(result => result.side) });
+                            const reading = { ...evaluations[0], matchedSides: matches.map(result => result.side) };
+                            previews.current.set(market.symbol, reading);
+                            setPreview(previous =>
+                                !previous || previous.symbol === market.symbol ? reading : previous
+                            );
                             const automatic = xmlScannerCycle.getSnapshot();
                             if (automatic.enabled && automatic.recoverySearch && automatic.match) {
                                 const recovery = evaluations.find(
@@ -133,6 +157,7 @@ export default function MarketScanner({
                                         epoch
                                     )
                                 ) {
+                                    setPreview(reading);
                                     setResults([recovery]);
                                     return;
                                 }
@@ -149,6 +174,7 @@ export default function MarketScanner({
                                     name: selected.side === 'over' ? 'Over Punisher' : 'Under Punisher',
                                 });
                                 if (token !== undefined) {
+                                    setPreview(reading);
                                     setResults([selected]);
                                     try {
                                         if (
@@ -181,13 +207,17 @@ export default function MarketScanner({
                         setMessage,
                         {
                             stale: symbol => {
+                                previews.current.delete(symbol);
                                 setResults(previous => previous.filter(item => item.symbol !== symbol));
-                                setPreview(previous => (previous?.symbol === symbol ? undefined : previous));
+                                setPreview(previous =>
+                                    previous?.symbol === symbol ? previews.current.values().next().value : previous
+                                );
                             },
                         }
                     );
                 } catch (error) {
                     if (signal.aborted) return;
+                    previews.current.clear();
                     setResults([]);
                     setPreview(undefined);
                     setMessage(
@@ -211,7 +241,8 @@ export default function MarketScanner({
             <h2 id='digit-scanner-title'>Over / Under market scanner</h2>
             <p>
                 Scans Volatility markets using the latest {sampleSize.toLocaleString()} ticks. All supported markets are
-                observed live at the same time.
+                observed live at the same time. One market is displayed at a time; the preview rotates every two seconds
+                while scanning.
             </p>
             <div className='digit-scanner__controls'>
                 {(
@@ -338,54 +369,60 @@ export default function MarketScanner({
             {loadError && <p role='alert'>{loadError}</p>}
             {results.length > 0 && (
                 <h3 className='digit-scanner__found' role='status'>
-                    Market found · {results.length} {results.length === 1 ? 'match' : 'matches'}
+                    Market found · {results.length} {results.length === 1 ? 'match' : 'matches'} across markets
                 </h3>
             )}
             <div className='digit-scanner__results'>
-                {results.map(result => (
-                    <article key={`${result.symbol}-${result.side}`}>
-                        <h3>
-                            {result.display_name} · {result.side === 'over' ? 'Over' : 'Under'}
-                        </h3>
-                        <p>{result.selected.map(item => `${item.digit}: ${item.percent.toFixed(2)}%`).join(' · ')}</p>
-                        <p>
-                            Red: {result.redDigits.join(', ')} · Green: {result.greenDigits.join(', ')}
-                        </p>
-                        <p>Last matched {new Date(result.checkedAt).toLocaleTimeString()}. Conditions may change.</p>
-                        <p>
-                            Suggested bot:{' '}
-                            <strong>{result.side === 'over' ? 'Over Punisher' : 'Under Punisher'}</strong>
-                        </p>
-                        <div className='digit-scanner__actions'>
-                            <button disabled={auto.enabled} onClick={() => onSelect(result.symbol)}>
-                                View digits
-                            </button>
-                            <button
-                                disabled={auto.enabled}
-                                onClick={() => {
-                                    try {
-                                        if (
-                                            onLoad(
-                                                result.side,
-                                                result.symbol,
-                                                result.submarket || 'random_index',
-                                                digitFrequencies(result.digits).map(item => item.count)
-                                            )
-                                        ) {
-                                            setLoadError('');
+                {results
+                    .filter(result => result.symbol === preview?.symbol)
+                    .map(result => (
+                        <article key={`${result.symbol}-${result.side}`}>
+                            <h3>
+                                {result.display_name} · {result.side === 'over' ? 'Over' : 'Under'}
+                            </h3>
+                            <p>
+                                {result.selected.map(item => `${item.digit}: ${item.percent.toFixed(2)}%`).join(' · ')}
+                            </p>
+                            <p>
+                                Red: {result.redDigits.join(', ')} · Green: {result.greenDigits.join(', ')}
+                            </p>
+                            <p>
+                                Last matched {new Date(result.checkedAt).toLocaleTimeString()}. Conditions may change.
+                            </p>
+                            <p>
+                                Suggested bot:{' '}
+                                <strong>{result.side === 'over' ? 'Over Punisher' : 'Under Punisher'}</strong>
+                            </p>
+                            <div className='digit-scanner__actions'>
+                                <button disabled={auto.enabled} onClick={() => onSelect(result.symbol)}>
+                                    View digits
+                                </button>
+                                <button
+                                    disabled={auto.enabled}
+                                    onClick={() => {
+                                        try {
+                                            if (
+                                                onLoad(
+                                                    result.side,
+                                                    result.symbol,
+                                                    result.submarket || 'random_index',
+                                                    digitFrequencies(result.digits).map(item => item.count)
+                                                )
+                                            ) {
+                                                setLoadError('');
+                                            }
+                                        } catch (error) {
+                                            setLoadError(
+                                                error instanceof Error ? error.message : 'Unable to load this bot.'
+                                            );
                                         }
-                                    } catch (error) {
-                                        setLoadError(
-                                            error instanceof Error ? error.message : 'Unable to load this bot.'
-                                        );
-                                    }
-                                }}
-                            >
-                                Load Bot
-                            </button>
-                        </div>
-                    </article>
-                ))}
+                                    }}
+                                >
+                                    Load Bot
+                                </button>
+                            </div>
+                        </article>
+                    ))}
             </div>
             <p>
                 Manual scanning pauses when you leave this section. XML Auto continues until stopped or a limit is

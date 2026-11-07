@@ -74,13 +74,24 @@ it('automatically scans, shows circles and suggests Over Punisher without starti
     expect(screen.getByRole('button', { name: 'PAUSE' })).toBeTruthy();
     expect(api.send.mock.calls.every(([request]) => request.active_symbols || request.ticks_history)).toBe(true);
 });
-it('finds Over and Under in the same pass without a selector and loads the right bot', async () => {
+it('scans both sides live but rotates one market and its suggested bot at a time', async () => {
+    jest.useFakeTimers();
     const api = createApi();
     connect.mockResolvedValue(api);
     const load = jest.fn().mockReturnValue(true);
     render(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} />);
-    await waitFor(() => expect(screen.queryByText('Under Punisher')).not.toBeNull(), { timeout: 3000 });
+    await act(async () => {});
     expect(screen.getByText('Over Punisher')).toBeTruthy();
+    expect(screen.queryByText('Under Punisher')).toBeNull();
+    expect(screen.getByText(/2 matches across markets/)).toBeTruthy();
+    expect(document.querySelectorAll('.digit-scanner__results article')).toHaveLength(1);
+    await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+    });
+    expect(screen.getByRole('heading', { name: 'Checking: Volatility 10 (1s)' })).toBeTruthy();
+    expect(screen.getByText('Under Punisher')).toBeTruthy();
+    expect(screen.queryByText('Over Punisher')).toBeNull();
+    expect(document.querySelectorAll('.digit-scanner__results article')).toHaveLength(1);
     expect(screen.queryByRole('combobox')).toBeNull();
     const underCard = screen.getByText('Under Punisher').closest('article')!;
     fireEvent.click(within(underCard).getByRole('button', { name: 'Load Bot' }));
@@ -92,6 +103,35 @@ it('finds Over and Under in the same pass without a selector and loads the right
     ).toBe(false);
     expect(api.send.mock.calls.filter(([request]) => request.ticks_history).length).toBe(2);
 });
+it('pins the preview and bot suggestion to the XML Auto market without rotating', async () => {
+    jest.useFakeTimers();
+    const { xmlScannerCycle } = require('@/utils/xml-scanner-cycle');
+    connect.mockResolvedValue(createApi());
+    const props = { sampleSize: 100, onSelect: jest.fn(), onLoad: jest.fn() };
+    const { rerender, unmount } = render(<MarketScanner {...props} />);
+    await act(async () => {});
+    const state = xmlScannerCycle.getSnapshot();
+    const getSnapshot = jest.spyOn(xmlScannerCycle, 'getSnapshot').mockReturnValue({
+        ...state,
+        enabled: true,
+        phase: 'running',
+        match: { symbol: '1HZ10V', side: 'under' },
+    });
+    try {
+        rerender(<MarketScanner {...props} />);
+        await act(async () => {
+            await jest.advanceTimersByTimeAsync(6000);
+        });
+        expect(screen.getByRole('heading', { name: 'Last scan: Volatility 10 (1s)' })).toBeTruthy();
+        expect(screen.getByText('Under Punisher')).toBeTruthy();
+        expect(screen.queryByText('Over Punisher')).toBeNull();
+        expect(document.querySelectorAll('.digit-scanner__results article')).toHaveLength(1);
+        unmount();
+    } finally {
+        getSnapshot.mockRestore();
+    }
+});
+
 it('updates a live market and removes a match without polling history again', async () => {
     jest.useFakeTimers();
     const api = streamApi(
