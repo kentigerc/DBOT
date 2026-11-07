@@ -75,18 +75,6 @@ const reviews = [
         text: 'The platform looks professional and makes complex trading concepts easier to understand.',
     },
     {
-        name: 'Kgomotso Molefe',
-        country: 'Botswana',
-        flag: 'bw',
-        text: 'NetoAcademy helped me gain confidence in trading. I especially liked the automated strategy options.',
-    },
-    {
-        name: 'Kabelo Modise',
-        country: 'Botswana',
-        flag: 'bw',
-        text: "The experience has been smooth so far. I appreciate that the platform doesn't feel complicated or intimidating.",
-    },
-    {
         name: 'Joseph Mensah',
         country: 'Ghana',
         flag: 'gh',
@@ -97,30 +85,6 @@ const reviews = [
         country: 'Ghana',
         flag: 'gh',
         text: 'The platform saves time and makes the trading process much easier for someone who is still learning.',
-    },
-    {
-        name: 'Petrus Amutenya',
-        country: 'Namibia',
-        flag: 'na',
-        text: 'I enjoy the clean interface and simple workflow. It helped me understand the basics much faster.',
-    },
-    {
-        name: 'Helena Shilongo',
-        country: 'Namibia',
-        flag: 'na',
-        text: "The automation features are easy to access and don't require advanced trading knowledge to get started.",
-    },
-    {
-        name: 'Faridah Ahmad',
-        country: 'Malaysia',
-        flag: 'my',
-        text: "I liked how the platform combines convenience with educational content. It's great for busy people.",
-    },
-    {
-        name: 'Muhammad Iqbal',
-        country: 'Malaysia',
-        flag: 'my',
-        text: 'The automated trading tools are easy to understand, and the overall user experience feels polished and professional.',
     },
 ];
 
