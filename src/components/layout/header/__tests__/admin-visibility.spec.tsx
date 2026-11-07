@@ -45,9 +45,12 @@ const show = (data: DerivSession) => {
         </MemoryRouter>
     );
 };
-it('keeps Admin out of navigation even for the owner demo account', () => {
+it('shows the verified owner an Analytics link immediately after Trading Bots', () => {
     localStorage.setItem('neto.account_id', owner.account_id);
     show(session());
+    const analytics = screen.getByRole('link', { name: 'Analytics' });
+    expect(analytics).toHaveAttribute('href', '/admin');
+    expect(screen.getByRole('link', { name: 'Trading Bots' }).nextElementSibling).toBe(analytics);
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
 });
 it.each([
@@ -56,31 +59,36 @@ it.each([
     session({ adminAccounts: undefined }),
     session({ isAdmin: false }),
     session({ accounts: [{ ...owner, status: 'disabled' }] }),
-])('hides Admin from guests, non-owners and unconfirmed sessions', data => {
+    session({ accounts: [visitor], adminAccounts: [owner.account_id] }),
+])('hides Analytics from guests, non-owners and unconfirmed sessions', data => {
     show(data);
-    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Analytics' })).toBeNull();
 });
-it('hides Admin when a different account is selected, even if the owner account is linked', () => {
-    localStorage.setItem('neto.account_id', visitor.account_id);
-    show(session({ accounts: [owner, visitor] }));
-    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
-});
-it('keeps Admin hidden when switching between demo and real accounts', () => {
+it('keeps Analytics available on the owner’s linked real account', () => {
     const real = { ...owner, account_id: 'CR123456', account_type: 'real' as const };
-    const accounts = [owner, real];
-    const data = session({ accounts, adminAccounts: accounts.map(account => account.account_id) });
+    const data = session({ accounts: [owner, real] });
     localStorage.setItem('neto.account_id', owner.account_id);
     show(data);
-    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Analytics' })).toBeTruthy();
     localStorage.setItem('neto.account_id', real.account_id);
     act(() => window.dispatchEvent(new Event('neto-session')));
-    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
-    expect(screen.getByRole('link', { name: 'Bot Builder' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Analytics' })).toBeTruthy();
     localStorage.setItem('neto.account_id', owner.account_id);
     act(() => window.dispatchEvent(new Event('neto-session')));
-    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Analytics' })).toBeTruthy();
 });
-it('keeps Admin hidden for non-owner real accounts', () => {
+it('keeps Analytics hidden for non-owner real accounts, even with a forged local selection', () => {
+    localStorage.setItem('neto.account_id', owner.account_id);
     show(session({ accounts: [{ ...visitor, account_type: 'real' }], isAdmin: false, adminAccounts: [] }));
-    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Analytics' })).toBeNull();
+});
+it('updates the link when login identifies the owner and removes it on logout', () => {
+    show(session({ authenticated: false, accounts: [], isAdmin: false, adminAccounts: [] }));
+    expect(screen.queryByRole('link', { name: 'Analytics' })).toBeNull();
+    (getDerivSession as jest.Mock).mockReturnValue(session());
+    act(() => window.dispatchEvent(new Event('neto-session')));
+    expect(screen.getByRole('link', { name: 'Analytics' })).toHaveAttribute('href', '/admin');
+    (getDerivSession as jest.Mock).mockReturnValue({ authenticated: false, accounts: [] });
+    act(() => window.dispatchEvent(new Event('neto-session')));
+    expect(screen.queryByRole('link', { name: 'Analytics' })).toBeNull();
 });

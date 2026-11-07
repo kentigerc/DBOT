@@ -82,6 +82,10 @@ const AppHeader = observer(() => {
         };
     }, []);
     const accounts = session.accounts.filter(account => account.status === 'active');
+    const canViewAnalytics =
+        session.authenticated &&
+        session.isAdmin === true &&
+        accounts.some(account => session.adminAccounts?.includes(account.account_id));
     const activeAccount =
         accounts.find(account => account.account_id === localStorage.getItem('neto.account_id')) || accounts[0];
     const balance = Number(client?.is_logged_in ? client.balance : activeAccount?.balance);
@@ -95,6 +99,7 @@ const AppHeader = observer(() => {
             <nav aria-label='Main navigation'>
                 <Link to='/platform#bot_builder'>Bot Builder</Link>
                 <Link to='/free-bots'>Trading Bots</Link>
+                {canViewAnalytics && <Link to='/admin'>Analytics</Link>}
                 <button
                     type='button'
                     className='neto-header__theme-toggle'
