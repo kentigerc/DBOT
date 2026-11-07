@@ -393,7 +393,12 @@
             }
         }
     }
+    .digit-cycle__scan-status {
+        color: var(--hit-muted);
+        font-size: 12px;
+    }
     .digit-cycle__markets {
+        grid-template-columns: minmax(0, 1fr);
         margin: 24px 28px;
         article {
             padding: 18px;
@@ -410,6 +415,8 @@
         }
     }
     .digit-cycle__circles {
+        max-width: 560px;
+        grid-template-columns: repeat(10, minmax(0, 1fr));
         justify-items: center;
         span {
             width: 100%;
@@ -507,6 +514,10 @@
         }
         .digit-cycle__markets article {
             padding: 14px;
+        }
+        .digit-cycle__circles {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            max-width: 300px;
         }
         .digit-cycle__table {
             max-height: 280px;

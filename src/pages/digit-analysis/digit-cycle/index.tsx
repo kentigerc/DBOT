@@ -34,23 +34,20 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
     const history = state.trades.length > 0;
     const locked = busy || history;
     useEffect(() => {
-        if (!parity || !own || !state.active) return;
+        if (!own || !state.active) return;
         const timer = window.setInterval(() => setPreviewIndex(index => index + 1), 2000);
         return () => window.clearInterval(timer);
-    }, [parity, own, state.active]);
-    const marketPool = state.markets.filter(market =>
-        parity
-            ? !parityLocked || market.symbol === state.recovery.lockedSymbol
-            : !state.recovery.lockedSymbol || market.symbol === state.recovery.lockedSymbol
-    );
+    }, [own, state.active]);
+    const marketPool = state.markets;
     const readyPreviews = marketPool.filter(market => market.ready);
-    const pinnedSymbol = parityLocked ? state.recovery.lockedSymbol : state.pending?.signal.symbol;
+    const pinnedSymbol =
+        state.pending?.signal.symbol ?? (!parity || parityLocked ? state.recovery.lockedSymbol : undefined);
     const focus = pinnedSymbol
         ? marketPool.find(market => market.symbol === pinnedSymbol)
         : readyPreviews.length
           ? readyPreviews[previewIndex % readyPreviews.length]
           : marketPool[0];
-    const visibleMarkets = parity ? (focus ? [focus] : []) : marketPool;
+    const visibleMarkets = focus ? [focus] : [];
 
     useEffect(() => {
         const update = () => {
@@ -252,17 +249,15 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                             </div>
                         ))}
                     </div>
-                    {parity && (
-                        <p className='digit-cycle__scan-status' role='status'>
-                            {pinnedSymbol
-                                ? `${parityRecovery ? 'Recovery locked' : 'Monitoring open contract'} · ${focus?.name || pinnedSymbol}`
-                                : state.active
-                                  ? `Scanning all markets · ${state.markets.filter(market => market.ready).length}/${state.markets.length} live · Preview rotates every 2 seconds`
-                                  : `${state.markets.length} markets in this session · Showing the last readings`}
-                        </p>
-                    )}
+                    <p className='digit-cycle__scan-status' role='status'>
+                        {!state.active && !state.pending
+                            ? `${state.markets.length} markets in this session · Showing the last readings`
+                            : pinnedSymbol
+                              ? `${state.pending ? 'Monitoring open contract' : parityRecovery || policyRecovery ? 'Recovery locked' : 'Trading batch'} · ${focus?.name || pinnedSymbol}`
+                              : `Scanning all markets · ${readyPreviews.length}/${state.markets.length} live · Preview rotates every 2 seconds`}
+                    </p>
                     <div className='digit-cycle__markets'>
-                        {parity && !focus && (
+                        {!focus && (
                             <p className='digit-cycle__market-empty'>Live market readings appear when available.</p>
                         )}
 

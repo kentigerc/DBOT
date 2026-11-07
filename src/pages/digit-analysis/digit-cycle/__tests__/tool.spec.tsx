@@ -237,20 +237,20 @@ const previewMarket = (symbol: string, name: string) => ({
         least: false,
     })),
 });
-it('shows one rotating parity preview while reporting that all markets are scanned', () => {
+it.each([false, true])('shows one rotating preview while scanning all markets (parity=%s)', parity => {
     jest.useFakeTimers();
     try {
         client.getSnapshot.mockReturnValue({
             ...empty(),
             active: true,
-            settings: { ...DEFAULT_SETTINGS, strategy: 'even-odd' },
+            settings: { ...DEFAULT_SETTINGS, strategy: parity ? 'even-odd' : 'over2-under7' },
             markets: [
                 previewMarket('R_10', 'Volatility 10'),
                 previewMarket('R_50', 'Volatility 50'),
                 previewMarket('R_100', 'Volatility 100'),
             ],
         });
-        const { container, unmount } = render(<DigitCycle parity />);
+        const { container, unmount } = render(<DigitCycle parity={parity} />);
         expect(container.querySelectorAll('.digit-cycle__markets article')).toHaveLength(1);
         expect(screen.getByText('Volatility 10')).toBeTruthy();
         expect(screen.getByText(/Scanning all markets · 3\/3 live/)).toBeTruthy();
@@ -298,14 +298,37 @@ it.each(['open contract', 'locked recovery'])('pins the displayed parity market 
         jest.useRealTimers();
     }
 });
-it('keeps the existing HIT AND RUN market display', () => {
-    client.getSnapshot.mockReturnValue({
-        ...empty(),
-        settings: { ...DEFAULT_SETTINGS, strategy: 'over2-under7' },
-        markets: [previewMarket('R_10', 'Volatility 10'), previewMarket('R_50', 'Volatility 50')],
-    });
-    const { container } = render(<DigitCycle />);
-    expect(container.querySelectorAll('.digit-cycle__markets article')).toHaveLength(2);
+it.each(['open contract', 'batch', 'recovery'])('pins the HIT AND RUN preview during an active %s', mode => {
+    jest.useFakeTimers();
+    try {
+        const snapshot = {
+            ...empty(),
+            active: true,
+            settings: { ...DEFAULT_SETTINGS, strategy: 'over2-under7' },
+            markets: [previewMarket('R_10', 'Volatility 10'), previewMarket('R_50', 'Volatility 50')],
+        };
+        client.getSnapshot.mockReturnValue({
+            ...snapshot,
+            ...(mode === 'open contract'
+                ? { pending: { signal: { symbol: 'R_50' } } }
+                : {
+                      streak: mode === 'recovery' ? 1 : 0,
+                      recovery: { ...snapshot.recovery, lockedSymbol: 'R_50' },
+                  }),
+        });
+        const { container, rerender, unmount } = render(<DigitCycle />);
+        act(() => jest.advanceTimersByTime(6000));
+        expect(container.querySelectorAll('.digit-cycle__markets article')).toHaveLength(1);
+        expect(screen.getByRole('heading', { name: 'Volatility 50' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Volatility 10' })).toBeNull();
+        client.getSnapshot.mockReturnValue(snapshot);
+        rerender(<DigitCycle />);
+        act(() => jest.advanceTimersByTime(2000));
+        expect(screen.getByRole('heading', { name: 'Volatility 10' })).toBeTruthy();
+        unmount();
+    } finally {
+        jest.useRealTimers();
+    }
 });
 
 it('starts Even/Odd with shared x2.1 and two-tick defaults and restores them on reset', async () => {
