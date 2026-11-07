@@ -7,7 +7,7 @@ const path = require('node:path');
 const { createAdminAnalytics, reportRange } = require('./admin.cjs');
 const { createAnalyticsStore } = require('./analytics-store.cjs');
 const appId = require('../config/netoacademy.json').appId;
-async function fixture(t) {
+async function fixture(t, options = {}) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'neto-admin-'));
     const store = createAnalyticsStore({ databaseUrl: '', directory });
     const auth = {
@@ -32,6 +32,7 @@ async function fixture(t) {
         store,
         secret: 'test-only-at-least-32-byte-analytics-key',
         activeBots: () => 2,
+        operations: options.operations,
     });
     const server = http.createServer(analytics.handle);
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -354,4 +355,23 @@ test('verified account links join transitively without matching unrelated users'
     ];
     assert.deepEqual([...hiddenDemoAccounts(history)].sort(), ['demo-one', 'demo-two']);
     assert.deepEqual([...hiddenDemoAccounts([...history].reverse())].sort(), ['demo-one', 'demo-two']);
+});
+
+test('operational health requires verified admin access before running private probes', async t => {
+    let probes = 0;
+    const { request } = await fixture(t, {
+        operations: {
+            get: async () => {
+                probes++;
+                return { status: 'ok', checks: [], alerts: [] };
+            },
+        },
+    });
+    assert.equal((await request('/api/admin/health')).status, 403);
+    assert.equal(probes, 0);
+    const response = await request('/api/admin/health', { owner: true });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).status, 'ok');
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(probes, 1);
 });

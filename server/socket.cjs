@@ -14,6 +14,7 @@ function attachSockets(
         security,
         onTrade = () => {},
         onConnection = () => {},
+        onProviderFailure = () => {},
         createUpstream = url => new WebSocket(url, { ...(dispatcher ? { dispatcher } : {}) }),
     } = {}
 ) {
@@ -126,17 +127,27 @@ function attachSockets(
                                 client.close(1013, 'Connection is busy.');
                                 return;
                             }
-                            let body;
+                            let body,
+                                outgoing,
+                                attempted = false;
                             try {
                                 body = JSON.parse(data.toString());
                                 validateSocketMessage(body, account);
-                                if (account && body.buy) await analysis?.prepareBuilder?.(account);
                                 if (account) await auth.verifySession?.(req);
                                 if (account && body.buy) auth.requireTerms?.(req);
-                                if (client.readyState !== 1 || upstream.readyState !== 1) return;
-                                if (account) analysis?.beforeBuilder(account, body, clientKey);
-                                upstream.send(data.toString());
+                                if (account && body.buy && analysis?.authorizeBuilderBuy)
+                                    outgoing = await analysis.authorizeBuilderBuy(account, body, clientKey);
+                                else if (account && body.buy) await analysis?.prepareBuilder?.(account);
+                                if (client.readyState !== 1 || upstream.readyState !== 1) {
+                                    if (outgoing) await analysis.cancelBuilderBuy(account, body, clientKey);
+                                    return;
+                                }
+                                if (account && !outgoing) analysis?.beforeBuilder(account, body, clientKey);
+                                attempted = true;
+                                upstream.send(outgoing ? JSON.stringify(outgoing) : data.toString());
                             } catch (error) {
+                                if (outgoing && !attempted)
+                                    await analysis.cancelBuilderBuy(account, body, clientKey).catch(() => {});
                                 if (client.readyState !== 1) return;
                                 client.send(
                                     JSON.stringify({
@@ -154,42 +165,66 @@ function attachSockets(
                                 return;
                             }
                         });
+                        let incoming = Promise.resolve();
+                        let queuedIncoming = 0;
                         upstream.addEventListener('message', event => {
-                            try {
-                                if (upstreamKeepalive.consume(JSON.parse(event.data))) return;
-                            } catch {
-                                /* Preserve existing invalid-packet forwarding behavior. */
+                            if (queuedIncoming >= 256) {
+                                client.close(1013, 'Trading messages are delayed. Check Reports before continuing.');
+                                upstream.close();
+                                return;
                             }
-                            if (client.readyState === 1) {
-                                if (client.bufferedAmount > 1024 * 1024) {
-                                    client.close(1013, 'Connection is busy.');
-                                    return;
-                                }
-                                try {
-                                    if (account) {
-                                        const packet = JSON.parse(event.data);
-                                        analysis?.builderResponse(account, packet, clientKey);
-                                        if (packet.buy?.contract_id) {
-                                            builderContracts.add(`${account}:${packet.buy.contract_id}`);
-                                            if (builderContracts.size > 20000)
-                                                builderContracts.delete(builderContracts.values().next().value);
-                                            onTrade(account, packet.buy);
-                                        }
-                                        const contract = packet.proposal_open_contract;
-                                        if (
-                                            [true, 1].includes(contract?.is_sold) &&
-                                            builderContracts.has(`${account}:${contract.contract_id}`)
-                                        )
-                                            onTrade(account, contract);
+                            queuedIncoming++;
+                            incoming = incoming
+                                .then(async () => {
+                                    try {
+                                        if (upstreamKeepalive.consume(JSON.parse(event.data))) return;
+                                    } catch {
+                                        /* Preserve existing invalid-packet forwarding behavior. */
                                     }
-                                } catch {
-                                    /* invalid upstream packet */
-                                }
-                                client.send(event.data);
-                            }
+                                    if (client.readyState === 1 || account) {
+                                        try {
+                                            if (account) {
+                                                const packet = JSON.parse(event.data);
+                                                if (analysis?.observeBuilder)
+                                                    await analysis.observeBuilder(account, packet, clientKey);
+                                                else analysis?.builderResponse?.(account, packet, clientKey);
+                                                if (packet.buy?.contract_id) {
+                                                    builderContracts.add(`${account}:${packet.buy.contract_id}`);
+                                                    if (builderContracts.size > 20000)
+                                                        builderContracts.delete(builderContracts.values().next().value);
+                                                    onTrade(account, packet.buy);
+                                                }
+                                                const contract = packet.proposal_open_contract;
+                                                if (
+                                                    [true, 1].includes(contract?.is_sold) &&
+                                                    builderContracts.has(`${account}:${contract.contract_id}`)
+                                                )
+                                                    onTrade(account, contract);
+                                            }
+                                        } catch {
+                                            client.close(
+                                                1011,
+                                                'Unable to record the trading outcome. Check Reports before continuing.'
+                                            );
+                                            return;
+                                        }
+                                        if (client.readyState === 1) {
+                                            if (client.bufferedAmount > 1024 * 1024)
+                                                client.close(1013, 'Connection is busy.');
+                                            else client.send(event.data);
+                                        }
+                                    }
+                                })
+                                .catch(() =>
+                                    client.close(1011, 'Trading protection failed. Check Reports before continuing.')
+                                )
+                                .finally(() => {
+                                    queuedIncoming--;
+                                });
                         });
                         upstream.addEventListener('close', event => {
                             const code = Number(event.code);
+                            if (code !== 1000 && code !== 1001) onProviderFailure();
                             const validCode =
                                 Number.isInteger(code) &&
                                 ((code >= 1000 && code <= 1014 && ![1004, 1005, 1006].includes(code)) ||

@@ -831,3 +831,17 @@ describe('durable purchase checkpoints', () => {
         engine.stop();
     });
 });
+
+it('stops without an uncertain intent or another attempt when account protection rejects an unsent buy', async () => {
+    const broker = new FakeBroker();
+    const send = broker.send;
+    broker.send = jest.fn(async body => {
+        if (body.buy) throw { code: 'NetoPurchaseCancelled' };
+        return send(body);
+    });
+    const { engine } = await setup({}, broker);
+    expect(engine.getSnapshot()).toMatchObject({ active: false, wantsRun: false, pending: undefined });
+    expect(engine.getSnapshot().phase).toMatch(/Account protection stopped/);
+    await jest.advanceTimersByTimeAsync(20000);
+    expect(broker.buys).toHaveLength(0);
+});

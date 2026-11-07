@@ -181,7 +181,7 @@ function commissionBuckets(range, mode) {
     }
     return buckets;
 }
-function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now = Date.now }) {
+function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now = Date.now, operations }) {
     const hash = value => createHmac('sha256', secret).update(String(value)).digest('hex');
     const connections = new Map();
     const online = new Map(),
@@ -359,6 +359,11 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
             await auth.requireAdmin(req);
             if (req.method !== 'GET') throw Object.assign(new Error('Method not allowed.'), { status: 405 });
             if (url.pathname === '/api/admin/access') return json(res, 200, { admin: true });
+            if (url.pathname === '/api/admin/health') {
+                if (!operations)
+                    throw Object.assign(new Error('Operational monitoring is unavailable.'), { status: 503 });
+                return json(res, 200, await operations.get());
+            }
             const range = reportRange(url);
             if (url.pathname === '/api/admin/commission') {
                 const mode = url.searchParams.get('breakdown') || 'none';

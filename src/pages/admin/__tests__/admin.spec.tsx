@@ -1,5 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Admin from '..';
+const health = {
+    status: 'ok',
+    checkedAt: Date.now(),
+    checks: [],
+    alerts: [],
+    activeServerBots: 0,
+    protectedAccounts: 0,
+    pendingPurchases: 0,
+    connectionDrops: 0,
+    scope: 'Instance health',
+};
 const overview = {
     visitors: 12,
     connectedAccounts: 3,
@@ -33,7 +44,11 @@ const overview = {
 const response = (body: unknown, status = 200) => ({ ok: status === 200, status, json: async () => body });
 beforeEach(() => {
     global.fetch = jest.fn(async url =>
-        String(url).includes('/access') ? response({ admin: true }) : response(overview)
+        String(url).includes('/health')
+            ? response(health)
+            : String(url).includes('/access')
+              ? response({ admin: true })
+              : response(overview)
     ) as jest.Mock;
 });
 afterEach(() => jest.restoreAllMocks());
@@ -66,9 +81,11 @@ it('loads commission only on request and displays provider figures', async () =>
                   source: 'Deriv',
                   appId: 'configured-app',
               })
-            : String(url).includes('/access')
-              ? response({ admin: true })
-              : response(overview)
+            : String(url).includes('/health')
+              ? response(health)
+              : String(url).includes('/access')
+                ? response({ admin: true })
+                : response(overview)
     );
     render(<Admin />);
     await screen.findByText(/Preview storage:/);
@@ -81,9 +98,11 @@ it('does not fabricate earnings when reporting authorization is missing', async 
     (fetch as jest.Mock).mockImplementation(async url =>
         String(url).includes('/commission')
             ? response({ error: 'Connect developer reporting.' }, 403)
-            : String(url).includes('/access')
-              ? response({ admin: true })
-              : response(overview)
+            : String(url).includes('/health')
+              ? response(health)
+              : String(url).includes('/access')
+                ? response({ admin: true })
+                : response(overview)
     );
     render(<Admin />);
     await screen.findByText(/Preview storage:/);
@@ -120,9 +139,11 @@ it('requests real daily commission buckets only after the owner selects daily de
                       { from: '2026-10-02', to: '2026-10-02', reported: true, commissionUsd: 2.22 },
                   ],
               })
-            : String(url).includes('/access')
-              ? response({ admin: true })
-              : response(overview)
+            : String(url).includes('/health')
+              ? response(health)
+              : String(url).includes('/access')
+                ? response({ admin: true })
+                : response(overview)
     );
     render(<Admin />);
     await screen.findByText(/Preview storage:/);
@@ -135,12 +156,14 @@ it('requests real daily commission buckets only after the owner selects daily de
 
 it('shows individual account activity without claiming individual commission', async () => {
     (fetch as jest.Mock).mockImplementation(async url =>
-        String(url).includes('/access')
-            ? response({ admin: true })
-            : response({
-                  ...overview,
-                  tradingUsers: [{ ...overview.money[0], account: 'abcdef0123456789abcdef0123456789' }],
-              })
+        String(url).includes('/health')
+            ? response(health)
+            : String(url).includes('/access')
+              ? response({ admin: true })
+              : response({
+                    ...overview,
+                    tradingUsers: [{ ...overview.money[0], account: 'abcdef0123456789abcdef0123456789' }],
+                })
     );
     render(<Admin />);
     expect(await screen.findByText('User abcdef0123456789')).toBeTruthy();
@@ -150,7 +173,11 @@ it('shows individual account activity without claiming individual commission', a
 
 it('explains the real-trading visibility rule and reports hidden demo purchases', async () => {
     (fetch as jest.Mock).mockImplementation(async url =>
-        String(url).includes('/access') ? response({ admin: true }) : response({ ...overview, hiddenDemoTrades: 48 })
+        String(url).includes('/health')
+            ? response(health)
+            : String(url).includes('/access')
+              ? response({ admin: true })
+              : response({ ...overview, hiddenDemoTrades: 48 })
     );
     render(<Admin />);
     expect(await screen.findByText(/48 demo trades hidden for these dates/)).toBeTruthy();

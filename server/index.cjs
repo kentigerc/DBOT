@@ -18,6 +18,7 @@ const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
 const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
 let admin;
 let analysis;
+let operations;
 const handleAuth = createAuthHandler({
     origin,
     secret,
@@ -50,11 +51,13 @@ admin = createAdminAnalytics({
     auth: handleAuth,
     store: analyticsStore,
     secret,
+    operations: { get: () => operations.get() },
     activeBots: () =>
         [...(analysis?.sessions.values() || [])].filter(value => value.engine.getSnapshot().active).length,
 });
 analysis = createAnalysisService(handleAuth, {
     dispatcher,
+    onOperationalEvent: event => operations?.record(event),
     onTrade: (account, state, packet) =>
         admin.trade(
             account.account_id,
@@ -68,6 +71,13 @@ analysis = createAnalysisService(handleAuth, {
             packet
         ),
 });
+operations = require('./operations.cjs').createOperations({
+    origin,
+    trading: () => analysis.health(),
+    analytics: () => analyticsStore.probe(),
+});
+const operationsTimer = setInterval(() => void operations.get().catch(() => {}), 30000);
+operationsTimer.unref();
 console.log(`Server trading journal: ${analysis.storageMode}.`);
 const { createBotLoader } = require('./bots.cjs');
 const loadBot = createBotLoader(handleAuth);
@@ -95,8 +105,10 @@ attachSockets(server, handleAuth, dispatcher, {
     security,
     onConnection: (account, key, open) => admin.connection(account, key, open),
     onTrade: (account, value) => admin.trade(account, 'bot_builder', value),
+    onProviderFailure: () => operations.record('trading_connection_lost'),
 });
 process.once('SIGTERM', () => {
+    clearInterval(operationsTimer);
     // Stop accepting commands immediately, then drain journal commits before
     // exiting. A pending trade stays recorded for explicit reconciliation.
     analysis.stopAll();

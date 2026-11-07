@@ -201,7 +201,7 @@ test('restart restores unresolved intent without connecting or placing orders', 
     assert.equal(response.data.active, false);
     assert.equal(response.data.pending.contractId, 123);
     assert.equal(connections, 0);
-    assert.equal((await request('phone', { action: 'reset' })).status, 400);
+    assert.equal((await request('phone', { action: 'reset' })).status, 409);
     assert.equal(service.busy('demo'), true);
 });
 test('imports a prior browser purchase once and preserves its multiplier and counters', async t => {
@@ -407,7 +407,7 @@ test('a runner retains its authenticated request for buys after the start respon
     const value = service.sessions.get('demo');
     await value.task;
     assert.equal(value.request, undefined);
-    await value.engine.api.send({ buy: 1 });
+    await value.engine.api.send({ buy: 1, passthrough: { neto_order_id: 'test-auth-order' } });
     assert.deepEqual(checked, ['device=phone']);
 });
 test('the service cannot authorize new Builder buys after shutdown begins', async t => {
@@ -444,4 +444,18 @@ test('a restored unexpired PostgreSQL lease keeps Builder blocked even between s
     assert.equal(state.owner, 'old-server');
     assert.equal(service.busy('demo'), true);
     assert.throws(() => service.beforeBuilder('demo', { buy: 1 }), /Stop and settle/);
+});
+
+test('STOP cancels a local runner even if the shared STOP notification cannot reach storage', async t => {
+    const { createAccountLocks } = require('./account-locks.cjs');
+    const locks = createAccountLocks({ databaseUrl: '', schedule: () => ({ unref() {} }), cancel() {} });
+    const { request, service } = await fixture(t, { locks });
+    await request('phone', { action: 'start', settings: DEFAULT_SETTINGS });
+    await service.sessions.get('demo').task;
+    locks.requestStop = async () => {
+        throw Object.assign(new Error('Storage unavailable'), { status: 503 });
+    };
+    assert.equal((await request('phone', { action: 'stop' })).status, 503);
+    assert.equal(service.sessions.get('demo').engine.getSnapshot().wantsRun, false);
+    assert.equal(service.sessions.get('demo').engine.getSnapshot().active, false);
 });

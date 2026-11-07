@@ -121,6 +121,7 @@ export const empty = (): Snapshot => ({
     owner: '',
 });
 const definitive = new Set([
+    'NetoPurchaseCancelled',
     'PriceMoved',
     'InvalidContractProposal',
     'InvalidContractId',
@@ -665,6 +666,12 @@ export class DigitStrategyEngine {
                     this.persist();
                     this.disabled.set(signal.symbol, this.now() + 10000);
                     this.log(`Purchase rejected (${code}); no retry.`, 'warn');
+                    if (code === 'NetoPurchaseCancelled') {
+                        this.finish(
+                            'Account protection stopped new entries. Review the active session before restarting.'
+                        );
+                        return;
+                    }
                     if (code === 'InsufficientBalance') {
                         this.finish('Insufficient balance. Trading stopped before any further purchase.');
                         return;

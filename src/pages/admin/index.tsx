@@ -1,3 +1,4 @@
+import Operations from './operations';
 import { csvRows } from '@/utils/csv';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
@@ -242,6 +243,7 @@ export default function Admin() {
                                 : `Analytics is catching up. ${data.pendingEvents} events are pending; totals may be incomplete.`}
                         </p>
                     )}
+                    <Operations />
                     <section className='neto-admin__cards' aria-label='Live activity'>
                         {[
                             ['Online browsers', data?.onlineBrowsers],

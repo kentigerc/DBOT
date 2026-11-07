@@ -23,7 +23,7 @@ Render can discard an old instance's ephemeral files during deployment. This mig
 
 This change covers the four server-run analysis strategies. Bot Builder and XML Auto execution still run in the browser; their execution journal has not been moved to PostgreSQL in this step. Before a new Builder purchase, the bridge loads/checks the server journal so an unresolved server-tool purchase cannot be bypassed after a restart.
 
-Revision checks reject stale snapshot writers, but they are **not distributed account locks across Builder/XML and server tools**. Keep one Node process and one Render trading-service instance. Distributed per-account locking, operational health checks/alerts and deployment failover testing remain subsequent work.
+Revision checks reject stale snapshot writers; separate shared account locks now cover Builder/XML and server tools. Keep one Node process and one Render trading-service instance. Shared per-account locks and owner-only health checks/alerts have now been added; see [account protection and monitoring](account-locks-and-monitoring.md). Live deployment failover/load testing and full cross-instance UI/operational readiness remain outstanding.
 
 ## Verification
 

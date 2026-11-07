@@ -223,3 +223,48 @@
         }
     }
 }
+
+.neto-admin__operations {
+    margin-block: 2rem;
+    padding: 1.6rem;
+    border: 1px solid var(--border-normal);
+    border-radius: 1rem;
+    p {
+        margin-block: 1rem;
+    }
+    &-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+}
+.neto-admin__health-checks {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 0.8rem;
+    li {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        border-inline-start: 3px solid #2ca875;
+        background: var(--general-section-1);
+    }
+    li[data-status='warning'] {
+        border-color: #d99c2e;
+    }
+    li[data-status='error'] {
+        border-color: #e54343;
+    }
+    strong {
+        min-width: 8rem;
+    }
+}
+.neto-admin__health-alerts {
+    padding-inline-start: 1.8rem;
+    li {
+        margin-block: 0.8rem;
+    }
+}

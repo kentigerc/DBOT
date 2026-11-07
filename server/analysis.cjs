@@ -6,6 +6,8 @@ const { DigitStrategyEngine, empty } = require('../.server-build/engine');
 const { DEFAULT_SETTINGS, validateSettings, cents } = require('../.server-build/strategy');
 const { createBroker } = require('./strategy-broker.cjs');
 const { createTradingStateStorage } = require('./trading-state.cjs');
+const { createAccountLocks, DEFINITIVE } = require('./account-locks.cjs');
+const { randomUUID } = require('node:crypto');
 
 function fileStorage(directory) {
     const filename = key => path.join(directory, createHash('sha256').update(key).digest('hex') + '.json');
@@ -51,10 +53,14 @@ function createAnalysisService(
         }),
         brokerFactory = url => createBroker(url, dispatcher),
         Engine = DigitStrategyEngine,
+        onOperationalEvent = () => {},
+        locks = createAccountLocks({ onFailure: onOperationalEvent }),
     } = {}
 ) {
     const sessions = new Map();
     const builderBuys = new Map();
+    const builderOrders = new Map();
+    const epochs = new Map();
     let closing = false;
     const key = id => `neto.digit-strategy.v1.${id}`;
     const prepareAccount = async id => {
@@ -77,19 +83,88 @@ function createAnalysisService(
             (storage.mode === 'postgres' && state?.liveUntil > Date.now())
         );
     };
+    const settleLease = value => {
+        if (!value.lease || value.starting || value.engine.getSnapshot().active) return;
+        const lease = value.lease;
+        lease.held = false;
+        if (!value.engine.getSnapshot().pending)
+            void (async () => {
+                await storage.flush?.(key(value.account.account_id));
+                if (value.lease === lease && !value.starting && !value.engine.getSnapshot().active)
+                    await locks.release(lease);
+            })().catch(() => {});
+    };
     const entry = account => {
         let value = sessions.get(account.account_id);
         if (!value) {
             value = { account, starting: false, request: undefined };
+            const epoch = randomUUID();
+            epochs.set(account.account_id, epoch);
+            const checkEpoch = () => {
+                if (epochs.get(account.account_id) !== epoch) throw new Error('This trading run was replaced.');
+            };
+            const engineStorage = {
+                ...storage,
+                getItem: key => {
+                    checkEpoch();
+                    return storage.getItem(key);
+                },
+                setItem: (key, text) => {
+                    checkEpoch();
+                    storage.setItem(key, text);
+                },
+                flush: async key => {
+                    checkEpoch();
+                    await storage.flush?.(key);
+                    checkEpoch();
+                },
+            };
             const brokerForRun = async () => {
                 // The runner outlives the HTTP start command; keep its verified
                 // request for later revocation checks after startup completes.
                 const request = value.request;
+                const lease = value.lease;
                 const broker = await brokerFactory(await auth.connectionUrl(request, account.account_id));
+                broker.connection?.addEventListener(
+                    'close',
+                    () => {
+                        if (value.engine.getSnapshot().active && value.engine.getSnapshot().wantsRun)
+                            onOperationalEvent('trading_connection_lost');
+                    },
+                    { once: true }
+                );
                 const send = broker.send.bind(broker);
                 broker.send = async body => {
-                    if (body.buy) await auth.verifySession?.(request);
-                    return send(body);
+                    const pending = value.engine.getSnapshot().pending;
+                    if (body.buy) {
+                        await auth.verifySession?.(request);
+                        try {
+                            await locks.protect(lease, body.passthrough.neto_order_id);
+                        } catch (error) {
+                            if (error.status === 409) throw { code: 'NetoPurchaseCancelled' };
+                            throw error;
+                        }
+                        if (value.cancelled || !value.engine.getSnapshot().wantsRun) {
+                            await locks.cancel(lease, body.passthrough.neto_order_id);
+                            throw { code: 'NetoPurchaseCancelled' };
+                        }
+                    }
+                    try {
+                        const result = await send(body);
+                        if (body.buy && result.buy?.contract_id)
+                            await locks.acknowledge(lease, body.passthrough.neto_order_id, result.buy.contract_id);
+                        if (body.proposal_open_contract && pending && result.proposal_open_contract) {
+                            value.engine.validateContract(result.proposal_open_contract, pending, body.contract_id);
+                            await locks.acknowledge(lease, pending.nonce, body.contract_id, true);
+                            if ([1, true].includes(result.proposal_open_contract.is_sold))
+                                await locks.settled(account.account_id, body.contract_id);
+                        }
+                        return result;
+                    } catch (error) {
+                        const code = error.error?.code || error.code;
+                        if (body.buy && DEFINITIVE.has(code)) await locks.cancel(lease, body.passthrough.neto_order_id);
+                        throw error;
+                    }
                 };
                 const reporting = broker.onMessage?.().subscribe(({ data }) => {
                     const packet = data.buy?.contract_id
@@ -98,6 +173,8 @@ function createAnalysisService(
                           ? data.proposal_open_contract
                           : undefined;
                     if (packet) {
+                        if ([1, true].includes(packet.is_sold))
+                            void locks.settled(account.account_id, packet.contract_id).catch(() => {});
                         try {
                             onTrade(value.account, value.engine.getSnapshot(), packet);
                         } catch {
@@ -112,10 +189,11 @@ function createAnalysisService(
             value.engine = new Engine({
                 account: () => value.account,
                 builderRunning: () => (builderBuys.get(account.account_id)?.size || 0) > 0,
-                storage,
+                storage: engineStorage,
                 createApi: brokerForRun,
             });
             value.engine.selectAccount(account);
+            value.engine.subscribe?.(() => settleLease(value));
             // A restart never continues entries automatically.
             const state = value.engine.getSnapshot();
             // Database runs retain an unexpired prior-process lease. A manual
@@ -127,7 +205,7 @@ function createAnalysisService(
                 value.engine = new Engine({
                     account: () => value.account,
                     builderRunning: () => (builderBuys.get(account.account_id)?.size || 0) > 0,
-                    storage,
+                    storage: engineStorage,
                     createApi: brokerForRun,
                 });
                 value.engine.selectAccount(account);
@@ -151,7 +229,24 @@ function createAnalysisService(
             if (!id || id.length > 128) throw fail(400, 'Select a trading account.');
             const account = await auth.authorizeAccount(req, id);
             await prepareAccount(id);
-            const value = entry(account);
+            let value = entry(account);
+            if (req.method === 'GET' && !value.starting && !value.engine.getSnapshot().active && storage.peek) {
+                const saved = await storage.peek(key(id));
+                if (saved) {
+                    const state = JSON.parse(saved);
+                    const holder = await locks.current(id);
+                    const live =
+                        state.active && state.liveUntil > Date.now() && holder.active && holder.mode === 'analysis';
+                    return json(200, {
+                        ...state,
+                        active: !!live,
+                        wantsRun: !!live && state.wantsRun,
+                        markets: [],
+                        serverExecution: true,
+                        demoOnly: false,
+                    });
+                }
+            }
             if (req.method === 'POST') {
                 if (!req.headers['content-type']?.startsWith('application/json')) throw fail(415, 'JSON required.');
                 let raw = '';
@@ -246,16 +341,25 @@ function createAnalysisService(
                                 at: pending.sentAt,
                             },
                         ];
-                    storage.setItem(`neto.digit-strategy.v1.${id}`, JSON.stringify(restored));
-                    sessions.delete(id);
-                    const imported = entry(account);
-                    await storage.flush?.(key(id));
-                    return json(200, { ...imported.engine.getSnapshot(), serverExecution: true, demoOnly: false });
+                    value.starting = true;
+                    let lease;
+                    try {
+                        lease = await locks.claim(id, { mode: 'analysis' });
+                        storage.setItem(`neto.digit-strategy.v1.${id}`, JSON.stringify(restored));
+                        sessions.delete(id);
+                        value = entry(account);
+                        value.lease = lease;
+                        await storage.flush?.(key(id));
+                        return json(200, { ...value.engine.getSnapshot(), serverExecution: true, demoOnly: false });
+                    } finally {
+                        value.starting = false;
+                        if (lease) await locks.release(lease);
+                    }
                 } else if (body.action === 'start') {
                     auth.requireTerms?.(req);
                     if (value.engine.getSnapshot().active)
                         throw fail(409, 'This account already has an Analysis Tool running.');
-                    if ((builderBuys.get(id)?.size || 0) > 0)
+                    if (locks.mode !== 'postgres' && (builderBuys.get(id)?.size || 0) > 0)
                         throw fail(409, 'A Builder purchase is open or unconfirmed. Settle it before starting.');
                     value.starting = true;
                     value.cancelled = false;
@@ -273,6 +377,38 @@ function createAnalysisService(
                     value.task = (async () => {
                         let check;
                         try {
+                            const fresh = storage.peek ? await storage.peek(key(id)) : storage.getItem(key(id));
+                            const pending = fresh && JSON.parse(fresh).pending;
+                            value.lease = await locks.claim(id, {
+                                mode: 'analysis',
+                                reconcile: pending?.nonce ? [pending.nonce] : [],
+                            });
+                            locks.hold(value.lease, {
+                                onLost: () => {
+                                    onOperationalEvent('account_lock_lost');
+                                    value.cancelled = true;
+                                    value.engine.stop('Account lock lost. No new entries.');
+                                },
+                                onStop: () => {
+                                    value.cancelled = true;
+                                    value.engine.stop('Stop requested from another device.');
+                                },
+                            });
+                            if (storage.reload) {
+                                await storage.reload(key(id));
+                                const old = value;
+                                sessions.delete(id);
+                                const restored = entry(account);
+                                Object.assign(restored, {
+                                    starting: true,
+                                    cancelled: old.cancelled,
+                                    request: req,
+                                    lease: old.lease,
+                                    expiry: old.expiry,
+                                });
+                                restored.task = old.task;
+                                value = restored;
+                            }
                             // A prior journal failure cannot be bypassed by
                             // starting another tool in this process.
                             await storage.flush?.(key(id));
@@ -305,16 +441,46 @@ function createAnalysisService(
                             check?.disconnect();
                             value.starting = false;
                             value.request = undefined;
+                            settleLease(value);
                         }
                     })();
                 } else if (body.action === 'stop') {
                     value.cancelled = true;
-                    value.engine.stop();
+                    if (value.engine.getSnapshot().active) value.engine.stop();
+                    await locks.requestStop(id);
+                    if (locks.mode === 'postgres' && !value.engine.getSnapshot().active && storage.peek) {
+                        const saved = await storage.peek(key(id));
+                        return json(200, {
+                            ...(saved ? JSON.parse(saved) : value.engine.getSnapshot()),
+                            wantsRun: false,
+                            phase: 'Stop requested. An open contract may still settle.',
+                            serverExecution: true,
+                            demoOnly: false,
+                        });
+                    }
+                    if (!storage.peek) value.engine.stop();
                 } else if (body.action === 'reset') {
-                    value.engine.reset();
-                    value.commandError = '';
+                    if (value.engine.getSnapshot().active || value.engine.getSnapshot().pending)
+                        throw fail(409, 'Stop and settle the current session before resetting.');
+                    value.starting = true;
+                    try {
+                        const lease = await locks.claim(id, { mode: 'analysis' });
+                        if (storage.reload) {
+                            await storage.reload(key(id));
+                            value.expiry?.();
+                            sessions.delete(id);
+                            value = entry(account);
+                        }
+                        value.lease = lease;
+                        value.engine.reset();
+                        value.commandError = '';
+                    } finally {
+                        value.starting = false;
+                        settleLease(value);
+                    }
                 } else throw fail(400, 'Unknown trading command.');
                 await storage.flush?.(key(id));
+                settleLease(value);
             }
             return json(200, {
                 ...value.engine.getSnapshot(),
@@ -333,6 +499,53 @@ function createAnalysisService(
         handle,
         busy,
         prepareAccount,
+        async authorizeBuilderBuy(id, body, clientKey) {
+            if (!Number.isSafeInteger(body.req_id) || body.req_id < 0)
+                throw fail(400, 'A valid purchase request identifier is required.');
+            if (builderOrders.has(`${id}:${clientKey}:${body.req_id}`))
+                throw fail(409, 'This purchase request is already pending.');
+            builderOrders.set(`${id}:${clientKey}:${body.req_id}`, { preparing: true });
+            let lease, nonce;
+            try {
+                await this.prepareBuilder(id);
+                this.beforeBuilder(id, body, clientKey);
+                lease = await locks.claim(id, { mode: 'builder' });
+                const shared = storage.peek ? await storage.peek(key(id)) : null;
+                if (shared) {
+                    const state = JSON.parse(shared);
+                    if (state.pending || (state.active && state.liveUntil > Date.now()))
+                        throw fail(409, 'Stop and settle the server tool before buying from Bot Builder.');
+                }
+                nonce = randomUUID();
+                await locks.protect(lease, nonce);
+                builderOrders.set(`${id}:${clientKey}:${body.req_id}`, { lease, nonce });
+                return { ...body, passthrough: { ...(body.passthrough || {}), neto_lock_order: nonce } };
+            } catch (error) {
+                builderBuys.get(id)?.delete(`request:${clientKey}:${body.req_id}`);
+                builderOrders.delete(`${id}:${clientKey}:${body.req_id}`);
+                if (lease) await locks.release(lease).catch(() => {});
+                throw error;
+            }
+        },
+        async cancelBuilderBuy(id, body, clientKey) {
+            const order = builderOrders.get(`${id}:${clientKey}:${body.req_id}`);
+            if (order?.lease) await locks.cancel(order.lease, order.nonce);
+            builderOrders.delete(`${id}:${clientKey}:${body.req_id}`);
+            builderBuys.get(id)?.delete(`request:${clientKey}:${body.req_id}`);
+        },
+        async observeBuilder(id, data, clientKey) {
+            const order = builderOrders.get(`${id}:${clientKey}:${data.req_id}`);
+            if (order?.lease && data.buy?.contract_id) {
+                await locks.acknowledge(order.lease, order.nonce, Number(data.buy.contract_id));
+                builderOrders.delete(`${id}:${clientKey}:${data.req_id}`);
+            } else if (order?.lease && data.error && DEFINITIVE.has(data.error.code)) {
+                await locks.cancel(order.lease, order.nonce);
+                builderOrders.delete(`${id}:${clientKey}:${data.req_id}`);
+            }
+            if ([1, true].includes(data.proposal_open_contract?.is_sold))
+                await locks.settled(id, Number(data.proposal_open_contract.contract_id));
+            this.builderResponse(id, data, clientKey);
+        },
         async prepareBuilder(id) {
             await prepareAccount(id);
             await storage.flush?.(key(id));
@@ -367,9 +580,28 @@ function createAnalysisService(
             // Start commands may be suspended at the portfolio or journal
             // checkpoint. Cancellation is checked again before any purchase.
             await Promise.allSettled([...sessions.values()].map(value => value.task));
+            await Promise.allSettled(
+                [...sessions.values()].map(async value => {
+                    await storage.flush?.(key(value.account.account_id));
+                    if (!value.engine.getSnapshot().pending) await locks.release(value.lease);
+                })
+            );
+            await locks.close();
             await storage.close?.();
         },
         storageMode: storage.mode || 'custom',
+        async health() {
+            const [journal, protection] = await Promise.all([
+                storage.probe?.() || { mode: storage.mode || 'custom', failedAccounts: 0 },
+                locks.probe(),
+            ]);
+            return {
+                journal,
+                protection,
+                locks: await locks.summary(),
+                active: [...sessions.values()].filter(value => value.engine.getSnapshot().active).length,
+            };
+        },
         sessions,
     };
 }

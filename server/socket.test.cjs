@@ -137,6 +137,7 @@ test('background Builder stream ignores other tools and only reports settlements
     emit({ proposal_open_contract: { contract_id: 123, buy_price: 0.35, is_sold: 0, profit: -0.35 } });
     const settlement = { contract_id: 123, buy_price: 0.35, is_sold: 1, profit: 0.12 };
     emit({ proposal_open_contract: settlement });
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(trades.length, 2);
     assert.deepEqual(trades[1], ['DOT100', settlement]);
     // A new browser connection can observe a known Builder purchase's settlement.
@@ -145,6 +146,7 @@ test('background Builder stream ignores other tools and only reports settlements
     upstreams[1].dispatchEvent(
         new MessageEvent('message', { data: JSON.stringify({ proposal_open_contract: settlement }) })
     );
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(trades.length, 3);
     client.close();
     other.close();

@@ -107,6 +107,24 @@ function createTradingStateStorage({ databaseUrl = process.env.DATABASE_URL, leg
     };
     const storage = {
         mode: 'postgres',
+        async peek(key) {
+            await ensureReady();
+            const result = await pool.query('SELECT data FROM neto_trading_state WHERE state_key=$1', [hash(key)]);
+            const value = result.rows[0] ? JSON.stringify(result.rows[0].data) : null;
+            if (value !== null) validate(key, value);
+            return value;
+        },
+        async reload(key) {
+            const record = records.get(key);
+            if (record?.running || record?.wanted) await storage.flush(key);
+            records.delete(key);
+            await storage.load(key);
+        },
+        async probe() {
+            await ensureReady();
+            await pool.query('SELECT 1');
+            return { mode: 'postgres', failedAccounts: [...records.values()].filter(record => record.error).length };
+        },
         async load(key) {
             if (records.has(key)) {
                 get(key);

@@ -17,6 +17,7 @@ function createAnalyticsStore({
             max: 3,
             connectionTimeoutMillis: 5000,
             statement_timeout: 10000,
+            query_timeout: 12000,
         });
         ready = null;
     } else {
@@ -82,6 +83,11 @@ function createAnalyticsStore({
     return {
         mode: pool ? 'postgres' : 'preview-file',
         health: () => !failure,
+        async probe() {
+            await ensureReady();
+            if (pool) await pool.query('SELECT 1');
+            return { mode: pool ? 'postgres' : 'preview-file', healthy: !failure };
+        },
         async put(event) {
             try {
                 await write(event);
