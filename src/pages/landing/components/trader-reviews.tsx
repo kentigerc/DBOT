@@ -86,6 +86,36 @@ const reviews = [
         flag: 'gh',
         text: 'The platform saves time and makes the trading process much easier for someone who is still learning.',
     },
+    {
+        name: 'David Kato',
+        country: 'Uganda',
+        flag: 'ug',
+        text: 'I was new to online trading and NetoAcademy made the learning curve much easier. The automated features helped me gain confidence from day one.',
+    },
+    {
+        name: 'Sarah Namugga',
+        country: 'Uganda',
+        flag: 'ug',
+        text: "What I like most is that I don't have to spend hours analyzing charts. The platform is simple, clean, and very easy to use.",
+    },
+    {
+        name: 'Michael Ssenyonjo',
+        country: 'Uganda',
+        flag: 'ug',
+        text: 'The automation tools are impressive and straightforward. Even with limited trading knowledge, I was able to get started quickly.',
+    },
+    {
+        name: 'Esther Nansubuga',
+        country: 'Uganda',
+        flag: 'ug',
+        text: "NetoAcademy combines education and automation in a way that's easy to understand. The interface feels modern and professional.",
+    },
+    {
+        name: 'Brian Mugisha',
+        country: 'Uganda',
+        flag: 'ug',
+        text: 'As someone with a busy work schedule, I appreciate how the platform simplifies the trading process while still giving me control over my settings.',
+    },
 ];
 
 export default function TraderReviews() {
