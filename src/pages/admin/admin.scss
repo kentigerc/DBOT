@@ -1,3 +1,42 @@
+.neto-page-error {
+    display: grid;
+    place-items: center;
+    height: var(--market-panel-height, 100%);
+    min-height: 0;
+    padding: 32px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    text-align: center;
+    background: var(--general-main-1);
+    color: var(--text-general);
+    font-size: 16px;
+    line-height: 1.6;
+    strong {
+        color: var(--brand-red-coral);
+        font-size: 64px;
+    }
+    h1 {
+        margin: 8px 0;
+        font-size: 32px;
+    }
+    p {
+        color: var(--text-less-prominent);
+    }
+    a {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 12px 20px;
+        border: 1px solid var(--border-normal);
+        border-radius: 8px;
+        color: var(--text-general);
+        text-decoration: none;
+        &:focus-visible {
+            outline: 2px solid var(--brand-red-coral);
+            outline-offset: 4px;
+        }
+    }
+}
+
 .neto-admin {
     height: var(--market-panel-height, 100%);
     min-height: 0;

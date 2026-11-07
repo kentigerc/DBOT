@@ -56,3 +56,63 @@ test('static delivery refuses dotfiles, backups, maps, source paths, traversal a
     assert.equal(await head.text(), '');
     assert.equal((await fetch(base + '/workspace')).status, 200);
 });
+
+async function privatePageFixture(t, authorizeAdmin) {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'neto-private-page-'));
+    await fs.writeFile(path.join(root, 'index.html'), '<h1>application-shell-marker</h1>');
+    const server = http.createServer((req, res) =>
+        serveStatic(req, res, { root, origin: 'http://localhost', authorizeAdmin })
+    );
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    t.after(async () => {
+        server.closeAllConnections();
+        await new Promise(resolve => server.close(resolve));
+        await fs.rm(root, { recursive: true, force: true });
+    });
+    return `http://127.0.0.1:${server.address().port}`;
+}
+test('private page requests return indistinguishable 404s for guests, non-owners and failed authorization', async t => {
+    const base = await privatePageFixture(t, async req => {
+        if (req.headers.cookie === 'session=owner') return;
+        throw Object.assign(new Error('Private admin account details must not leak'), {
+            status: req.headers.cookie ? 403 : 401,
+        });
+    });
+    const bodies = new Set();
+    for (const route of ['/admin', '/admin/', '/ADMIN', '/%61dmin', '/admin?from=private', '/admin/nested']) {
+        for (const cookie of [undefined, 'session=visitor']) {
+            const result = await fetch(base + route, { headers: cookie ? { cookie } : {} });
+            assert.equal(result.status, 404, route);
+            assert.equal(result.headers.get('cache-control'), 'private, no-store');
+            assert.equal(result.headers.get('vary'), 'Cookie');
+            const body = await result.text();
+            assert.match(body, /Page not found/);
+            assert.doesNotMatch(body, /application-shell-marker|admin|analytics|owner|Deriv|session=|private/i);
+            bodies.add(body);
+        }
+    }
+    assert.equal(bodies.size, 1);
+    const head = await fetch(base + '/admin', { method: 'HEAD' });
+    assert.equal(head.status, 404);
+    assert.equal(await head.text(), '');
+    const owner = await fetch(base + '/admin', { headers: { cookie: 'session=owner' } });
+    assert.equal(owner.status, 200);
+    assert.match(await owner.text(), /application-shell-marker/);
+    assert.equal(owner.headers.get('cache-control'), 'private, no-store');
+    assert.equal(owner.headers.get('vary'), 'Cookie');
+});
+test('private HTML is unavailable without an authorizer or when its check fails', async t => {
+    for (const authorize of [
+        undefined,
+        async () => {
+            throw new Error('Database unavailable');
+        },
+    ]) {
+        const base = await privatePageFixture(t, authorize);
+        const result = await fetch(base + '/admin');
+        assert.equal(result.status, 404);
+        const body = await result.text();
+        assert.match(body, /Page not found/);
+        assert.doesNotMatch(body, /Database|application-shell-marker|admin/i);
+    }
+});

@@ -22,7 +22,7 @@ function privatePath(pathname) {
         pathname.toLowerCase() === '/test-offline.html'
     );
 }
-async function serveStatic(req, res, { root, origin }) {
+async function serveStatic(req, res, { root, origin, authorizeAdmin }) {
     if (!['GET', 'HEAD'].includes(req.method)) {
         res.writeHead(405);
         return res.end();
@@ -36,6 +36,28 @@ async function serveStatic(req, res, { root, origin }) {
         if (privatePath(pathname)) {
             res.writeHead(404);
             return res.end();
+        }
+        const adminPage = /^\/admin(?:\/|$)/i.test(pathname);
+        if (adminPage) {
+            res.setHeader('Vary', 'Cookie');
+            let allowed = false;
+            if (authorizeAdmin) {
+                try {
+                    await authorizeAdmin(req);
+                    allowed = true;
+                } catch {
+                    // Private routes are indistinguishable from missing pages.
+                }
+            }
+            if (!allowed) {
+                const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Page not found | NetoAcademy</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0c0e;color:#efefea;font:16px/1.6 system-ui,sans-serif}main{text-align:center;padding:32px;max-width:480px}strong{color:#ff514e;font-size:64px}h1{font-size:32px;margin:8px 0}p{color:#b4b4ae}a{display:inline-block;padding:12px 20px;margin-top:12px;border:1px solid #ffffff40;border-radius:8px;color:inherit;text-decoration:none}a:focus-visible{outline:2px solid #ff514e;outline-offset:4px}</style></head><body><main><strong>404</strong><h1>Page not found</h1><p>The page you’re looking for isn’t available.</p><a href="/">Return to homepage</a></main></body></html>`;
+                res.writeHead(404, {
+                    'Content-Type': 'text/html; charset=utf-8',
+                    'Cache-Control': 'private, no-store',
+                    'Content-Length': Buffer.byteLength(body),
+                });
+                return res.end(req.method === 'HEAD' ? undefined : body);
+            }
         }
         if (pathname.toLowerCase() === '/bots' || pathname.toLowerCase().startsWith('/bots/')) {
             res.writeHead(403);
@@ -64,7 +86,7 @@ async function serveStatic(req, res, { root, origin }) {
         const size = (await stat(file)).size;
         res.writeHead(200, {
             'Content-Type': types[path.extname(file)] || 'application/octet-stream',
-            'Cache-Control': 'no-cache',
+            'Cache-Control': adminPage ? 'private, no-store' : 'no-cache',
             'Content-Length': size,
         });
         if (req.method === 'HEAD') res.end();

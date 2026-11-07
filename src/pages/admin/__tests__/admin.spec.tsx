@@ -52,13 +52,31 @@ beforeEach(() => {
     ) as jest.Mock;
 });
 afterEach(() => jest.restoreAllMocks());
-it('keeps private analytics hidden when access is denied', async () => {
-    (fetch as jest.Mock).mockResolvedValue(response({ error: 'This account does not have admin access.' }, 403));
-    render(<Admin />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('does not have admin access');
-    expect(screen.queryByRole('region', { name: 'Live activity' })).toBeNull();
-    expect(fetch).toHaveBeenCalledTimes(1);
-});
+it.each([401, 403, 404, 503])(
+    'shows a generic missing page without any dashboard shell when access returns %s',
+    async status => {
+        (fetch as jest.Mock).mockResolvedValue(response({ error: 'This account does not have admin access.' }, status));
+        render(<Admin />);
+        expect(screen.queryByText('OWNER DASHBOARD')).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'NetoAcademy analytics' })).toBeNull();
+        expect(await screen.findByRole('alert')).toHaveTextContent('404');
+        expect(screen.getByRole('heading', { name: 'Page not found' })).toBeTruthy();
+        expect(screen.queryByText(/admin access|authorized Deriv|OWNER DASHBOARD/i)).toBeNull();
+        expect(screen.queryByRole('link', { name: 'Log in with Deriv' })).toBeNull();
+        expect(screen.queryByRole('region', { name: 'Live activity' })).toBeNull();
+        expect(fetch).toHaveBeenCalledTimes(1);
+    }
+);
+it.each([{ admin: false }, {}])(
+    'requires explicit server authorization before displaying any owner content: %j',
+    async body => {
+        (fetch as jest.Mock).mockResolvedValue(response(body));
+        render(<Admin />);
+        expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeTruthy();
+        expect(screen.queryByText('OWNER DASHBOARD')).toBeNull();
+        expect(fetch).toHaveBeenCalledTimes(1);
+    }
+);
 it('shows owner analytics, real/demo labels and a clear preview-storage notice', async () => {
     render(<Admin />);
     await screen.findByText(/Preview storage:/);

@@ -96,7 +96,7 @@ const server = http.createServer(
             res.writeHead(404);
             return res.end();
         }
-        return serveStatic(req, res, { root, origin });
+        return serveStatic(req, res, { root, origin, authorizeAdmin: handleAuth.requireAdmin });
     }
 );
 

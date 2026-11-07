@@ -100,19 +100,19 @@ export default function Admin() {
     const [error, setError] = useState(''),
         [reportError, setReportError] = useState(''),
         [busy, setBusy] = useState(false),
-        [allowed, setAllowed] = useState(false);
+        [allowed, setAllowed] = useState<boolean | null>(null);
     const [breakdown, setBreakdown] = useState('none');
     const reportSequence = useRef(0);
     const [reportBusy, setReportBusy] = useState(false);
     const [range, setRange] = useState({ from: date(-29), to: date() });
     useEffect(() => {
         let live = true;
-        get('/api/admin/access')
-            .then(() => {
-                if (live) setAllowed(true);
+        get<{ admin: boolean }>('/api/admin/access')
+            .then(value => {
+                if (live) setAllowed(value.admin === true);
             })
-            .catch(reason => {
-                if (live) setError(reason.message);
+            .catch(() => {
+                if (live) setAllowed(false);
             });
         return () => {
             live = false;
@@ -177,6 +177,22 @@ export default function Admin() {
         setReportBusy(false);
         return invalidateCommission;
     }, [range, breakdown, invalidateCommission]);
+    if (!allowed) {
+        return (
+            <main className='neto-page-error' ref={panel}>
+                {allowed === null ? (
+                    <p role='status'>Loading page…</p>
+                ) : (
+                    <div role='alert'>
+                        <strong>404</strong>
+                        <h1>Page not found</h1>
+                        <p>The page you’re looking for isn’t available.</p>
+                        <a href='/'>Return to homepage</a>
+                    </div>
+                )}
+            </main>
+        );
+    }
     return (
         <main className='neto-admin' ref={panel}>
             <div className='neto-admin__heading'>
@@ -192,18 +208,7 @@ export default function Admin() {
                     {error}
                 </p>
             )}
-            {!allowed ? (
-                <section className='neto-admin__panel'>
-                    <h2>Private admin access</h2>
-                    <p>
-                        Sign in with the owner’s authorized Deriv account. Admin access must be configured on the
-                        server.
-                    </p>
-                    <a className='neto-admin__button' href='/api/auth/login?return=admin'>
-                        Log in with Deriv
-                    </a>
-                </section>
-            ) : (
+            {allowed && (
                 <>
                     <form
                         className='neto-admin__filters'
