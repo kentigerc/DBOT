@@ -1,5 +1,5 @@
-import { type Broker, DigitStrategyEngine } from '../engine';
-import { DEFAULT_SETTINGS } from '../strategy';
+import { type Broker, DigitStrategyEngine, empty, type Snapshot } from '../engine';
+import { DEFAULT_SETTINGS, sharedRecoverySettings, type Settings } from '../strategy';
 jest.mock('@/external/bot-skeleton/services/api/appId', () => ({ generateDerivApiInstance: jest.fn() }));
 jest.mock('@/external/bot-skeleton', () => ({ api_base: { is_running: false } }));
 jest.mock('@/utils/deriv-session', () => ({ getDerivAccount: () => undefined }));
@@ -150,6 +150,150 @@ beforeEach(() => {
     localStorage.clear();
 });
 afterEach(() => jest.useRealTimers());
+describe('resuming a manually stopped session', () => {
+    function restore(strategy?: Settings['strategy'], overrides: Partial<Snapshot> = {}) {
+        const saved: Snapshot = {
+            ...empty(),
+            accountId: account.account_id,
+            settings: sharedRecoverySettings({ ...DEFAULT_SETTINGS, strategy }),
+            pnl: -11,
+            wins: 2,
+            losses: 1,
+            streak: 1,
+            stake: 74,
+            batch: 1,
+            peak: 24,
+            maxDrawdown: 35,
+            highestStake: 35,
+            recovery: {
+                streak: 1,
+                countAfter: 0,
+                pauseUntil: 0,
+                deficit: 35,
+                momentumPending: true,
+                recoveryLocked: true,
+                lockedSymbol: 'R_100',
+                lockedDirection: 'DIGITEVEN',
+            },
+            trades: [12, 12, -35].map((profit, index) => ({
+                id: `settled-${index}`,
+                contractId: 100 + index,
+                market: 'R_100',
+                direction: 'DIGITEVEN',
+                recovery: false,
+                stake: 35,
+                payout: profit > 0 ? 47 : 0,
+                profit,
+                status: profit > 0 ? 'Won' : 'Lost',
+                at: 999000 + index,
+            })),
+            ...overrides,
+        };
+        localStorage.setItem(`neto.digit-strategy.v1.${account.account_id}`, JSON.stringify({ ...saved, version: 1 }));
+        const broker = new FakeBroker();
+        const createApi = jest.fn(async () => broker);
+        const engine = new DigitStrategyEngine({ createApi, account: () => account, storage: localStorage });
+        engine.selectAccount(account);
+        return { engine, broker, createApi };
+    }
+    // PostgreSQL JSONB and stopped-session GET responses reorder object keys.
+    const databaseSettings = (settings: Settings): Settings =>
+        Object.fromEntries(
+            Object.entries(settings).sort(([a], [b]) => a.length - b.length || a.localeCompare(b))
+        ) as Settings;
+
+    it.each([undefined, 'over2-under7', 'even-odd', 'momentum-70'] as const)(
+        'resumes %s without resetting statistics or recovery when the database reorders settings',
+        async strategy => {
+            const { engine, broker } = restore(strategy);
+            await engine.start(engine.getSnapshot().settings);
+            expect(engine.getSnapshot().active).toBe(true);
+            engine.stop();
+            const stopped = engine.getSnapshot();
+            expect(stopped.active).toBe(false);
+            const settings = databaseSettings(stopped.settings);
+            expect(JSON.stringify(settings)).not.toBe(JSON.stringify(stopped.settings));
+            try {
+                await expect(engine.start(settings)).resolves.toBeUndefined();
+                expect(engine.getSnapshot()).toMatchObject({
+                    active: true,
+                    wantsRun: true,
+                    pnl: stopped.pnl,
+                    wins: stopped.wins,
+                    losses: stopped.losses,
+                    streak: stopped.streak,
+                    stake: stopped.stake,
+                    batch: stopped.batch,
+                    peak: stopped.peak,
+                    maxDrawdown: stopped.maxDrawdown,
+                    highestStake: stopped.highestStake,
+                    recovery: stopped.recovery,
+                    trades: stopped.trades,
+                });
+                expect(broker.buys).toHaveLength(0);
+            } finally {
+                engine.stop();
+            }
+        }
+    );
+    it.each([{ stake: 0.5 }, { duration: 2 }, { maxStake: 200 }, { strategy: 'even-odd' }] as Partial<Settings>[])(
+        'still requires a new session for a genuine parameter change: %j',
+        async changes => {
+            const { engine, createApi } = restore();
+            await expect(engine.start({ ...engine.getSnapshot().settings, ...changes })).rejects.toThrow(
+                'Reset the stopped session before changing parameters'
+            );
+            expect(engine.getSnapshot().active).toBe(false);
+            expect(createApi).not.toHaveBeenCalled();
+        }
+    );
+    it('does not treat a missing strategy field as permission to switch tools', async () => {
+        const { engine, createApi } = restore('even-odd');
+        const { strategy: _strategy, ...settings } = engine.getSnapshot().settings;
+        await expect(engine.start(settings)).rejects.toThrow('Reset the stopped session before changing parameters');
+        expect(createApi).not.toHaveBeenCalled();
+    });
+    it.each([
+        [{ pnl: 500 }, 'Take-profit reached'],
+        [{ streak: 10 }, 'Consecutive-loss limit reached'],
+        [{ pnl: -9950 }, 'Stop-loss'],
+        [{ stake: 10001 }, 'Maximum stake reached'],
+    ] as [Partial<Snapshot>, string][])(
+        'preserves a reached session risk limit on restart: %j',
+        async (state, reason) => {
+            const { engine, createApi } = restore(undefined, state);
+            await expect(engine.start(databaseSettings(engine.getSnapshot().settings))).rejects.toThrow(reason);
+            expect(engine.getSnapshot().active).toBe(false);
+            expect(createApi).not.toHaveBeenCalled();
+        }
+    );
+    it('settles the open trade after STOP before resuming its recovery and journal', async () => {
+        const { engine, broker } = await setup();
+        expect(broker.buys).toHaveLength(1);
+        engine.stop();
+        expect(engine.getSnapshot()).toMatchObject({ active: true, wantsRun: false });
+        await engine.start(engine.getSnapshot().settings);
+        expect(broker.buys).toHaveLength(1);
+        expect(engine.getSnapshot().wantsRun).toBe(false);
+        broker.settle(-0.35);
+        const stopped = engine.getSnapshot();
+        expect(stopped).toMatchObject({ active: false, pending: undefined, losses: 1, pnl: -35, stake: 74 });
+        try {
+            await expect(engine.start(databaseSettings(stopped.settings))).resolves.toBeUndefined();
+            expect(engine.getSnapshot()).toMatchObject({
+                active: true,
+                losses: 1,
+                pnl: -35,
+                stake: 74,
+                recovery: stopped.recovery,
+                trades: stopped.trades,
+            });
+            expect(broker.buys).toHaveLength(1);
+        } finally {
+            engine.stop();
+        }
+    });
+});
 describe('strategy execution and exposure controls', () => {
     it.each([0, 0.34])(
         'does not start trading when live balance is %s, even with a stale funded account snapshot',
@@ -278,6 +422,114 @@ describe('strategy execution and exposure controls', () => {
         await jest.advanceTimersByTimeAsync(10);
         expect(broker.buys).toHaveLength(0);
         expect(engine.getSnapshot().active).toBe(false);
+    });
+    it.each(['quote', 'balance'])(
+        'finishes STOP during a stalled %s and ignores its late reply after a restart',
+        async phase => {
+            const broker = new FakeBroker();
+            broker.holdQuote = phase === 'quote';
+            let lateBalance!: (value: Record<string, any>) => void;
+            let balances = 0;
+            const send = broker.send;
+            broker.send = jest.fn(body => {
+                if (body.balance && ++balances === 2 && phase === 'balance')
+                    return new Promise(resolve => {
+                        lateBalance = resolve;
+                    });
+                return send(body);
+            });
+            const { engine } = await setup({}, broker);
+            const lateReply = phase === 'quote' ? broker.quoteResolve! : lateBalance;
+            expect(lateReply).toBeDefined();
+            engine.stop();
+            await jest.advanceTimersByTimeAsync(1);
+            expect(engine.getSnapshot()).toMatchObject({ active: false, wantsRun: false });
+            expect(engine.getSnapshot().pending).toBeUndefined();
+            expect(broker.buys).toHaveLength(0);
+            broker.holdQuote = false;
+            try {
+                await engine.start(engine.getSnapshot().settings);
+                lateReply(
+                    phase === 'quote'
+                        ? { proposal: { ask_price: 0.35, payout: 0.67 } }
+                        : { balance: { balance: 1000, currency: 'USD' } }
+                );
+                await jest.advanceTimersByTimeAsync(1);
+                expect(engine.getSnapshot()).toMatchObject({ active: true, wantsRun: true });
+                expect(engine.getSnapshot().pending).toBeUndefined();
+                expect(broker.buys).toHaveLength(0);
+            } finally {
+                engine.stop();
+            }
+        }
+    );
+    it.each(
+        ['balance', 'active_symbols', 'contracts_for', 'ticks_history'].flatMap(stage =>
+            ['success', 'failure'].map(outcome => ({ stage, outcome }))
+        )
+    )('ignores a cancelled startup’s late $stage $outcome after restarting', async ({ stage, outcome }) => {
+        const broker = new FakeBroker();
+        const send = broker.send;
+        let completeOldRequest!: () => void;
+        let holdFirst = true;
+        broker.send = jest.fn(body => {
+            if (body[stage] && holdFirst) {
+                holdFirst = false;
+                return new Promise((resolve, reject) => {
+                    completeOldRequest = () =>
+                        outcome === 'failure' ? reject(new Error('Old connection closed')) : resolve(send(body));
+                });
+            }
+            return send(body);
+        });
+        const engine = new DigitStrategyEngine({ createApi: async () => broker, account: () => account });
+        const starting = engine.start(DEFAULT_SETTINGS);
+        await jest.advanceTimersByTimeAsync(1);
+        expect(completeOldRequest).toBeDefined();
+        engine.stop();
+        expect(engine.getSnapshot().active).toBe(false);
+        try {
+            await engine.start(DEFAULT_SETTINGS);
+            const resumed = engine.getSnapshot();
+            completeOldRequest();
+            await starting;
+            expect(engine.getSnapshot()).toBe(resumed);
+            expect(engine.getSnapshot()).toMatchObject({ active: true, wantsRun: true, error: '' });
+            expect(broker.buys).toHaveLength(0);
+        } finally {
+            engine.stop();
+        }
+    });
+    it('keeps the current broker when an older cancelled connection opens late', async () => {
+        const oldBroker = new FakeBroker(),
+            broker = new FakeBroker();
+        let connectOld!: (value: Broker) => void;
+        const createApi = jest
+            .fn()
+            .mockImplementationOnce(
+                () =>
+                    new Promise(resolve => {
+                        connectOld = resolve;
+                    })
+            )
+            .mockResolvedValue(broker);
+        const engine = new DigitStrategyEngine({ createApi, account: () => account, random: () => 0 });
+        const starting = engine.start(DEFAULT_SETTINGS);
+        await jest.advanceTimersByTimeAsync(1);
+        engine.stop();
+        await engine.start(DEFAULT_SETTINGS);
+        try {
+            connectOld(oldBroker);
+            await starting;
+            expect(oldBroker.disconnect).toHaveBeenCalled();
+            for (let i = 0; i < 3; i++) await liveTick(broker, 8);
+            expect(broker.buys).toHaveLength(1);
+            expect(oldBroker.buys).toHaveLength(0);
+        } finally {
+            engine.stop();
+            broker.settle(0.32);
+            oldBroker.settle(0.32);
+        }
     });
     it('never retries an unacknowledged buy, and preserves the uncertain intent', async () => {
         const b = new FakeBroker();

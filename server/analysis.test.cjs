@@ -100,6 +100,128 @@ test('account authorization and origin checks protect status and commands', asyn
     assert.equal((await request('phone', undefined, 'another-account')).status, 403);
     assert.equal((await request('phone', { action: 'start' }, 'demo', 'https://attacker.invalid')).status, 403);
 });
+for (const strategy of [undefined, 'over2-under7', 'even-odd', 'momentum-70']) {
+    test(`${strategy || 'Analysis Tool'} resumes the same stopped journal after a JSONB-ordered status response`, async t => {
+        const { DigitStrategyEngine } = require('../.server-build/engine');
+        const { sharedRecoverySettings } = require('../.server-build/strategy');
+        const settings = sharedRecoverySettings({ ...DEFAULT_SETTINGS, strategy });
+        // Simulate PostgreSQL's JSONB key ordering on reads and writes.
+        const databaseJson = value => {
+            if (Array.isArray(value)) return value.map(databaseJson);
+            if (value && typeof value === 'object')
+                return Object.fromEntries(
+                    Object.entries(value)
+                        .sort(([a], [b]) => a.length - b.length || a.localeCompare(b))
+                        .map(([key, field]) => [key, databaseJson(field)])
+                );
+            return value;
+        };
+        const journal = [
+            {
+                id: 'settled-1',
+                contractId: 101,
+                market: 'R_100',
+                direction: 'DIGITEVEN',
+                recovery: false,
+                stake: 35,
+                payout: 77,
+                profit: 42,
+                status: 'Won',
+                at: Date.now() - 1000,
+            },
+        ];
+        let saved = JSON.stringify(
+            databaseJson({
+                ...empty(),
+                version: 1,
+                accountId: 'demo',
+                settings,
+                pnl: 42,
+                wins: 1,
+                stake: 35,
+                batch: 1,
+                trades: journal,
+            })
+        );
+        const storage = {
+            mode: 'postgres',
+            load: async () => {},
+            reload: async () => {},
+            flush: async () => {},
+            peek: async () => saved,
+            getItem: () => saved,
+            setItem: (_key, text) => {
+                saved = JSON.stringify(databaseJson(JSON.parse(text)));
+            },
+        };
+        let buys = 0;
+        const { request, service } = await fixture(t, {
+            Engine: DigitStrategyEngine,
+            storage,
+            brokerFactory: async () => ({
+                connection: new EventTarget(),
+                disconnect() {},
+                onMessage: () => ({ subscribe: () => ({ unsubscribe() {} }) }),
+                send: async body => {
+                    if (body.portfolio) return { portfolio: { contracts: [] } };
+                    if (body.balance) return { balance: { balance: 1000, currency: 'USD' } };
+                    if (body.active_symbols)
+                        return {
+                            active_symbols: [
+                                {
+                                    symbol: 'R_100',
+                                    display_name: 'Volatility 100',
+                                    market: 'synthetic_index',
+                                    exchange_is_open: 1,
+                                },
+                            ],
+                        };
+                    if (body.contracts_for)
+                        return {
+                            contracts_for: {
+                                available: ['DIGITOVER', 'DIGITUNDER', 'DIGITDIFF', 'DIGITEVEN', 'DIGITODD'].map(
+                                    contract_type => ({
+                                        contract_type,
+                                        expiry_type: 'tick',
+                                        min_contract_duration: '1t',
+                                        max_contract_duration: '5t',
+                                    })
+                                ),
+                            },
+                        };
+                    if (body.ticks_history)
+                        return {
+                            pip_size: 2,
+                            history: {
+                                prices: Array(1000).fill(100.05),
+                                times: Array.from({ length: 1000 }, (_, i) => Math.floor(Date.now() / 1000) - 999 + i),
+                            },
+                        };
+                    if (body.buy) buys++;
+                    throw new Error('Unexpected request');
+                },
+            }),
+        });
+        assert.equal((await request('phone', { action: 'start', settings })).status, 200);
+        await service.sessions.get('demo').task;
+        assert.equal((await request('phone')).data.active, true);
+        assert.equal((await request('laptop', { action: 'stop' })).status, 200);
+        const stopped = (await request('phone')).data;
+        assert.equal(stopped.active, false);
+        assert.notDeepEqual(Object.keys(stopped.settings), Object.keys(settings));
+        assert.equal((await request('laptop', { action: 'start', settings: stopped.settings })).status, 200);
+        await service.sessions.get('demo').task;
+        const resumed = (await request('phone')).data;
+        assert.equal(resumed.commandError, '');
+        assert.equal(resumed.active, true);
+        assert.equal(resumed.wantsRun, true);
+        assert.equal(resumed.pnl, 42);
+        assert.equal(resumed.wins, 1);
+        assert.equal(resumed.batch, 1);
+        assert.deepEqual(resumed.trades, journal);
+        assert.equal(buys, 0);
+    });
+}
 for (const real of [false, true]) {
     for (const [tool, configuration] of [
         ['Analysis Tool', {}],

@@ -153,6 +153,7 @@ export class DigitStrategyEngine {
     private generation = 0;
     private reportAt = 0;
     private watching?: number;
+    private entryAbort?: AbortController;
     private readonly owner = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     constructor(
         private deps: {
@@ -256,7 +257,11 @@ export class DigitStrategyEngine {
             throw new Error('Another trading tab is active. Stop it before continuing here.');
         if (
             (this.state.trades.length || this.state.pending) &&
-            JSON.stringify(this.state.settings) !== JSON.stringify(settings)
+            // Settings are flat values. JSONB storage may reorder their keys;
+            // resuming the same session must compare values, not serialization.
+            Object.keys({ ...this.state.settings, ...settings }).some(
+                key => this.state.settings[key as keyof Settings] !== settings[key as keyof Settings]
+            )
         )
             throw new Error('Reset the stopped session before changing parameters. Pending contracts cannot be reset.');
         if (this.state.pending && !this.state.pending.contractId && !reconcileId)
@@ -298,11 +303,11 @@ export class DigitStrategyEngine {
             if (generation !== this.generation || !this.state.active || (!this.state.wantsRun && !reconcileId)) return;
             if (!this.deps.createApi) throw new Error('Trading connection is unavailable.');
             const api: Broker = await this.deps.createApi();
-            this.api = api;
             if (generation !== this.generation || !this.state.active) {
                 api.disconnect();
                 return;
             }
+            this.api = api;
             api.connection.addEventListener('close', () => {
                 if (!this.closing && generation === this.generation)
                     this.halt('Connection lost. Resume to reconcile before any further trades.');
@@ -338,6 +343,7 @@ export class DigitStrategyEngine {
             this.update({ phase: 'Discovering markets' });
             this.log('Connecting live Volatility feeds and verifying the selected digit contracts.');
             const active = await this.request({ active_symbols: 'brief' });
+            if (generation !== this.generation || !this.state.active || !this.state.wantsRun) return;
             const symbols = (active.active_symbols || []).filter(
                 (m: Packet) =>
                     m.market === 'synthetic_index' &&
@@ -394,12 +400,14 @@ export class DigitStrategyEngine {
                         this.queues.delete(row.symbol);
                         this.log(`${row.display_name}: ${m.digits.length} ticks loaded.`);
                     } catch {
+                        if (generation !== this.generation || !this.state.active || !this.state.wantsRun) return;
                         this.queues.delete(row.symbol);
                         this.log(`${row.display_name}: unavailable, excluded.`, 'warn');
                     }
                 }
             };
             await Promise.all(Array.from({ length: Math.min(3, symbols.length) }, initialize));
+            if (generation !== this.generation) return;
             if (!this.state.wantsRun || !this.state.active) {
                 if (!this.state.pending) this.finish('Stopped');
                 return;
@@ -409,21 +417,34 @@ export class DigitStrategyEngine {
             this.update({ phase: 'Waiting for live ticks' });
             this.log(`${this.markets.size} markets ready. Entry and recovery rules are active.`);
         } catch (error) {
-            this.halt(error instanceof Error ? error.message : 'Trading could not start.');
+            if (generation === this.generation && this.state.active)
+                this.halt(error instanceof Error ? error.message : 'Trading could not start.');
         }
     }
-    private async request(body: Packet) {
+    private async request(body: Packet, signal?: AbortSignal) {
         if (!this.api) throw new Error('No trading connection.');
+        if (signal?.aborted) throw new Error('Entry cancelled.');
         let timer: ReturnType<typeof setTimeout>;
+        let abort: (() => void) | undefined;
+        const cancellation = signal
+            ? [
+                  new Promise<never>((_, reject) => {
+                      abort = () => reject(new Error('Entry cancelled.'));
+                      signal.addEventListener('abort', abort, { once: true });
+                  }),
+              ]
+            : [];
         try {
             return await Promise.race([
                 this.api.send(body),
                 new Promise<never>((_, reject) => {
                     timer = setTimeout(() => reject(new Error('Request timed out.')), 12000);
                 }),
+                ...cancellation,
             ]);
         } finally {
             clearTimeout(timer!);
+            if (abort) signal?.removeEventListener('abort', abort);
         }
     }
     private onPacket(data: Packet) {
@@ -572,6 +593,8 @@ export class DigitStrategyEngine {
         return barrier === signal.barrier && !mark.most && !mark.least;
     }
     private async execute(signal: Signal) {
+        const entryAbort = new AbortController();
+        this.entryAbort = entryAbort;
         this.busy = true;
         this.update({ selected: signal, phase: 'Quoting' });
         try {
@@ -585,7 +608,7 @@ export class DigitStrategyEngine {
                 symbol: signal.symbol,
                 ...(signal.barrier !== undefined ? { barrier: signal.barrier } : {}),
             };
-            const response = await this.request({ proposal: 1, ...parameters });
+            const response = await this.request({ proposal: 1, ...parameters }, entryAbort.signal);
             const quote = response.proposal;
             if (
                 !quote ||
@@ -602,7 +625,7 @@ export class DigitStrategyEngine {
                     breakEven: (Number(quote.ask_price) / Number(quote.payout)) * 100,
                 },
             });
-            await checkTradingBalance(body => this.request(body), 'USD', this.state.stake / 100);
+            await checkTradingBalance(body => this.request(body, entryAbort.signal), 'USD', this.state.stake / 100);
             if (
                 !this.state.wantsRun ||
                 !this.state.active ||
@@ -684,6 +707,7 @@ export class DigitStrategyEngine {
                 }
             }
         } catch (error) {
+            if (entryAbort.signal.aborted && !this.state.pending) return;
             if (error instanceof TradingBalanceError) {
                 this.finish(error.message);
                 return;
@@ -695,6 +719,7 @@ export class DigitStrategyEngine {
                 this.disabled.set(signal.symbol, this.now() + 10000);
             }
         } finally {
+            if (this.entryAbort === entryAbort) this.entryAbort = undefined;
             this.busy = false;
             if (!this.state.wantsRun && !this.state.pending && this.state.active) this.finish('Stopped');
         }
@@ -859,6 +884,9 @@ export class DigitStrategyEngine {
             phase: this.state.pending ? 'Stopping after current contract settles' : 'Stopping',
         });
         this.log(reason);
+        // Only quote/balance requests are cancellable. Purchased or uncertain
+        // contracts retain their intent and settlement subscription.
+        this.entryAbort?.abort();
         if (!this.state.pending && !this.busy) this.finish(reason);
         else {
             try {
