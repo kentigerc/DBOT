@@ -42,6 +42,14 @@ const BOTS: Bot[] = [
         category: 'Over/Under',
         icon: '📉',
     },
+    {
+        id: '15',
+        name: 'Under 8 / Under 9',
+        description: 'Automated Digit Under strategy by NetoAcademy.',
+        fileName: 'under-8-under-9.xml',
+        category: 'Over/Under',
+        icon: '📉',
+    },
 ];
 
 const FreeBots = observer(() => {
