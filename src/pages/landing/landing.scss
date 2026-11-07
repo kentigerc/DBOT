@@ -802,6 +802,144 @@ body.neto-landing-page {
             margin-top: 24px;
         }
     }
+    .nl-reviews {
+        border-top: 1px solid var(--nl-line);
+        &__heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: end;
+            gap: 24px;
+            h2 {
+                margin-top: 18px;
+            }
+        }
+        &__intro {
+            margin-top: 16px;
+            color: var(--nl-muted);
+            font-size: 15px;
+        }
+        &__controls {
+            display: flex;
+            flex-shrink: 0;
+            gap: 10px;
+            button {
+                display: grid;
+                place-items: center;
+                width: 46px;
+                height: 46px;
+                border: 1px solid var(--nl-line);
+                border-radius: 50%;
+                background: transparent;
+                color: var(--nl-ink);
+                font-size: 23px;
+                &:hover:not(:disabled) {
+                    border-color: var(--nl-red);
+                    color: var(--nl-red);
+                }
+                &:disabled {
+                    opacity: 0.35;
+                    cursor: default;
+                }
+            }
+        }
+        &__hint {
+            margin-top: 24px;
+            color: var(--nl-muted);
+            font-size: 12px;
+        }
+        &__track {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: min(84vw, 360px);
+            gap: 20px;
+            max-width: 100%;
+            margin: 20px 0 0;
+            padding: 4px 0 20px;
+            list-style: none;
+            overflow-x: auto;
+            scroll-snap-type: x proximity;
+            scrollbar-color: var(--nl-red) var(--nl-line);
+            scrollbar-width: thin;
+            &:focus-visible {
+                outline: 2px solid var(--nl-red);
+                outline-offset: 5px;
+            }
+        }
+        &__card {
+            min-width: 0;
+            padding: 26px;
+            border: 1px solid var(--nl-line);
+            border-radius: 16px;
+            background: linear-gradient(140deg, color-mix(in srgb, var(--nl-red) 5%, transparent), transparent);
+            scroll-snap-align: start;
+            figure {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                margin: 0;
+            }
+            blockquote {
+                margin: 0 0 24px;
+                font-size: 15px;
+                line-height: 1.8;
+            }
+            figcaption {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-top: auto;
+                padding-top: 20px;
+                border-top: 1px solid var(--nl-line);
+            }
+            cite {
+                display: block;
+                font-size: 14px;
+                font-weight: 500;
+                font-style: normal;
+            }
+        }
+        &__quote {
+            height: 42px;
+            color: var(--nl-red);
+            font-family: Georgia, serif;
+            font-size: 64px;
+            line-height: 1;
+        }
+        &__avatar {
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            width: 42px;
+            height: 42px;
+            border: 1px solid var(--nl-line);
+            border-radius: 50%;
+            background: color-mix(in srgb, var(--nl-red) 10%, transparent);
+            font-size: 12px;
+        }
+        &__country {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-top: 5px;
+            color: var(--nl-muted);
+            font-size: 12px;
+            img {
+                display: block;
+                border: 1px solid var(--nl-line);
+                border-radius: 3px;
+                object-fit: cover;
+            }
+        }
+        @media (max-width: 600px) {
+            &__heading {
+                align-items: start;
+                flex-wrap: wrap;
+            }
+            &__card {
+                padding: 22px;
+            }
+        }
+    }
     .nl-final {
         text-align: center;
         padding-block: 70px 85px;

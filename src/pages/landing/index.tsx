@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { getDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/deriv-session';
 import { affiliate_signup_url } from '@/utils/site-config';
 import UsageTracker from '@/components/usage-tracker';
+import TraderReviews from './components/trader-reviews';
 import './landing.scss';
 const LiveDigits = lazy(() => import('./components/live-digits'));
 const PLATFORM = '/platform#bot_builder';
@@ -562,6 +563,7 @@ export default function Landing() {
                         be excluded or limited.
                     </p>
                 </section>
+                <TraderReviews />
                 <section className='nl-final nl-section'>
                     <p className='nl-eyebrow'>YOUR WORKSPACE IS WAITING</p>
                     <h2>
