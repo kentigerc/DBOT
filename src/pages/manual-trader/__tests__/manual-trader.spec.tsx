@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
+import { manualTraderGate } from '@/utils/manual-trader-gate';
 import { watchManualMarkets, type ManualMarket } from '@/utils/manual-trader-markets';
 import ManualTrader from '..';
 
 const mockNavigate = jest.fn();
 const mockDashboard = { setActiveTab: jest.fn() };
-const mockRunPanel = { is_running: false, has_open_contract: false };
+const mockRunPanel = { is_running: false, has_open_contract: false, onStopButtonClick: jest.fn() };
 jest.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
 jest.mock('@/hooks/useStore', () => ({ useStore: () => ({ dashboard: mockDashboard, run_panel: mockRunPanel }) }));
 jest.mock('@/hooks/useMarketPanelHeight', () => ({ __esModule: true, default: () => ({ current: null }) }));
@@ -15,7 +16,7 @@ jest.mock('@/utils/deriv-session', () => ({ getDerivAccount: jest.fn(), getDeriv
 jest.mock('@/utils/xml-scanner-cycle', () => ({ xmlScannerCycle: { getSnapshot: () => ({ enabled: false }) } }));
 jest.mock('@/utils/manual-trader-gate', () => {
     const snapshot = { active: false, phase: 'Ready' };
-    return { manualTraderGate: { subscribe: () => () => {}, getSnapshot: () => snapshot } };
+    return { manualTraderGate: { subscribe: () => () => {}, getSnapshot: jest.fn(() => snapshot) } };
 });
 jest.mock('@/utils/manual-trader-markets', () => ({
     ...jest.requireActual('@/utils/manual-trader-markets'),
@@ -32,6 +33,7 @@ const market = (symbol: string, side: 'over' | 'under', percentage = 75): Manual
     ready: true,
     latest: 3,
     count: 1000,
+    ticks: [...Array(100).fill(0), ...Array(900).fill(3)],
     over: { percentage: side === 'over' ? percentage : 68, change: 0.1, armed: true, run: 2, epoch: Date.now() / 1000 },
     under: {
         percentage: side === 'under' ? percentage : 68,
@@ -54,6 +56,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
     mockRunPanel.is_running = false;
+    (manualTraderGate.getSnapshot as jest.Mock).mockReturnValue({ active: false, phase: 'Ready' });
     (getDerivAccount as jest.Mock).mockReturnValue({ account_id: 'TEST', currency: 'USD', status: 'active' });
     (getDerivSession as jest.Mock).mockReturnValue({ authenticated: true });
     (watchManualMarkets as jest.Mock).mockImplementation((_api, abort, update) => {
@@ -116,4 +119,47 @@ it('rejects a stale match on click and cancels scanning when paused or hidden', 
     expect(signal.aborted).toBe(false);
     view.rerender(<ManualTrader active={false} />);
     expect(signal.aborted).toBe(true);
+});
+
+it('shows live digit circles and keeps the chosen observation market while stronger matches appear', () => {
+    render(<ManualTrader />);
+    act(() => {
+        publish(market('R_10', 'over', 75));
+        publish(market('R_50', 'under', 80));
+        jest.advanceTimersByTime(100);
+    });
+    fireEvent.change(screen.getByLabelText('Market to observe'), { target: { value: 'R_10' } });
+    expect(screen.getByRole('heading', { name: 'Volatility R_10' })).toBeTruthy();
+    expect(screen.getByLabelText('Last-digit frequencies').children).toHaveLength(10);
+    expect(screen.getByLabelText('Digit 3: 90.0 percent, 900 ticks')).toBeTruthy();
+    act(() => {
+        const next = market('R_10', 'over', 74);
+        next.ticks = [...Array(200).fill(0), ...Array(800).fill(7)];
+        publish(next);
+        publish(market('R_50', 'under', 85));
+        jest.advanceTimersByTime(100);
+    });
+    expect(screen.getByRole('heading', { name: 'Volatility R_10' })).toBeTruthy();
+    expect(screen.getByLabelText('Digit 7: 80.0 percent, 800 ticks')).toBeTruthy();
+    expect(document.querySelector('.digit-analysis__digit--latest')?.textContent).toContain('7');
+    expect(screen.getByText(/trades continuously/)).toBeTruthy();
+});
+
+it('automatically follows the loaded bot market while it trades instead of jumping to another match', () => {
+    (manualTraderGate.getSnapshot as jest.Mock).mockReturnValue({
+        plan: { symbol: 'R_10', name: 'Over Switcher' },
+        active: true,
+        phase: 'Trading continuously · Press STOP to end',
+    });
+    render(<ManualTrader />);
+    act(() => {
+        publish(market('R_10', 'over', 65));
+        publish(market('R_50', 'under', 85));
+        jest.advanceTimersByTime(100);
+    });
+    expect(screen.getByRole('heading', { name: 'Volatility R_10' })).toBeTruthy();
+    expect(screen.getByText('Trading continuously · Press STOP to end')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Load Bot' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop bot' }));
+    expect(mockRunPanel.onStopButtonClick).toHaveBeenCalledTimes(1);
 });

@@ -14,6 +14,8 @@ import {
     type ManualSide,
 } from '@/utils/manual-trader-markets';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
+import DigitCircles from '../digit-analysis/digit-circles';
+import '../digit-analysis/digit-analysis.scss';
 import './manual-trader.scss';
 
 export default function ManualTrader({ active = true }: { active?: boolean }) {
@@ -27,6 +29,7 @@ export default function ManualTrader({ active = true }: { active?: boolean }) {
     const [status, setStatus] = useState('Connecting to live markets…');
     const [error, setError] = useState('');
     const [beat, setBeat] = useState(0);
+    const [observedSymbol, setObservedSymbol] = useState('');
     useEffect(() => {
         if (!active) return;
         const timer = setInterval(() => setBeat(value => value + 1), 1000);
@@ -75,7 +78,10 @@ export default function ManualTrader({ active = true }: { active?: boolean }) {
               .sort((a, b) => b.market[b.side].percentage - a.market[a.side].percentage)
         : [];
     const match = candidates[0];
-    const focus = match?.market || markets[Math.floor(beat / 2) % markets.length];
+    const pinnedSymbol = observedSymbol || gate.plan?.symbol;
+    const focus = pinnedSymbol
+        ? markets.find(market => market.symbol === pinnedSymbol)
+        : match?.market || markets[Math.floor(beat / 2) % markets.length];
     const load = (market: ManualMarket, side: ManualSide) => {
         setError('');
         try {
@@ -135,9 +141,21 @@ export default function ManualTrader({ active = true }: { active?: boolean }) {
                         {gate.plan.name} · {gate.plan.symbol}
                     </strong>
                     <span>{gate.phase}</span>
+                    {gate.active && <button onClick={() => run_panel.onStopButtonClick()}>Stop bot</button>}
                 </aside>
             )}
             {error && <p role='alert'>{error}</p>}
+            <label className='manual-trader__observe'>
+                Market to observe
+                <select value={observedSymbol} onChange={event => setObservedSymbol(event.target.value)}>
+                    <option value=''>{gate.plan ? 'Follow loaded bot market' : 'Automatic market preview'}</option>
+                    {markets.map(market => (
+                        <option key={market.symbol} value={market.symbol}>
+                            {market.name}
+                        </option>
+                    ))}
+                </select>
+            </label>
             {focus ? (
                 <article className='manual-trader__market'>
                     <div className='manual-trader__market-heading'>
@@ -182,16 +200,8 @@ export default function ManualTrader({ active = true }: { active?: boolean }) {
                             );
                         })}
                     </div>
-                    <div className='manual-trader__digits' aria-label='Digit percentages'>
-                        {focus.digits.map(digit => (
-                            <div key={digit.digit}>
-                                <span>{digit.percentage.toFixed(1)}%</span>
-                                <div>
-                                    <i style={{ height: `${Math.min(100, digit.percentage * 5)}%` }} />
-                                </div>
-                                <strong>{digit.digit}</strong>
-                            </div>
-                        ))}
+                    <div className='manual-trader__circles'>
+                        <DigitCircles digits={focus.ticks} />
                     </div>
                 </article>
             ) : (
@@ -227,8 +237,9 @@ export default function ManualTrader({ active = true }: { active?: boolean }) {
                 )}
             </section>
             <p className='manual-trader__note'>
-                Loading never starts trading. After RUN, normal trades wait for fresh qualifying entries; recovery
-                follows the XML bot’s own rules. Keep this tab open and connected.
+                Loading never starts trading. Press RUN when you are ready; the XML bot then trades continuously until
+                you press STOP or its risk limits are reached. Recovery follows the XML bot’s own rules. Keep this tab
+                open and connected.
             </p>
         </section>
     );

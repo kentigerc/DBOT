@@ -96,6 +96,7 @@
     &__selected {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: 8px 20px;
         margin-top: 18px;
         padding: 14px;
@@ -104,6 +105,12 @@
         border-radius: 8px;
         span {
             color: var(--text-less-prominent);
+        }
+        button {
+            margin-left: auto;
+            background: var(--brand-red-coral);
+            border-color: var(--brand-red-coral);
+            color: #fff;
         }
     }
     &__market {
@@ -168,37 +175,45 @@
             border-radius: inherit;
         }
     }
-    &__digits {
-        display: grid;
-        grid-template-columns: repeat(10, minmax(0, 1fr));
-        gap: 8px;
-        text-align: center;
-        > div {
-            min-width: 0;
+    &__observe {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-top: 20px;
+        font-size: 13px;
+        select {
+            max-width: 100%;
+            min-height: 44px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-normal);
+            border-radius: 8px;
+            background: var(--general-section-1);
+            color: var(--text-general);
+            font: inherit;
         }
-        span {
-            color: var(--text-less-prominent);
-            font-size: 11px;
-            font-variant-numeric: tabular-nums;
+    }
+    &__circles {
+        .digit-analysis__grid {
+            grid-template-columns: repeat(10, minmax(0, 1fr));
+            gap: 18px 8px;
+            padding: 20px 0;
         }
-        strong {
-            display: block;
-            font-size: 13px;
+        .digit-analysis__circle {
+            width: clamp(44px, 5vw, 68px);
+            height: clamp(44px, 5vw, 68px);
+            strong {
+                font-size: 22px;
+            }
+            span {
+                font-size: 12px;
+            }
         }
-        > div > div {
-            display: flex;
-            align-items: end;
-            justify-content: center;
-            height: 70px;
-            margin: 6px 0;
-            border-bottom: 1px solid var(--border-normal);
+        .digit-analysis__count {
+            font-size: 10px;
         }
-        i {
-            display: block;
-            width: min(65%, 28px);
-            border-radius: 4px 4px 0 0;
-            background: var(--manual-accent);
-            opacity: 0.7;
+        .digit-analysis__marker {
+            text-align: center;
         }
     }
     &__match,
@@ -256,13 +271,22 @@
             flex-direction: column;
             gap: 8px;
         }
-        &__digits {
-            gap: 4px;
-            span {
-                font-size: 9px;
+        &__observe select {
+            width: 100%;
+        }
+        &__circles {
+            .digit-analysis__grid {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
             }
-            > div > div {
-                height: 50px;
+            .digit-analysis__circle {
+                width: clamp(38px, 10vw, 52px);
+                height: clamp(38px, 10vw, 52px);
+                strong {
+                    font-size: 18px;
+                }
+                span {
+                    font-size: 10px;
+                }
             }
         }
     }

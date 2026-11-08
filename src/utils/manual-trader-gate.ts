@@ -1,11 +1,5 @@
 import { getDerivAccount } from './deriv-session';
-import {
-    manualEntryReady,
-    SWITCHERS,
-    watchManualMarkets,
-    type ManualMarket,
-    type ManualSide,
-} from './manual-trader-markets';
+import { SWITCHERS, type ManualSide } from './manual-trader-markets';
 
 type Plan = { accountId: string; symbol: string; side: ManualSide; fileName: string; name: string };
 type Workspace = { getAllBlocks: () => { type: string; data?: string; getFieldValue: (name: string) => string }[] };
@@ -32,14 +26,10 @@ function valid(plan: Plan | undefined): plan is Plan {
 export class ManualTraderGate {
     private state: { plan?: Plan; active: boolean; phase: string } = { plan: read(), active: false, phase: 'Ready' };
     private listeners = new Set<() => void>();
-    private controller?: AbortController;
-    private reading?: ManualMarket;
     private recovering = false;
-    private after = 0;
     private pending = false;
     private contractId?: number;
     private settled = new Set<number>();
-    private waiters = new Set<(allow: boolean) => void>();
     private workspace?: Workspace;
     private report?: (message: string) => void;
     getSnapshot = () => this.state;
@@ -80,11 +70,7 @@ export class ManualTraderGate {
             blocks.find(block => block.type === 'trade_definition_market')?.getFieldValue('SYMBOL_LIST') === plan.symbol
         );
     }
-    begin(
-        workspace: Workspace | undefined,
-        createApi: Parameters<typeof watchManualMarkets>[0],
-        report: (message: string) => void
-    ) {
+    begin(workspace: Workspace | undefined, report: (message: string) => void) {
         this.stop();
         if (!this.state.plan) return;
         if (
@@ -99,39 +85,11 @@ export class ManualTraderGate {
         if (getDerivAccount()?.account_id !== this.state.plan.accountId || !this.bound())
             throw new Error('Manual Trader selection changed. Reload the bot from Manual Trader before running.');
         this.report = report;
-        this.reading = undefined;
         this.pending = false;
         this.contractId = undefined;
         this.settled.clear();
         this.recovering = false;
-        this.after = Date.now();
-        const controller = new AbortController();
-        this.controller = controller;
-        this.update({ active: true, phase: 'Waiting for a qualifying live entry' });
-        void watchManualMarkets(
-            createApi,
-            controller.signal,
-            reading => {
-                if (controller.signal.aborted) return;
-                this.reading = reading;
-                if (this.recovering) this.status('XML recovery active');
-                else if (this.ready()) {
-                    this.status('Live entry qualified');
-                    this.release(true);
-                } else this.status('Waiting for a qualifying live entry');
-            },
-            message => {
-                if (!controller.signal.aborted) this.status(message);
-            },
-            () => {
-                this.reading = undefined;
-            },
-            this.state.plan.symbol,
-            () => this.after
-        );
-    }
-    private ready() {
-        return !!this.state.plan && !!this.reading && manualEntryReady(this.reading, this.state.plan.side);
+        this.update({ active: true, phase: 'Trading continuously · Press STOP to end' });
     }
     async beforePurchase(symbol: string, direction: string): Promise<boolean> {
         if (!this.state.plan) return true;
@@ -144,18 +102,12 @@ export class ManualTraderGate {
             return false;
         if (this.recovering) return true;
         if (direction !== SWITCHERS[this.state.plan.side].direction) return false;
-        if (this.ready()) return true;
-        this.status('Waiting for a qualifying live entry');
-        return new Promise(resolve => this.waiters.add(resolve));
+        // RUN is the user's entry decision. Do not re-apply scanner entry rules.
+        return true;
     }
     canPurchase(accountId: string) {
         if (!this.state.plan) return true;
-        const allowed =
-            this.state.active &&
-            accountId === this.state.plan.accountId &&
-            this.bound() &&
-            !this.pending &&
-            (this.recovering || this.ready());
+        const allowed = this.state.active && accountId === this.state.plan.accountId && this.bound() && !this.pending;
         if (allowed) this.pending = true;
         return allowed;
     }
@@ -177,19 +129,9 @@ export class ManualTraderGate {
         this.contractId = undefined;
         if (profit < 0) this.recovering = true;
         else if (profit > 0) this.recovering = false;
-        this.after = Date.now();
-        this.reading = undefined;
-        this.status(this.recovering ? 'XML recovery active' : 'Waiting for a qualifying live entry');
-    }
-    private release(allow: boolean) {
-        this.waiters.forEach(resolve => resolve(allow));
-        this.waiters.clear();
+        this.status(this.recovering ? 'XML recovery active' : 'Trading continuously · Press STOP to end');
     }
     stop() {
-        this.controller?.abort();
-        this.controller = undefined;
-        this.release(false);
-        this.reading = undefined;
         if (this.state.active) this.update({ active: false, phase: 'Stopped' });
     }
 }

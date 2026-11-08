@@ -20,7 +20,6 @@ import { helpers } from '@/utils/store-helpers';
 import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { manualTraderGate } from '@/utils/manual-trader-gate';
-import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import { Buy, ProposalOpenContract } from '@deriv/api-types';
 import { TStores } from '@deriv/stores/types';
 import { localize } from '@deriv-com/translations';
@@ -352,7 +351,6 @@ export default class RunPanelStore {
             manualTraderGate.begin(
                 (window.Blockly as unknown as { derivWorkspace?: Parameters<typeof manualTraderGate.begin>[0] })
                     ?.derivWorkspace,
-                () => generateDerivApiInstance({ publicOnly: true }),
                 message =>
                     this.root_store.journal.onNotify({
                         message,

@@ -11,6 +11,7 @@ export type ManualMarket = {
     ready: boolean;
     latest?: number;
     count: number;
+    ticks: number[];
     over: MomentumReading;
     under: MomentumReading;
     digits: ReturnType<DigitMarket['frequencies']>;
@@ -94,6 +95,7 @@ export async function watchManualMarkets(
                         ready: market.ready(Date.now()),
                         latest: market.digits[market.digits.length - 1],
                         count: market.digits.length,
+                        ticks: [...market.digits],
                         over: { ...market.momentum.DIGITOVER },
                         under: { ...market.momentum.DIGITUNDER },
                         digits: market.frequencies(),
