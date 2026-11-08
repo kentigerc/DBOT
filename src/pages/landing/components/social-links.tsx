@@ -5,6 +5,7 @@ const socials = [
     { name: 'Instagram', href: 'https://www.instagram.com/netoacademy/', icon: 'instagram' },
     { name: 'WhatsApp', href: 'https://wa.me/netoacademy', icon: 'whatsapp' },
     { name: 'Telegram', href: 'https://t.me/netoacademyfx', icon: 'telegram' },
+    { name: 'YouTube', href: 'https://www.youtube.com/@netoacademy', icon: 'youtube' },
 ] as const;
 
 function SocialIcon({ name }: { name: (typeof socials)[number]['icon'] }) {
@@ -15,9 +16,10 @@ function SocialIcon({ name }: { name: (typeof socials)[number]['icon'] }) {
         x: 'M18.9 2H22l-6.8 7.8L23.2 22H17l-4.9-7.4L5.7 22H2.5l7.9-9L.8 2h6.3l4.5 6.7L18.9 2ZM17.9 20h1.7L6.2 4H4.4L17.9 20Z',
         telegram:
             'M21.5 3.7 18.3 20c-.2 1.1-.9 1.4-1.8.9l-4.9-3.6-2.3 2.2c-.2.3-.5.5-1 .5l.4-5 9.1-8.3c.4-.4-.1-.6-.6-.2L6 13.6l-4.7-1.5c-1-.3-1-1 .2-1.4L20 3.5c.9-.3 1.7.2 1.5.2Z',
+        youtube: 'M5 5h14a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Zm5 3.5v7l6-3.5-6-3.5Z',
     };
     return (
-        <svg aria-hidden='true' viewBox='0 0 24 24' width='22' height='22' fill='none'>
+        <svg aria-hidden='true' viewBox='0 0 24 24' width='16' height='16' fill='none'>
             {name === 'instagram' ? (
                 <g stroke='currentColor' strokeWidth='1.7'>
                     <rect x='3' y='3' width='18' height='18' rx='5' />
@@ -38,7 +40,7 @@ function SocialIcon({ name }: { name: (typeof socials)[number]['icon'] }) {
                     />
                 </>
             ) : (
-                <path d={paths[name]} fill='currentColor' />
+                <path d={paths[name]} fill='currentColor' fillRule='evenodd' />
             )}
         </svg>
     );

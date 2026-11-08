@@ -963,7 +963,7 @@ body.neto-landing-page {
     }
     .nl-socials {
         grid-column: 1 / -1;
-        padding-top: 28px;
+        padding-top: 22px;
         border-top: 1px solid var(--nl-line);
         &__heading {
             display: flex;
@@ -971,7 +971,7 @@ body.neto-landing-page {
             justify-content: space-between;
             flex-wrap: wrap;
             gap: 8px 24px;
-            margin-bottom: 20px;
+            margin-bottom: 14px;
             h2 {
                 font-size: 20px;
                 font-weight: 500;
@@ -983,22 +983,22 @@ body.neto-landing-page {
             }
         }
         nav {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr));
-            gap: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         a {
             display: flex;
             align-items: center;
-            gap: 10px;
-            min-height: 60px;
+            gap: 7px;
+            min-height: 44px;
             min-width: 0;
-            padding: 12px;
+            padding: 8px 10px;
             border: 1px solid var(--nl-line);
-            border-radius: 10px;
+            border-radius: 8px;
             color: var(--nl-ink);
             background: color-mix(in srgb, var(--nl-ink) 3%, transparent);
-            font-size: 13px;
+            font-size: 12px;
             &:hover {
                 border-color: var(--nl-red);
                 background: color-mix(in srgb, var(--nl-red) 7%, transparent);
@@ -1021,15 +1021,15 @@ body.neto-landing-page {
             &--facebook {
                 color: #6a9ff3;
             }
+            &--youtube {
+                color: #f34a49;
+            }
         }
         &__arrow {
             margin-inline-start: auto;
             color: var(--nl-muted);
         }
         @media (max-width: 600px) {
-            nav {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
             &__arrow {
                 display: none;
             }
