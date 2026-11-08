@@ -60,6 +60,7 @@ const labels: Record<string, string> = {
     bot_builder: 'Bot Builder',
     chart: 'Charts',
     digit_analysis: 'Digit Analysis',
+    manual_trader: 'Manual Trader',
     deriv_charts: 'Tradingview',
     free_bots: 'Free Bots',
     analysis_tool: 'Analysis Tool',

@@ -2,6 +2,7 @@ import { checkTradingBalance } from '@/services/digit-strategy/balance';
 import { scanXmlParityRecovery, refreshXmlParityRecovery } from '@/utils/xml-parity-recovery';
 import { generateDerivApiInstance } from '../../api/appId';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
+import { manualTraderGate } from '@/utils/manual-trader-gate';
 import { LogTypes } from '../../../constants/messages';
 import { api_base } from '../../api/api-base';
 import { contractStatus, info, log } from '../utils/broadcast';
@@ -11,6 +12,7 @@ import { BEFORE_PURCHASE } from './state/constants';
 
 let delayIndex = 0;
 let purchase_reference;
+const manualCancelled = Symbol('Manual Trader stopped');
 
 export default Engine =>
     class Purchase extends Engine {
@@ -25,6 +27,7 @@ export default Engine =>
                     ? { direction: contract_type, barrier: Number(prediction ?? this.tradeOptions.prediction) }
                     : undefined;
             if (!(await xmlScannerCycle.beforePurchase(this.tradeOptions.symbol, entryContract))) return;
+            if (!(await manualTraderGate.beforePurchase(this.tradeOptions.symbol, contract_type))) return;
             let purchaseOptions = prediction === undefined ? this.tradeOptions : { ...this.tradeOptions, prediction };
             const parityRecovery = xmlScannerCycle.isRecovering();
             const generation = xmlScannerCycle.getSnapshot().generation;
@@ -79,6 +82,7 @@ export default Engine =>
             }
             if (this.store.getState().scope !== BEFORE_PURCHASE) return;
             const onSuccess = response => {
+                if (response === manualCancelled) return;
                 // Don't unnecessarily send a forget request for a purchased contract.
                 const { buy } = response;
                 this.xmlLastPurchaseStake = Number(buy.buy_price);
@@ -117,6 +121,9 @@ export default Engine =>
                         purchaseOptions.currency,
                         Number(askPrice)
                     );
+                    if (!(await manualTraderGate.beforePurchase(purchaseOptions.symbol, contract_type)))
+                        return manualCancelled;
+                    if (this.store.getState().scope !== BEFORE_PURCHASE) return manualCancelled;
                     contractStatus({ id: 'contract.purchase_sent', data: askPrice });
                     return api_base.api.send({ buy: id, price: askPrice });
                 };
@@ -156,6 +163,9 @@ export default Engine =>
                     purchaseOptions.currency,
                     Number(trade_option.price)
                 );
+                if (!(await manualTraderGate.beforePurchase(purchaseOptions.symbol, contract_type)))
+                    return manualCancelled;
+                if (this.store.getState().scope !== BEFORE_PURCHASE) return manualCancelled;
                 contractStatus({ id: 'contract.purchase_sent', data: purchaseOptions.amount });
                 return api_base.api.send(trade_option);
             };

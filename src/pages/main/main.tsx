@@ -32,6 +32,7 @@ import './main.scss';
 
 const ChartPage = lazy(() => import('../chart/chart-page'));
 const DigitAnalysis = lazy(() => import('../digit-analysis'));
+const ManualTrader = lazy(() => import('../manual-trader'));
 const DerivCharts = lazy(() => import('../deriv-charts'));
 const FreeBots = lazy(() => import('../free-bots'));
 const AnalysisTool = lazy(() => import('../analysis-tool'));
@@ -65,7 +66,16 @@ const AppWrapper = observer(() => {
     };
     const { DASHBOARD, BOT_BUILDER } = DBOT_TABS;
     const init_render = React.useRef(true);
-    const hash = ['dashboard', 'bot_builder', 'chart', 'digit_analysis', 'deriv_charts', 'free_bots', 'analysis_tool'];
+    const hash = [
+        'dashboard',
+        'bot_builder',
+        'chart',
+        'digit_analysis',
+        'manual_trader',
+        'deriv_charts',
+        'free_bots',
+        'analysis_tool',
+    ];
     const { isDesktop } = useDevice();
     const location = useLocation();
     const navigate = useNavigate();
@@ -234,6 +244,7 @@ const AppWrapper = observer(() => {
                 className={classNames('main', {
                     'main--market-panel': [
                         DBOT_TABS.DIGIT_ANALYSIS,
+                        DBOT_TABS.MANUAL_TRADER,
                         DBOT_TABS.CHART,
                         DBOT_TABS.DERIV_CHARTS,
                         DBOT_TABS.FREE_BOTS,
@@ -249,7 +260,11 @@ const AppWrapper = observer(() => {
                     <div>
                         {!isDesktop && left_tab_shadow && <span className='tabs-shadow tabs-shadow--left' />}{' '}
                         <Tabs
-                            keep_mounted_indices={[DBOT_TABS.DERIV_CHARTS, DBOT_TABS.DIGIT_ANALYSIS]}
+                            keep_mounted_indices={[
+                                DBOT_TABS.DERIV_CHARTS,
+                                DBOT_TABS.DIGIT_ANALYSIS,
+                                DBOT_TABS.MANUAL_TRADER,
+                            ]}
                             active_index={active_tab}
                             className='main__tabs'
                             onTabItemClick={handleTabChange}
@@ -317,6 +332,19 @@ const AppWrapper = observer(() => {
                             >
                                 <Suspense fallback={<ChunkLoader message={localize('Loading digit analysis...')} />}>
                                     <DigitAnalysis active={active_tab === DBOT_TABS.DIGIT_ANALYSIS} />
+                                </Suspense>
+                            </div>
+                            <div
+                                label={
+                                    <>
+                                        <span aria-hidden='true'>▥</span>
+                                        <Localize i18n_default_text='Manual Trader' />
+                                    </>
+                                }
+                                id='id-manual-trader'
+                            >
+                                <Suspense fallback={<ChunkLoader message={localize('Loading Manual Trader...')} />}>
+                                    <ManualTrader active={active_tab === DBOT_TABS.MANUAL_TRADER} />
                                 </Suspense>
                             </div>
                             <div

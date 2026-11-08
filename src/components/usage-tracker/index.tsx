@@ -11,6 +11,7 @@ export default function UsageTracker() {
             'bot_builder',
             'chart',
             'digit_analysis',
+            'manual_trader',
             'deriv_charts',
             'free_bots',
             'analysis_tool',

@@ -15,6 +15,9 @@ import {
 } from '@/utils/hosted-bot-market';
 import { setScannerWatch } from '@/utils/scanner-watch';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
+import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { SWITCHERS } from '@/utils/manual-trader-markets';
+import { getDerivAccount } from '@/utils/deriv-session';
 import { localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
 import { TBlocklyEvents } from 'Types';
@@ -85,6 +88,19 @@ const BotBuilder = observer(() => {
                     showIncompatibleStrategyDialog: null,
                 });
                 if (result?.error) throw new Error(result.error);
+                if (bot.manualTraderSide === 'over' || bot.manualTraderSide === 'under') {
+                    const side = bot.manualTraderSide as 'over' | 'under';
+                    const account = getDerivAccount();
+                    if (!account || bot.fileName !== SWITCHERS[side].fileName)
+                        throw new Error('Invalid Manual Trader bot selection.');
+                    manualTraderGate.configure({
+                        accountId: account.account_id,
+                        side,
+                        symbol: bot.symbol,
+                        fileName: bot.fileName,
+                        name: SWITCHERS[side].name,
+                    });
+                } else manualTraderGate.configure();
                 if (automatic && !xmlScannerCycle.valid(bot.autoGeneration)) return;
                 const hostedSide =
                     bot.fileName === 'over-punisher.xml'

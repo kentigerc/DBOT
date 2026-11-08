@@ -8,6 +8,7 @@ import Purchase from '../Purchase';
 import { BEFORE_PURCHASE } from '../state/constants';
 import { api_base } from '../../../api/api-base';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
+import { manualTraderGate } from '@/utils/manual-trader-gate';
 jest.mock('../../../api/api-helpers', () => ({
     __esModule: true,
     default: { instance: { contracts_for: { getContractsFor: jest.fn() } } },
@@ -132,10 +133,32 @@ it('STOP cancels parity selection before any recovery purchase is submitted', as
     engine.xmlLastPurchaseStake = 0.35;
     const pending = engine.purchase('DIGITOVER');
     await Promise.resolve();
+    await Promise.resolve();
     active = false;
     changed();
     await pending;
     expect(api_base.api.send).not.toHaveBeenCalled();
+});
+
+it('Manual Trader cancels a waiting entry without submitting a purchase', async () => {
+    jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
+    jest.spyOn(manualTraderGate, 'beforePurchase').mockResolvedValue(false);
+    await new (Purchase(Base))().purchase('DIGITOVER');
+    expect(api_base.api.send).not.toHaveBeenCalled();
+});
+
+it('rechecks Manual Trader after the balance request and cancels if STOP occurred there', async () => {
+    jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
+    jest.spyOn(xmlScannerCycle, 'isRecovering').mockReturnValue(false);
+    const entry = jest
+        .spyOn(manualTraderGate, 'beforePurchase')
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+    const engine = new (Purchase(Base))();
+    await engine.purchase('DIGITOVER');
+    expect(entry).toHaveBeenCalledTimes(2);
+    expect(api_base.api.send).not.toHaveBeenCalled();
+    expect(engine.store.dispatch).not.toHaveBeenCalled();
 });
 it('keeps the purchased recovery market and parity after losses without another analysis', async () => {
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);

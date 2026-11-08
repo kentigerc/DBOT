@@ -19,6 +19,8 @@ import { helpers } from '@/utils/store-helpers';
 // import { journalError, switch_account_notification } from '@/utils/bot-notifications';
 import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
+import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { generateDerivApiInstance } from '@/external/bot-skeleton/services/api/appId';
 import { Buy, ProposalOpenContract } from '@deriv/api-types';
 import { TStores } from '@deriv/stores/types';
 import { localize } from '@deriv-com/translations';
@@ -346,6 +348,24 @@ export default class RunPanelStore {
             started: false,
             reason: 'The XML launch did not complete.',
         };
+        try {
+            manualTraderGate.begin(
+                (window.Blockly as unknown as { derivWorkspace?: Parameters<typeof manualTraderGate.begin>[0] })
+                    ?.derivWorkspace,
+                () => generateDerivApiInstance({ publicOnly: true }),
+                message =>
+                    this.root_store.journal.onNotify({
+                        message,
+                        message_type: MessageTypes.NOTIFY,
+                        className: 'journal__text--info',
+                        sound: 'silent',
+                    })
+            );
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : 'Manual Trader could not start.';
+            botNotification(reason);
+            return { started: false, reason };
+        }
         runInAction(() => {
             if (scannerAuto === true) xmlScannerCycle.runStarted();
             scannerExitGuard.begin(() => {
@@ -420,6 +440,7 @@ export default class RunPanelStore {
     };
 
     stopBot = () => {
+        manualTraderGate.stop();
         const { ui } = this.core;
 
         this.dbot.stopBot().catch((error: unknown) => {
@@ -891,6 +912,7 @@ export default class RunPanelStore {
     };
 
     setIsRunning = (is_running: boolean) => {
+        if (!is_running) manualTraderGate.stop();
         this.is_running = is_running;
     };
 
