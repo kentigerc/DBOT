@@ -35,7 +35,7 @@ it('starts the distinct strategy with paired Over/Under recovery and editable ri
                 recoveryMode: 'same_contract',
                 stake: 0.5,
                 multiplier: 2.5,
-                duration: 2,
+                duration: 1,
             }),
             undefined
         )
@@ -135,7 +135,7 @@ it('rotates the preview across live markets during the recovery search rather th
 
 it('passes a custom tick duration to the shared normal and recovery session settings', async () => {
     render(<Momentum />);
-    expect((screen.getByLabelText('Duration') as HTMLSelectElement).value).toBe('2');
+    expect((screen.getByLabelText('Duration') as HTMLSelectElement).value).toBe('1');
     fireEvent.change(screen.getByLabelText('Duration'), { target: { value: '4' } });
     fireEvent.click(screen.getByRole('button', { name: 'RUN MOMENTUM' }));
     await waitFor(() =>
