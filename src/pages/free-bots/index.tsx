@@ -28,7 +28,7 @@ const BOTS: Bot[] = [
     },
     {
         id: '13',
-        name: 'Over 1/Over 0',
+        name: 'Over Switcher',
         description: 'Automated Digit Over strategy for Volatility indices.',
         fileName: 'over-1-over-0.xml',
         category: 'Over/Under',
@@ -44,7 +44,7 @@ const BOTS: Bot[] = [
     },
     {
         id: '15',
-        name: 'Under 8 / Under 9',
+        name: 'Under Switcher',
         description: 'Automated Digit Under strategy by NetoAcademy.',
         fileName: 'under-8-under-9.xml',
         category: 'Over/Under',
