@@ -31,7 +31,7 @@ it.each([
 ])('rejects an invalid balance or percentage (%s / %s)', (balance, percentage) => {
     expect(calculateRisk(balance, percentage)).toHaveProperty('error');
 });
-it('updates the cycle budget immediately and provides the three balance examples', () => {
+it('updates the cycle budget immediately from balance and percentage inputs', () => {
     render(<RiskCalculator />);
     const result = screen.getByLabelText('Risk budget per trading cycle');
     expect(result).toHaveTextContent('$0.50');
@@ -39,7 +39,8 @@ it('updates the cycle budget immediately and provides the three balance examples
     expect(result).toHaveTextContent('$2.50');
     fireEvent.click(screen.getByRole('button', { name: '1%' }));
     expect(result).toHaveTextContent('$5.00');
-    fireEvent.click(screen.getByRole('button', { name: 'Use $1,000.00 balance at 0.5% risk' }));
+    fireEvent.change(screen.getByLabelText('Account balance (USD)'), { target: { value: '1000' } });
+    fireEvent.click(screen.getByRole('button', { name: '0.5%' }));
     expect(result).toHaveTextContent('$5.00');
     expect(screen.getByLabelText('Risk per trading cycle (%)')).toHaveValue(0.5);
     expect(screen.getByText(/starting trade and every recovery loss/)).toBeTruthy();

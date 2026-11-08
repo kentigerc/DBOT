@@ -3,7 +3,6 @@ import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { calculateRisk, dollars } from './calculation';
 import './risk-calculator.scss';
 
-const examples = [100, 500, 1000];
 const presets = ['0.25', '0.5', '1', '2'];
 export default function RiskCalculator({ active = true }: { active?: boolean }) {
     const panel = useMarketPanelHeight<HTMLElement>({ enabled: active });
@@ -160,43 +159,6 @@ export default function RiskCalculator({ active = true }: { active?: boolean }) 
                     </div>
                 </aside>
 
-                <div className='risk-calculator__examples'>
-                    <div className='risk-calculator__section-title'>
-                        <span>02</span>
-                        <h2>Try an example at 0.5%</h2>
-                    </div>
-                    <div className='risk-calculator__example-grid'>
-                        {examples.map(amount => (
-                            <button
-                                type='button'
-                                key={amount}
-                                aria-label={`Use ${dollars(amount * 100)} balance at 0.5% risk`}
-                                aria-pressed={Number(balance) === amount && Number(percentage) === 0.5}
-                                onClick={() => {
-                                    setBalance(String(amount));
-                                    setPercentage('0.5');
-                                }}
-                            >
-                                <span>{dollars(amount * 100)} account</span>
-                                <strong>{dollars(amount / 2)}</strong>
-                                <span>
-                                    risk per cycle{' '}
-                                    <i aria-hidden='true'>
-                                        <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-                                            <path
-                                                d='M6 18 18 6M6 6h12v12'
-                                                stroke='currentColor'
-                                                strokeWidth='1.5'
-                                                strokeLinecap='round'
-                                                strokeLinejoin='round'
-                                            />
-                                        </svg>
-                                    </i>
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
                 <p className='risk-calculator__footnote'>
                     Planning only: this calculator does not change bot settings or enforce a loss limit. Set your bot’s
                     limits separately. Trading can result in losses.
