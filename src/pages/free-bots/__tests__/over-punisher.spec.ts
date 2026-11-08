@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isProtectedBotXml } from '@/utils/bot-protection';
+import { hostedBotLimits } from '@/utils/hosted-bot-market';
 describe.each(['over-punisher.xml', 'over-1-over-0.xml', 'under-punisher.xml', 'under-8-under-9.xml'])(
     '%s startup',
     filename => {
@@ -62,4 +63,61 @@ it('keeps the new Under 8 / Under 9 bot at one tick without embedded Telegram re
     const purchases = [...document.querySelectorAll('block[type="purchase"] > field[name="PURCHASE_LIST"]')];
     expect(purchases).toHaveLength(4);
     expect(purchases.every(field => field.textContent === 'DIGITUNDER')).toBe(true);
+});
+
+describe('Switcher risk settings and recovery', () => {
+    const read = (name: string) => readFileSync(path.join(__dirname, '../../../../server/bots', name), 'utf8');
+    const parse = (name: string) => new DOMParser().parseFromString(read(name), 'application/xml');
+    const over = () => parse('over-1-over-0.xml');
+    const under = () => parse('under-8-under-9.xml');
+    it.each(['over-1-over-0.xml', 'under-8-under-9.xml'])('sets %s session take profit to ten dollars', filename => {
+        expect(hostedBotLimits(read(filename))).toEqual({ takeProfit: 1000, stopLoss: 10000 });
+    });
+    it('uses Over for normal trades and Under 5 for recovery, including the normal zero-digit barrier', () => {
+        const document = over();
+        const branch = document.querySelector('block[type="before_purchase"] block[id="{se08yd!M!}ThlUHp%,%"]')!;
+        expect(branch.querySelector('value[name="IF0"] field[name="VAR"]')?.textContent).toBe('Loss');
+        expect(branch.querySelector('value[name="IF0"] field[name="OP"]')?.textContent).toBe('EQ');
+        expect(branch.querySelector('value[name="IF0"] field[name="NUM"]')?.textContent).toBe('0');
+        expect(branch.querySelector('statement[name="DO0"] field[name="PURCHASE_LIST"]')?.textContent).toBe(
+            'DIGITOVER'
+        );
+        expect(branch.querySelector('statement[name="ELSE"] field[name="PURCHASE_LIST"]')?.textContent).toBe(
+            'DIGITUNDER'
+        );
+        expect(
+            document.querySelector('block[type="trade_definition_contracttype"] field[name="TYPE_LIST"]')?.textContent
+        ).toBe('both');
+        const prediction = document.querySelector('value[name="PREDICTION"] > block')!;
+        const value = (node: Element, name: string) =>
+            [...node.children].find(child => child.localName === 'value' && child.getAttribute('name') === name)!;
+        const normal = value(prediction, 'THEN').querySelector('block')!;
+        expect(value(normal, 'THEN').querySelector('field[name="NUM"]')?.textContent).toBe('1');
+        expect(value(normal, 'ELSE').querySelector('field[name="NUM"]')?.textContent).toBe('0');
+        expect(value(prediction, 'ELSE').querySelector('field[name="NUM"]')?.textContent).toBe('5');
+    });
+    it('matches Under Switcher’s loss stake progression and win reset', () => {
+        const semantics = (node: Element): unknown => ({
+            tag: node.localName,
+            type: node.getAttribute('type'),
+            name: node.getAttribute('name'),
+            value: node.children.length ? undefined : node.textContent,
+            children: [...node.children].filter(child => child.localName !== 'data').map(semantics),
+        });
+        for (const result of ['DO0', 'DO1']) {
+            const selector = `block[type="after_purchase"] > statement > block > statement[name="${result}"]`;
+            expect(semantics(over().querySelector(selector)!)).toEqual(semantics(under().querySelector(selector)!));
+        }
+        for (const document of [over(), under()]) {
+            const multiplier = [...document.querySelectorAll('block[type="math_arithmetic"]')].find(block =>
+                block.querySelector('block[type="read_details"]')
+            )!;
+            expect(multiplier.querySelector('value[name="B"] field[name="NUM"]')?.textContent).toBe('2.1');
+            expect(
+                document.querySelector(
+                    'block[type="trade_definition_tradeoptions"] > value[name="DURATION"] field[name="NUM"]'
+                )?.textContent
+            ).toBe('1');
+        }
+    });
 });
