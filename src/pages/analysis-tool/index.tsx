@@ -1,3 +1,4 @@
+import DemoPauseStatus from '@/components/demo-pause-status';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
@@ -198,6 +199,7 @@ export default function AnalysisTool() {
                     open contract to settle. Use New session to clear a stopped session and change its parameters.
                 </p>
             </section>
+            <DemoPauseStatus state={state.demoPause} />
             {(error || state.error) && (
                 <div role='alert' className='analysis-tool__error'>
                     {error || state.error}

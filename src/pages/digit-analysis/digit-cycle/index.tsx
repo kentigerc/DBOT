@@ -1,3 +1,4 @@
+import DemoPauseStatus from '@/components/demo-pause-status';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
 import { DEFAULT_SETTINGS, RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
@@ -208,6 +209,7 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
                         {state.phase}
                         {state.error ? ` · ${state.error}` : ''}
                     </p>
+                    <DemoPauseStatus state={state.demoPause} />
                     <div className='digit-cycle__stats'>
                         {[
                             ['Session P/L', money(state.pnl)],

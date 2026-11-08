@@ -589,3 +589,119 @@ test('STOP cancels a local runner even if the shared STOP notification cannot re
     assert.equal(service.sessions.get('demo').engine.getSnapshot().wantsRun, false);
     assert.equal(service.sessions.get('demo').engine.getSnapshot().active, false);
 });
+
+function demoBrokerFixture() {
+    const buys = [],
+        urls = [];
+    let releaseBuy;
+    const gate = new Promise(resolve => {
+        releaseBuy = resolve;
+    });
+    return {
+        buys,
+        urls,
+        releaseBuy,
+        brokerFactory: async url => {
+            urls.push(url);
+            return {
+                disconnect() {},
+                async send(body) {
+                    if (body.portfolio) return { portfolio: { contracts: [] } };
+                    if (body.balance) return { balance: { balance: 1000, currency: 'USD' } };
+                    if (body.proposal) return { proposal: { ask_price: body.amount, payout: 0.67 } };
+                    if (body.buy) {
+                        buys.push(body);
+                        await gate;
+                        return { buy: { contract_id: 900 + buys.length, buy_price: 0.35 } };
+                    }
+                    if (body.proposal_open_contract)
+                        return { proposal_open_contract: { contract_id: body.contract_id, is_sold: 1, profit: -0.35 } };
+                    throw new Error('Unexpected broker command');
+                },
+            };
+        },
+    };
+}
+const demoBreakSpec = { triggerContractId: 123, symbol: 'R_100', direction: 'DIGITEVEN', duration: 2, stake: 0.35 };
+const demoAuth = {
+    demoAccount: async () => ({ account_id: 'DOTTEST', account_type: 'demo', currency: 'USD', status: 'active' }),
+    connectionUrl: async (req, id) => {
+        assert.ok(req?.headers.cookie, 'The original authenticated request survives asynchronous startup');
+        return `demo://${id}`;
+    },
+};
+test('XML demo pause requires account ownership and origin, excludes competing tools, and STOP works from another device', async t => {
+    const f = demoBrokerFixture();
+    const { request, service } = await fixture(t, { real: true, auth: demoAuth, brokerFactory: f.brokerFactory });
+    const command = { action: 'demo-break', spec: demoBreakSpec };
+    assert.equal((await request('stranger', command)).status, 401);
+    assert.equal((await request('phone', command, 'other')).status, 403);
+    assert.equal((await request('phone', command, 'demo', 'https://evil.invalid')).status, 403);
+    assert.equal((await request('phone', undefined, 'demo&demo_pause=123')).data.demoPause, null);
+    const running = request('phone', command);
+    while (!f.buys.length) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(service.busy('demo'), true);
+    assert.equal(service.busy('DOTTEST'), true);
+    assert.equal((await request('laptop', undefined, 'demo&demo_pause=123')).data.demoPause.status, 'running');
+    for (const action of ['reset', 'import-browser', 'start', 'demo-break'])
+        assert.equal((await request('laptop', { action, spec: demoBreakSpec })).status, 409);
+    assert.equal((await request('laptop', { action: 'stop' })).status, 200);
+    f.releaseBuy();
+    assert.equal((await running).status, 409);
+    assert.equal(f.buys.length, 1);
+    assert.equal((await request('phone', undefined, 'demo&demo_pause=123')).data.demoPause.completed, 1);
+    assert.equal((await request('phone', command)).data.demoPause.completed, 2);
+    assert.equal(f.buys.length, 2);
+});
+
+test('server recovery retains the authenticated request after startup completes', async t => {
+    const f = demoBrokerFixture();
+    f.releaseBuy();
+    const { request, service } = await fixture(t, { real: true, auth: demoAuth, brokerFactory: f.brokerFactory });
+    await request('phone', { action: 'start', settings: DEFAULT_SETTINGS });
+    const value = service.sessions.get('demo');
+    await value.task;
+    assert.equal(value.request, undefined);
+    const result = await value.engine.deps.runDemoPause(demoBreakSpec, { signal: new AbortController().signal });
+    assert.equal(result.completed, 2);
+    assert.equal(f.buys.length, 2);
+    assert.ok(f.urls.slice(1).every(url => url === 'demo://DOTTEST'));
+    await request('phone', { action: 'stop' });
+});
+
+test('retains the real lease until an interrupted demo pause has finished settling', async t => {
+    class SubscribedEngine extends ControlledEngine {
+        subscribe(listener) {
+            this.listener = listener;
+        }
+        stop() {
+            super.stop();
+            this.listener?.();
+        }
+    }
+    const f = demoBrokerFixture();
+    const { request, service } = await fixture(t, {
+        real: true,
+        auth: demoAuth,
+        brokerFactory: f.brokerFactory,
+        Engine: SubscribedEngine,
+    });
+    await request('phone', { action: 'start', settings: DEFAULT_SETTINGS });
+    const value = service.sessions.get('demo');
+    await value.task;
+    const controller = new AbortController();
+    const job = value.engine.deps.runDemoPause(demoBreakSpec, { signal: controller.signal });
+    while (!f.buys.length) await new Promise(resolve => setImmediate(resolve));
+    value.engine.stop();
+    controller.abort();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(
+        value.lease.held,
+        true,
+        'Stopping the real runner must not free its account while the demo job is active'
+    );
+    f.releaseBuy();
+    await assert.rejects(job, /stopped/);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(value.lease.held, false);
+});

@@ -8,6 +8,7 @@ const { createBroker } = require('./strategy-broker.cjs');
 const { createTradingStateStorage } = require('./trading-state.cjs');
 const { createAccountLocks, DEFINITIVE } = require('./account-locks.cjs');
 const { randomUUID } = require('node:crypto');
+const { createDemoPause } = require('./demo-pause.cjs');
 
 function fileStorage(directory) {
     const filename = key => path.join(directory, createHash('sha256').update(key).digest('hex') + '.json');
@@ -66,7 +67,8 @@ function createAnalysisService(
     const prepareAccount = async id => {
         await storage.load?.(key(id));
     };
-    const busy = id => {
+    let demoPauses;
+    const sessionBusy = id => {
         const session = sessions.get(id);
         if (!session) {
             const saved = storage.getItem(`neto.digit-strategy.v1.${id}`);
@@ -83,17 +85,40 @@ function createAnalysisService(
             (storage.mode === 'postgres' && state?.liveUntil > Date.now())
         );
     };
+    const busy = id => sessionBusy(id) || !!demoPauses?.busy(id);
     const settleLease = value => {
-        if (!value.lease || value.starting || value.engine.getSnapshot().active) return;
+        if (
+            !value.lease ||
+            value.starting ||
+            value.engine.getSnapshot().active ||
+            demoPauses?.busy(value.account.account_id)
+        )
+            return;
         const lease = value.lease;
         lease.held = false;
         if (!value.engine.getSnapshot().pending)
             void (async () => {
                 await storage.flush?.(key(value.account.account_id));
-                if (value.lease === lease && !value.starting && !value.engine.getSnapshot().active)
+                if (
+                    value.lease === lease &&
+                    !value.starting &&
+                    !value.engine.getSnapshot().active &&
+                    !demoPauses?.busy(value.account.account_id)
+                )
                     await locks.release(lease);
             })().catch(() => {});
     };
+    demoPauses = createDemoPause({
+        auth,
+        storage,
+        locks,
+        brokerFactory,
+        busy: async id => {
+            await prepareAccount(id);
+            return sessionBusy(id) || (builderBuys.get(id)?.size || 0) > 0;
+        },
+        onTrade: (account, sourceTool, packet) => onTrade(account, { sourceTool, settings: {} }, packet),
+    });
     const entry = account => {
         let value = sessions.get(account.account_id);
         if (!value) {
@@ -191,6 +216,21 @@ function createAnalysisService(
                 builderRunning: () => (builderBuys.get(account.account_id)?.size || 0) > 0,
                 storage: engineStorage,
                 createApi: brokerForRun,
+                runDemoPause: (spec, options) =>
+                    demoPauses
+                        .run(value.runRequest || value.request, value.account, spec, {
+                            ...options,
+                            parentLease: value.lease,
+                            sourceTool:
+                                value.engine.getSnapshot().settings.strategy === 'momentum-70'
+                                    ? 'momentum_70'
+                                    : value.engine.getSnapshot().settings.strategy === 'even-odd'
+                                      ? 'even_odd'
+                                      : value.engine.getSnapshot().settings.strategy === 'over2-under7'
+                                        ? 'hit_and_run'
+                                        : 'analysis_tool',
+                        })
+                        .finally(() => settleLease(value)),
             });
             value.engine.selectAccount(account);
             value.engine.subscribe?.(() => settleLease(value));
@@ -207,6 +247,21 @@ function createAnalysisService(
                     builderRunning: () => (builderBuys.get(account.account_id)?.size || 0) > 0,
                     storage: engineStorage,
                     createApi: brokerForRun,
+                    runDemoPause: (spec, options) =>
+                        demoPauses
+                            .run(value.runRequest || value.request, value.account, spec, {
+                                ...options,
+                                parentLease: value.lease,
+                                sourceTool:
+                                    value.engine.getSnapshot().settings.strategy === 'momentum-70'
+                                        ? 'momentum_70'
+                                        : value.engine.getSnapshot().settings.strategy === 'even-odd'
+                                          ? 'even_odd'
+                                          : value.engine.getSnapshot().settings.strategy === 'over2-under7'
+                                            ? 'hit_and_run'
+                                            : 'analysis_tool',
+                            })
+                            .finally(() => settleLease(value)),
                 });
                 value.engine.selectAccount(account);
             }
@@ -228,6 +283,11 @@ function createAnalysisService(
             const id = url.searchParams.get('account_id');
             if (!id || id.length > 128) throw fail(400, 'Select a trading account.');
             const account = await auth.authorizeAccount(req, id);
+            if (req.method === 'GET' && url.searchParams.has('demo_pause')) {
+                const trigger = Number(url.searchParams.get('demo_pause'));
+                if (!Number.isSafeInteger(trigger) || trigger <= 0) throw fail(400, 'Invalid demo pause reference.');
+                return json(200, { demoPause: await demoPauses.status(id, trigger) });
+            }
             await prepareAccount(id);
             let value = entry(account);
             if (req.method === 'GET' && !value.starting && !value.engine.getSnapshot().active && storage.peek) {
@@ -264,7 +324,28 @@ function createAnalysisService(
                 if (closing && body.action !== 'stop') throw fail(503, 'The server is shutting down.');
                 if (value.starting && body.action !== 'stop')
                     throw fail(409, 'This account is already processing a trading command.');
-                if (body.action === 'import-browser') {
+                if (demoPauses.busy(id) && body.action !== 'stop')
+                    throw fail(409, 'A demo recovery pause is active. Stop and settle it before changing tools.');
+                if (body.action === 'demo-break') {
+                    auth.requireTerms?.(req);
+                    if (busy(id) || (builderBuys.get(id)?.size || 0) > 0)
+                        throw fail(409, 'Settle the real trade before starting the demo pause.');
+                    const controller = new AbortController();
+                    const cancelled = () => {
+                        if (!res.writableEnded) controller.abort();
+                    };
+                    res.once('close', cancelled);
+                    try {
+                        const demoPause = await demoPauses.run(req, account, body.spec, {
+                            signal: controller.signal,
+                            sourceTool: 'bot_builder',
+                        });
+                        if (!res.destroyed) return json(200, { demoPause });
+                        return;
+                    } finally {
+                        res.removeListener('close', cancelled);
+                    }
+                } else if (body.action === 'import-browser') {
                     if (
                         (typeof body.legacy?.pending?.nonce === 'string' &&
                             value.engine.getSnapshot().pending?.nonce === body.legacy.pending.nonce) ||
@@ -357,6 +438,8 @@ function createAnalysisService(
                     }
                 } else if (body.action === 'start') {
                     auth.requireTerms?.(req);
+                    if (demoPauses.busy(id))
+                        throw fail(409, 'A demo recovery pause is active. Stop it before starting another tool.');
                     if (value.engine.getSnapshot().active)
                         throw fail(409, 'This account already has an Analysis Tool running.');
                     if (locks.mode !== 'postgres' && (builderBuys.get(id)?.size || 0) > 0)
@@ -365,6 +448,7 @@ function createAnalysisService(
                     value.cancelled = false;
                     value.account = account;
                     value.request = req;
+                    value.runRequest = req;
                     value.expiry?.();
                     value.expiry = watchSessionExpiry(
                         () => auth.sessionExpires(req),
@@ -403,6 +487,7 @@ function createAnalysisService(
                                     starting: true,
                                     cancelled: old.cancelled,
                                     request: req,
+                                    runRequest: req,
                                     lease: old.lease,
                                     expiry: old.expiry,
                                 });
@@ -445,6 +530,7 @@ function createAnalysisService(
                         }
                     })();
                 } else if (body.action === 'stop') {
+                    demoPauses.stop(id);
                     value.cancelled = true;
                     if (value.engine.getSnapshot().active) value.engine.stop();
                     await locks.requestStop(id);
@@ -570,6 +656,7 @@ function createAnalysisService(
         },
         stopAll() {
             closing = true;
+            demoPauses.stopAll();
             for (const value of sessions.values()) {
                 value.cancelled = true;
                 value.expiry?.();
@@ -578,6 +665,7 @@ function createAnalysisService(
         },
         async close() {
             this.stopAll();
+            await demoPauses.close();
             // Start commands may be suspended at the portfolio or journal
             // checkpoint. Cancellation is checked again before any purchase.
             await Promise.allSettled([...sessions.values()].map(value => value.task));

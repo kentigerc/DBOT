@@ -1,3 +1,4 @@
+import DemoPauseStatus from '@/components/demo-pause-status';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
 import { DEFAULT_SETTINGS, type Settings } from '@/services/digit-strategy/strategy';
@@ -162,6 +163,7 @@ export default function Momentum() {
                             {money(own ? state.pnl : 0)} <small>session net</small>
                         </strong>
                     </div>
+                    {own && <DemoPauseStatus state={state.demoPause} />}
                     {own && state.error && <p role='alert'>{state.error}</p>}
                     {own && (
                         <p className='momentum__scan-status' role='status'>

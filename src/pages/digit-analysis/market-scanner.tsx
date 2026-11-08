@@ -1,3 +1,4 @@
+import DemoPauseStatus from '@/components/demo-pause-status';
 import { checkTradingBalance } from '@/services/digit-strategy/balance';
 import { validateXmlAutoSettings, type XmlAutoSettings } from '@/utils/xml-auto-settings';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -337,6 +338,7 @@ export default function MarketScanner({
                     {auto.deficit > 0 && ` · Recovery deficit $${(auto.deficit / 100).toFixed(2)}`}
                 </p>
             )}
+            <DemoPauseStatus state={auto.demoPause} />
             <p role='status' aria-live='polite'>
                 {auto.enabled && !scanning ? 'XML Auto active · Follow the session status above.' : message}
             </p>

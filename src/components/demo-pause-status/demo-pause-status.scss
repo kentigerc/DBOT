@@ -1,0 +1,30 @@
+.demo-pause-status {
+    margin: 16px 0;
+    padding: 16px 18px;
+    border: 1px solid #428cc580;
+    border-left: 3px solid #428cc5;
+    border-radius: 10px;
+    background: #428cc50a;
+    color: var(--text-general);
+    font-size: 13px;
+    line-height: 1.6;
+    strong {
+        color: #428cc5;
+        font-size: 13px;
+    }
+    p {
+        margin: 6px 0;
+    }
+    div {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        margin: 8px 0;
+    }
+    small {
+        font-size: 12px;
+    }
+    &__error {
+        color: var(--text-loss-danger);
+    }
+}

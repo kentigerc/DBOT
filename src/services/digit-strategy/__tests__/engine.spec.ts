@@ -115,7 +115,8 @@ async function setup(
     options: Partial<typeof DEFAULT_SETTINGS> = {},
     broker = new FakeBroker(),
     Engine = DigitStrategyEngine,
-    storage: Storage & { flush?: (key: string) => Promise<void> } = localStorage
+    storage: Storage & { flush?: (key: string) => Promise<void> } = localStorage,
+    extra: ConstructorParameters<typeof DigitStrategyEngine>[0] = {}
 ) {
     const engine = new Engine({
         createApi: async () => broker,
@@ -124,6 +125,7 @@ async function setup(
         now: () => Date.now(),
         random: () => 0,
         storage,
+        ...extra,
     });
     const settings = { ...DEFAULT_SETTINGS, recoveryMode: 'under5_run' as const, takeProfit: 0, ...options };
     const starting = engine.start(settings);
@@ -1143,4 +1145,163 @@ it('stops without an uncertain intent or another attempt when account protection
     expect(engine.getSnapshot().phase).toMatch(/Account protection stopped/);
     await jest.advanceTimersByTimeAsync(20000);
     expect(broker.buys).toHaveLength(0);
+});
+
+describe('real recovery demo pauses', () => {
+    async function recovering(strategy: Settings['strategy'], demo: jest.Mock, real = true, maxLosses = 10) {
+        const settings = sharedRecoverySettings({
+            ...DEFAULT_SETTINGS,
+            strategy,
+            multiplier: 2.5,
+            duration: 2,
+            takeProfit: 0,
+            maxLosses,
+        });
+        const direction = strategy === 'momentum-70' ? 'DIGITOVER' : 'DIGITEVEN';
+        localStorage.setItem(
+            'neto.digit-strategy.v1.DEMO-TEST',
+            JSON.stringify({
+                ...empty(),
+                accountId: account.account_id,
+                version: 1,
+                settings,
+                stake: 88,
+                streak: 1,
+                pnl: -35,
+                losses: 1,
+                trades: [
+                    {
+                        id: 'normal-loss',
+                        contractId: 99,
+                        market: 'R_100',
+                        direction: 'DIGITOVER',
+                        recovery: false,
+                        stake: 35,
+                        profit: -35,
+                        status: 'Lost',
+                        at: Date.now(),
+                    },
+                ],
+                recovery: {
+                    streak: 1,
+                    deficit: 35,
+                    momentumPending: true,
+                    previous: 'DIGITOVER',
+                    lockedDirection: direction,
+                    lockedSymbol: 'R_100',
+                    recoveryLocked: true,
+                    countAfter: 0,
+                    pauseUntil: 0,
+                },
+            })
+        );
+        return setup(settings, new FakeBroker(), DigitStrategyEngine, localStorage, {
+            account: () => ({ ...account, account_type: real ? 'real' : 'demo' }),
+            runDemoPause: demo,
+        });
+    }
+    async function threeLosses(engine: DigitStrategyEngine, broker: FakeBroker) {
+        expect(broker.buys[0].price).toBe(0.88);
+        broker.settle(-0.88);
+        await liveTick(broker);
+        expect(broker.buys[1].price).toBe(2.2);
+        broker.settle(-2.2);
+        await liveTick(broker);
+        expect(broker.buys[2].price).toBe(5.5);
+        broker.settle(-5.5);
+        expect(engine.getSnapshot()).toMatchObject({ pnl: -893, streak: 4, losses: 4, recoveryLosses: 3, stake: 1375 });
+    }
+    it.each([undefined, 'over2-under7', 'even-odd', 'momentum-70'] as const)(
+        'pauses the fourth real recovery for %s and ignores two losing demo results in its real ledger',
+        async strategy => {
+            let finish!: (value: any) => void;
+            const pause = jest.fn(
+                (_spec: any, _options: any) =>
+                    new Promise(resolve => {
+                        finish = resolve;
+                    })
+            );
+            const { engine, broker } = await recovering(strategy, pause);
+            await threeLosses(engine, broker);
+            expect(pause).not.toHaveBeenCalled();
+            await liveTick(broker);
+            expect(pause).toHaveBeenCalledTimes(1);
+            expect(broker.buys).toHaveLength(3);
+            const [spec, options] = pause.mock.calls[0];
+            expect(spec).toMatchObject({ stake: 0.35, duration: 2, symbol: 'R_100', triggerContractId: 103 });
+            const progress = {
+                triggerContractId: 103,
+                demoAccountId: 'DEMO2',
+                status: 'running',
+                completed: 1,
+                trades: [{ contractId: 201, profit: -35, stake: 35, at: Date.now() }],
+            };
+            options.progress(progress);
+            expect(engine.getSnapshot()).toMatchObject({
+                pnl: -893,
+                streak: 4,
+                losses: 4,
+                stake: 1375,
+                demoPause: { completed: 1, heldStake: 1375 },
+            });
+            expect(broker.buys).toHaveLength(3);
+            finish({ ...progress, status: 'done', completed: 2 });
+            await jest.advanceTimersByTimeAsync(150);
+            expect(broker.buys).toHaveLength(4);
+            expect(broker.buys[3].price).toBe(13.75);
+            expect(engine.getSnapshot()).toMatchObject({
+                pnl: -893,
+                streak: 4,
+                losses: 4,
+                recoveryLosses: 0,
+                stake: 1375,
+            });
+            engine.stop();
+            broker.settle(0.2);
+        }
+    );
+    it('does not apply the demo pause to a strategy already running on demo', async () => {
+        const pause = jest.fn();
+        const { engine, broker } = await recovering('even-odd', pause, false);
+        await threeLosses(engine, broker);
+        await liveTick(broker);
+        expect(pause).not.toHaveBeenCalled();
+        expect(broker.buys).toHaveLength(4);
+        engine.stop();
+        broker.settle(0.2);
+    });
+    it('keeps the existing total real-loss limit ahead of the demo pause', async () => {
+        const pause = jest.fn();
+        const { engine, broker } = await recovering('even-odd', pause, true, 4);
+        await threeLosses(engine, broker);
+        await liveTick(broker);
+        expect(pause).not.toHaveBeenCalled();
+        expect(broker.buys).toHaveLength(3);
+        expect(engine.getSnapshot().active).toBe(false);
+    });
+    it('cannot resume real trades after STOP even if the demo command returns late', async () => {
+        let finish!: (value: any) => void;
+        const pause = jest.fn(
+            (_spec: any, _options: any) =>
+                new Promise(resolve => {
+                    finish = resolve;
+                })
+        );
+        const { engine, broker } = await recovering('even-odd', pause);
+        await threeLosses(engine, broker);
+        await liveTick(broker);
+        engine.stop();
+        finish({ triggerContractId: 103, completed: 2, status: 'done' });
+        await jest.advanceTimersByTimeAsync(150);
+        expect(broker.buys).toHaveLength(3);
+        expect(engine.getSnapshot().active).toBe(false);
+    });
+    it('halts real recovery if demo access fails instead of skipping the pause', async () => {
+        const pause = jest.fn().mockRejectedValue(new Error('Demo account unavailable'));
+        const { engine, broker } = await recovering('even-odd', pause);
+        await threeLosses(engine, broker);
+        await liveTick(broker);
+        expect(broker.buys).toHaveLength(3);
+        expect(engine.getSnapshot()).toMatchObject({ active: false, error: 'Demo account unavailable', stake: 1375 });
+    });
 });

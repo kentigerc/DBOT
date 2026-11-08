@@ -19,6 +19,16 @@ import {
 } from './strategy';
 
 type Packet = Record<string, any>; // Deriv's compatibility transport supplies legacy and modern fields.
+export type DemoPauseView = {
+    triggerContractId: number;
+    completed: number;
+    status: string;
+    demoAccountId?: string;
+    pendingContractId?: number;
+    error?: string;
+    trades?: { contractId: number; profit: number; stake: number; at: number }[];
+    heldStake?: number;
+};
 export type Broker = {
     send: (body: Packet) => Promise<Packet>;
     onMessage: () => { subscribe: (fn: (event: { data: Packet }) => void) => { unsubscribe: () => void } };
@@ -83,6 +93,7 @@ export type Snapshot = {
     highestStake: number;
     recovery: RecoveryState;
     recoveryLosses: number;
+    demoPause?: DemoPauseView;
     batch: number;
     batchPause: number;
     pending?: Pending;
@@ -164,6 +175,17 @@ export class DigitStrategyEngine {
             random?: () => number;
             storage?: Storage & { flush?: (key: string) => Promise<void> };
             lockChanged?: (locked: boolean) => void;
+            runDemoPause?: (
+                spec: {
+                    triggerContractId: number;
+                    symbol: string;
+                    direction: Direction;
+                    barrier?: string;
+                    stake: number;
+                    duration: number;
+                },
+                options: { signal: AbortSignal; progress: (state: DemoPauseView) => void }
+            ) => Promise<DemoPauseView>;
         } = {}
     ) {}
     getSnapshot = () => this.state;
@@ -612,6 +634,51 @@ export class DigitStrategyEngine {
         this.busy = true;
         this.update({ selected: signal, phase: 'Quoting' });
         try {
+            if (signal.recovery && this.account()?.account_type === 'real' && this.state.recoveryLosses >= 3) {
+                if (!this.deps.runDemoPause || !this.state.demoPause?.triggerContractId)
+                    throw new Error('Demo recovery pause is unavailable. Real trading stopped.');
+                this.update({ phase: 'Demo pause · 0/2 completed · Real recovery paused' });
+                this.log(
+                    'Three consecutive recovery losses. Two demo trades are required before another real recovery attempt.'
+                );
+                const demo = await this.deps.runDemoPause(
+                    {
+                        triggerContractId: this.state.demoPause.triggerContractId,
+                        symbol: signal.symbol,
+                        direction: signal.direction,
+                        barrier: signal.barrier,
+                        stake: this.state.settings.stake,
+                        duration: this.state.settings.duration,
+                    },
+                    {
+                        signal: entryAbort.signal,
+                        progress: state => {
+                            const previous = this.state.demoPause?.completed || 0;
+                            this.update({
+                                demoPause: { ...state, heldStake: this.state.stake },
+                                phase: this.state.wantsRun
+                                    ? `Demo pause · ${state.completed}/2 completed · Real recovery paused`
+                                    : 'Stopping after demo settlement',
+                            });
+                            if (state.completed > previous) {
+                                const trade = state.trades?.[state.trades.length - 1];
+                                this.log(
+                                    `DEMO ${state.completed}/2 settled${trade ? ` · contract ${trade.contractId} · virtual P/L $${(trade.profit / 100).toFixed(2)}` : ''}. Real P/L and recovery stake are unchanged.`
+                                );
+                            }
+                            this.persist();
+                        },
+                    }
+                );
+                if (entryAbort.signal.aborted || !this.state.wantsRun) return;
+                if (demo.completed !== 2 || demo.status !== 'done')
+                    throw new Error('Demo pause has not completed. Real recovery remains paused.');
+                this.update({ recoveryLosses: 0, demoPause: demo, phase: 'Resuming real recovery' });
+                await this.checkpoint();
+                this.log(
+                    `Demo pause complete. Resuming real recovery at the held stake $${(this.state.stake / 100).toFixed(2)}.`
+                );
+            }
             const parameters: Packet = {
                 amount: this.state.stake / 100,
                 basis: 'stake',
@@ -722,6 +789,10 @@ export class DigitStrategyEngine {
             }
         } catch (error) {
             if (entryAbort.signal.aborted && !this.state.pending) return;
+            if (signal.recovery && this.account()?.account_type === 'real' && this.state.recoveryLosses >= 3) {
+                this.halt(error instanceof Error ? error.message : 'Demo pause failed. Real recovery remains paused.');
+                return;
+            }
             if (error instanceof TradingBalanceError) {
                 this.finish(error.message);
                 return;
@@ -825,6 +896,18 @@ export class DigitStrategyEngine {
         if (profit < -p.stake || profit > payout - p.stake)
             throw new Error('Settlement profit is outside the purchased contract bounds.');
         const streak = profit < 0 ? this.state.streak + 1 : profit > 0 ? 0 : this.state.streak;
+        const recoveryLosses =
+            profit > 0
+                ? 0
+                : p.signal.recovery && profit < 0
+                  ? this.state.recoveryLosses + 1
+                  : this.state.recoveryLosses;
+        const demoPause =
+            profit > 0
+                ? undefined
+                : p.signal.recovery && profit < 0 && recoveryLosses >= 3 && this.account()?.account_type === 'real'
+                  ? { triggerContractId: p.contractId!, completed: 0, status: 'required' }
+                  : this.state.demoPause;
         let next =
             profit < 0
                 ? nextRecoveryStake(p.stake, this.state.settings.multiplier)
@@ -886,7 +969,8 @@ export class DigitStrategyEngine {
             streak,
             stake: next,
             recovery,
-            recoveryLosses: 0,
+            recoveryLosses,
+            demoPause,
             wins: this.state.wins + (profit > 0 ? 1 : 0),
             losses: this.state.losses + (profit < 0 ? 1 : 0),
             voids: this.state.voids + (profit === 0 ? 1 : 0),

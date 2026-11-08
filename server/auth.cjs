@@ -475,6 +475,19 @@ function createAuthHandler({
         if (!account) throw new HttpError(403, 'This trading account is not available in your Deriv session.');
         return account;
     };
+    handle.demoAccount = async req => {
+        const saved = await verifiedSession(req);
+        const accounts = await cachedAccounts(saved);
+        const account = accounts.find(
+            item => item.account_type === 'demo' && item.currency === 'USD' && item.status === 'active'
+        );
+        if (!account)
+            throw new HttpError(
+                409,
+                'An active USD demo account is required for the recovery pause. Real trading remains paused.'
+            );
+        return account;
+    };
     handle.requireAdmin = async req => {
         if (!adminAccountIds.length)
             throw new HttpError(503, 'Admin access is not configured. Set NETO_ADMIN_ACCOUNT_IDS on the server.');

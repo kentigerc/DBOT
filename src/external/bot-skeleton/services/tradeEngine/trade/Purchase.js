@@ -81,6 +81,21 @@ export default Engine =>
                 }
             }
             if (this.store.getState().scope !== BEFORE_PURCHASE) return;
+            if (
+                parityRecovery &&
+                !(await xmlScannerCycle.runDemoPause(
+                    {
+                        symbol: purchaseOptions.symbol,
+                        contract_type,
+                        duration: purchaseOptions.duration || 1,
+                        prediction: purchaseOptions.prediction,
+                        amount: purchaseOptions.amount,
+                    },
+                    generation
+                ))
+            )
+                return;
+            if (this.store.getState().scope !== BEFORE_PURCHASE) return;
             const onSuccess = response => {
                 if (response === manualCancelled) return;
                 // Don't unnecessarily send a forget request for a purchased contract.

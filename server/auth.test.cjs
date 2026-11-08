@@ -70,6 +70,18 @@ async function fixture(t, options = {}) {
     return { request, login, authenticated, cookies, calls, handler };
 }
 
+test('recovery demo account is selected only from the authenticated Deriv session', async t => {
+    const app = await fixture(t);
+    await assert.rejects(app.handler.demoAccount({ headers: {} }), /[Ll]og|[Ss]ession/);
+    await app.authenticated();
+    const req = { headers: { cookie: [...app.cookies].map(([key, value]) => `${key}=${value}`).join('; ') } };
+    const demo = await app.handler.demoAccount(req);
+    assert.equal(demo.account_id, 'DOT100');
+    assert.equal(demo.account_type, 'demo');
+    await app.request('/api/auth/logout', {});
+    await assert.rejects(app.handler.demoAccount(req), /[Ll]og|[Ss]ession/);
+});
+
 test('login uses the supplied app ID and fresh S256 PKCE; tokens are exchanged server-side', async t => {
     const app = await fixture(t);
     const { auth, state } = await app.login();

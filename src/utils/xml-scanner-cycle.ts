@@ -4,6 +4,8 @@ import { startXmlRecoveryProgress } from './xml-recovery-progress';
 import { DEFAULT_XML_AUTO_SETTINGS, validateXmlAutoSettings, type XmlAutoSettings } from './xml-auto-settings';
 import { nextRecoveryStake } from '@/services/digit-strategy/strategy';
 import { evaluateScan, type ScanSide } from '@/pages/digit-analysis/scanner';
+import { getDerivAccount } from './deriv-session';
+import type { DemoPauseView } from '@/services/digit-strategy/engine';
 
 export type XmlScannerMatch = {
     symbol: string;
@@ -38,6 +40,7 @@ type State = {
     deficit: number;
     message: string;
     recoverySearch: boolean;
+    demoPause?: DemoPauseView;
 };
 
 // In-memory only: reloading a page never authorizes another automated run.
@@ -66,6 +69,9 @@ export class XmlScannerCycle {
     private started = false;
     private entered = false;
     private recovery = false;
+    private recoveryLosses = 0;
+    private demoTriggerId?: number;
+    private demoAbort?: AbortController;
     private parityPlan?: ParityRecovery;
     private lastSettlementProfit?: number;
     private inFlight = false;
@@ -114,6 +120,8 @@ export class XmlScannerCycle {
         this.reportJournal = reportJournal;
         this.guarded = true;
         this.started = this.entered = this.recovery = this.inFlight = false;
+        this.recoveryLosses = 0;
+        this.demoTriggerId = undefined;
         this.lastSettlementProfit = undefined;
         this.contractId = undefined;
         this.settled.clear();
@@ -125,6 +133,7 @@ export class XmlScannerCycle {
         this.stopLoss = Math.round(validatedSettings.stopLoss * 100);
         this.update({
             settings: validatedSettings,
+            demoPause: undefined,
             enabled: true,
             phase: 'scanning',
             recoverySearch: false,
@@ -183,6 +192,7 @@ export class XmlScannerCycle {
     }
     stop(message = 'XML Auto stopped.', notifyRunner = true) {
         if (!this.state.enabled) return;
+        this.demoAbort?.abort();
         clearTimeout(this.timer);
         this.parityPlan = undefined;
         this.recoveryJournal?.stop();
@@ -274,6 +284,92 @@ export class XmlScannerCycle {
             return;
         }
         return stake / 100;
+    }
+    async runDemoPause(
+        parameters: { symbol: string; contract_type: string; duration: number; prediction?: number; amount?: number },
+        generation: number
+    ) {
+        if (!this.isRecovering() || this.recoveryLosses < 3 || getDerivAccount()?.account_type !== 'real') return true;
+        if (!this.demoTriggerId || this.demoAbort) {
+            this.stop('Demo pause could not start safely.');
+            return false;
+        }
+        const controller = new AbortController();
+        this.demoAbort = controller;
+        const trigger = this.demoTriggerId;
+        const url = `/api/analysis?account_id=${encodeURIComponent(this.state.accountId)}`;
+        const progress = (state: DemoPauseView) => {
+            if (!controller.signal.aborted && this.valid(generation))
+                this.update({
+                    demoPause: {
+                        ...state,
+                        heldStake: parameters.amount === undefined ? undefined : Math.round(parameters.amount * 100),
+                    },
+                    message: `Demo pause · ${state.completed}/2 completed · Real recovery paused`,
+                });
+        };
+        progress({ triggerContractId: trigger, completed: 0, status: 'running' });
+        let polling = false;
+        const timer = setInterval(async () => {
+            if (polling || controller.signal.aborted) return;
+            polling = true;
+            try {
+                const response = await fetch(`${url}&demo_pause=${trigger}`, {
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    signal: controller.signal,
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.demoPause) progress(data.demoPause);
+                }
+            } catch {
+                /* The final command response determines whether real trading may resume. */
+            } finally {
+                polling = false;
+            }
+        }, 1000);
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                signal: controller.signal,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'demo-break',
+                    spec: {
+                        triggerContractId: trigger,
+                        symbol: parameters.symbol,
+                        direction: parameters.contract_type,
+                        barrier: parameters.prediction === undefined ? undefined : String(parameters.prediction),
+                        duration: parameters.duration,
+                        stake: this.state.settings.stake,
+                    },
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Demo pause failed. Real recovery remains paused.');
+            if (controller.signal.aborted || !this.valid(generation)) return false;
+            if (data.demoPause?.completed !== 2 || data.demoPause?.status !== 'done')
+                throw new Error('The two demo trades have not completed.');
+            this.recoveryLosses = 0;
+            this.demoTriggerId = undefined;
+            this.update({
+                demoPause: data.demoPause,
+                message: 'Two demo trades completed. Resuming the held real recovery stake.',
+            });
+            this.reportJournal?.(
+                'Two demo trades completed. Demo outcomes did not change real P/L or the next recovery stake.'
+            );
+            return true;
+        } catch (error) {
+            if (!controller.signal.aborted)
+                this.stop(error instanceof Error ? error.message : 'Demo pause failed. Real recovery remains paused.');
+            return false;
+        } finally {
+            clearInterval(timer);
+            if (this.demoAbort === controller) this.demoAbort = undefined;
+        }
     }
     recoveryStatus(message: string) {
         if (this.isRecovering()) {
@@ -394,6 +490,7 @@ export class XmlScannerCycle {
                 this.started &&
                 accountId === this.state.accountId &&
                 this.state.phase === 'running' &&
+                !this.demoAbort &&
                 !this.feedPaused &&
                 this.liveMarket() &&
                 !this.inFlight)
@@ -437,10 +534,18 @@ export class XmlScannerCycle {
             return;
         }
         const active = this.state.enabled && this.started;
+        const wasRecovery = this.recovery;
         this.settled.add(value.contract_id!);
         this.contractId = undefined;
         this.inFlight = false;
         const profit = Math.round(Number(value.profit) * 100);
+        if (profit > 0) {
+            this.recoveryLosses = 0;
+            this.demoTriggerId = undefined;
+        } else if (wasRecovery && profit < 0) {
+            this.recoveryLosses++;
+            if (this.recoveryLosses >= 3) this.demoTriggerId = value.contract_id;
+        }
         const pnl = this.state.pnl + profit;
         const deficit = profit > 0 ? 0 : Math.max(0, this.state.deficit - profit);
         this.lastSettlementProfit = profit;
