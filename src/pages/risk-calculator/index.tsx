@@ -9,7 +9,9 @@ export default function RiskCalculator({ active = true }: { active?: boolean }) 
     const [balance, setBalance] = useState('100');
     const [percentage, setPercentage] = useState('0.5');
     const result = calculateRisk(balance, percentage);
+    const targetResult = calculateRisk(balance, '2');
     const budget = 'error' in result ? undefined : result;
+    const target = 'error' in targetResult ? undefined : targetResult;
     const error = 'error' in result ? result.error : '';
     return (
         <section className='risk-calculator' ref={panel} aria-labelledby='risk-calculator-title' tabIndex={0}>
@@ -34,9 +36,9 @@ export default function RiskCalculator({ active = true }: { active?: boolean }) 
                     <div>
                         <p className='risk-calculator__eyebrow'>A PLAN BEFORE EVERY CYCLE</p>
                         <h1 id='risk-calculator-title'>Risk Calculator</h1>
-                        <p>Give your next trading cycle a clear budget, based on your account balance.</p>
+                        <p>Plan your session’s risk budget and profit target from your account balance.</p>
                     </div>
-                    <span className='risk-calculator__default'>0.5% default</span>
+                    <span className='risk-calculator__default'>0.5% risk · 2% target</span>
                 </header>
 
                 <div className='risk-calculator__desk'>
@@ -94,7 +96,8 @@ export default function RiskCalculator({ active = true }: { active?: boolean }) 
                         )}
                         <div className='risk-calculator__formula'>
                             <span>THE CALCULATION</span>
-                            <p>Account balance × risk percentage ÷ 100</p>
+                            <p>Risk = account balance × risk percentage ÷ 100</p>
+                            <p>Target = account balance × 2 ÷ 100</p>
                             <small>Results round down to the nearest cent.</small>
                         </div>
                     </div>
@@ -109,6 +112,12 @@ export default function RiskCalculator({ active = true }: { active?: boolean }) 
                             {budget ? dollars(budget.budgetCents) : '—'}
                         </output>
                         <span className='risk-calculator__per-cycle'>for the entire trading cycle</span>
+                        <div className='risk-calculator__target'>
+                            <span>Target per trading session (2%)</span>
+                            <output aria-label='Profit target per trading session'>
+                                {target ? dollars(target.budgetCents) : '—'}
+                            </output>
+                        </div>
                         <div className='risk-calculator__allocation'>
                             <div>
                                 <span>Allocated risk</span>
@@ -161,7 +170,8 @@ export default function RiskCalculator({ active = true }: { active?: boolean }) 
 
                 <p className='risk-calculator__footnote'>
                     Planning only: this calculator does not change bot settings or enforce a loss limit. Set your bot’s
-                    limits separately. Trading can result in losses.
+                    limits separately. The profit target is a planning goal, not a guaranteed return. Trading can result
+                    in losses.
                 </p>
             </div>
         </section>
