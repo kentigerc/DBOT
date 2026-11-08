@@ -261,6 +261,7 @@ const AppWrapper = observer(() => {
                         {!isDesktop && left_tab_shadow && <span className='tabs-shadow tabs-shadow--left' />}{' '}
                         <Tabs
                             keep_mounted_indices={[
+                                DBOT_TABS.BOT_BUILDER,
                                 DBOT_TABS.DERIV_CHARTS,
                                 DBOT_TABS.DIGIT_ANALYSIS,
                                 DBOT_TABS.MANUAL_TRADER,

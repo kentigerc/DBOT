@@ -94,6 +94,10 @@
         font-size: 12px;
     }
     &__selected {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--general-main-1);
         display: flex;
         flex-wrap: wrap;
         align-items: center;
@@ -111,6 +115,12 @@
             background: var(--brand-red-coral);
             border-color: var(--brand-red-coral);
             color: #fff;
+        }
+        .manual-trader__run {
+            background: #53c8de;
+            border-color: #53c8de;
+            color: #092a30;
+            font-weight: 600;
         }
     }
     &__market {

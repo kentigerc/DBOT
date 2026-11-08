@@ -27,6 +27,8 @@ it.each(['over', 'under'] as const)(
     'requires manual RUN for %s, then trades without further scanner entries',
     async side => {
         const { gate, workspace } = setup(side);
+        expect(gate.isLoaded(workspace)).toBe(true);
+        expect(gate.isLoaded(undefined)).toBe(false);
         expect(await gate.beforePurchase('R_100', SWITCHERS[side].direction)).toBe(false);
         expect(gate.canPurchase('TEST')).toBe(false);
         gate.begin(workspace, note);

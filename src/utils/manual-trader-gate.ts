@@ -59,16 +59,19 @@ export class ManualTraderGate {
             if (plan) sessionStorage.setItem(key, JSON.stringify(plan));
             else sessionStorage.removeItem(key);
         } catch {}
-        this.update({ plan, phase: plan ? 'Loaded · Press RUN in Bot Builder' : 'Ready' });
+        this.update({ plan, phase: plan ? 'Loaded · Ready for manual RUN' : 'Ready' });
     }
-    private bound() {
+    isLoaded(workspace: Workspace | undefined) {
         const plan = this.state.plan;
-        if (!plan || !this.workspace) return false;
-        const blocks = this.workspace.getAllBlocks();
+        if (!plan || !workspace || getDerivAccount()?.account_id !== plan.accountId) return false;
+        const blocks = workspace.getAllBlocks();
         return (
             blocks.some(block => block.data === `netoacademy:hosted-bot:${plan.fileName}`) &&
             blocks.find(block => block.type === 'trade_definition_market')?.getFieldValue('SYMBOL_LIST') === plan.symbol
         );
+    }
+    private bound() {
+        return this.isLoaded(this.workspace);
     }
     begin(workspace: Workspace | undefined, report: (message: string) => void) {
         this.stop();
