@@ -36,6 +36,7 @@ const ManualTrader = lazy(() => import('../manual-trader'));
 const DerivCharts = lazy(() => import('../deriv-charts'));
 const FreeBots = lazy(() => import('../free-bots'));
 const AnalysisTool = lazy(() => import('../analysis-tool'));
+const RiskCalculator = lazy(() => import('../risk-calculator'));
 
 const AppWrapper = observer(() => {
     const { connectionStatus } = useApiBase();
@@ -75,6 +76,7 @@ const AppWrapper = observer(() => {
         'deriv_charts',
         'free_bots',
         'analysis_tool',
+        'risk_calculator',
     ];
     const { isDesktop } = useDevice();
     const location = useLocation();
@@ -249,6 +251,7 @@ const AppWrapper = observer(() => {
                         DBOT_TABS.DERIV_CHARTS,
                         DBOT_TABS.FREE_BOTS,
                         DBOT_TABS.ANALYSIS_TOOL,
+                        DBOT_TABS.RISK_CALCULATOR,
                     ].includes(active_tab),
                 })}
             >
@@ -265,6 +268,7 @@ const AppWrapper = observer(() => {
                                 DBOT_TABS.DERIV_CHARTS,
                                 DBOT_TABS.DIGIT_ANALYSIS,
                                 DBOT_TABS.MANUAL_TRADER,
+                                DBOT_TABS.RISK_CALCULATOR,
                             ]}
                             active_index={active_tab}
                             className='main__tabs'
@@ -413,6 +417,19 @@ const AppWrapper = observer(() => {
                                         <AnalysisTool />
                                     </Suspense>
                                 </div>
+                            </div>
+                            <div
+                                label={
+                                    <>
+                                        <span aria-hidden='true'>%</span>
+                                        <Localize i18n_default_text='Risk Calculator' />
+                                    </>
+                                }
+                                id='id-risk-calculator'
+                            >
+                                <Suspense fallback={<ChunkLoader message={localize('Loading risk calculator...')} />}>
+                                    <RiskCalculator active={active_tab === DBOT_TABS.RISK_CALCULATOR} />
+                                </Suspense>
                             </div>
                         </Tabs>
                         {!isDesktop && right_tab_shadow && <span className='tabs-shadow tabs-shadow--right' />}{' '}

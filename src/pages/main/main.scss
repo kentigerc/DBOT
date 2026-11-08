@@ -767,6 +767,24 @@
     justify-content: flex-start !important;
 }
 
+// Keep every workspace tab reachable beside the desktop Run/Stop bar.
+@media (min-width: 1280px) {
+    .main .dc-tabs__list--main__tabs {
+        width: calc(100% - 39.5rem);
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-hover) transparent;
+        &::-webkit-scrollbar {
+            height: 4px;
+        }
+        &::-webkit-scrollbar-thumb {
+            background: var(--border-hover);
+            border-radius: 4px;
+        }
+    }
+}
+
 // Size this scrollable statistics view to the space beneath the responsive header.
 .main.main--market-panel {
     height: calc(100vh - var(--neto-header-height, 6.4rem) - 3.6rem);

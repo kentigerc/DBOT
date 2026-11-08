@@ -92,6 +92,7 @@ export default function Landing() {
         'deriv_charts',
         'free_bots',
         'analysis_tool',
+        'risk_calculator',
     ];
     if (legacy.includes(location.hash.slice(1))) return <Navigate replace to={`/platform${location.hash}`} />;
     return (

@@ -21,6 +21,7 @@ export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
     TUTORIAL: 5, // Retain compatibility with older navigation links.
     FREE_BOTS: 6,
     ANALYSIS_TOOL: 7,
+    RISK_CALCULATOR: 8,
 });
 
 export const MAX_STRATEGIES = 10;
@@ -34,6 +35,7 @@ export const TAB_IDS = [
     'id-tutorials',
     'id-free-bots',
     'id-analysis-tool',
+    'id-risk-calculator',
 ];
 
 export const DEBOUNCE_INTERVAL_TIME = 500;

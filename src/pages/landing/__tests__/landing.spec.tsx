@@ -55,7 +55,7 @@ it('uses the existing Deriv authorization flow and welcomes connected accounts',
     expect(screen.getByRole('link', { name: /Enter your workspace/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Log in with Deriv' })).toBeNull();
 });
-it.each(['bot_builder', 'digit_analysis', 'deriv_charts', 'analysis_tool'])(
+it.each(['bot_builder', 'digit_analysis', 'deriv_charts', 'analysis_tool', 'risk_calculator'])(
     'preserves legacy #%s platform bookmarks',
     hash => {
         show('/#' + hash);

@@ -15,6 +15,7 @@ export default function UsageTracker() {
             'deriv_charts',
             'free_bots',
             'analysis_tool',
+            'risk_calculator',
         ];
         const candidate =
             location.pathname === '/free-bots'

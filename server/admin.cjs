@@ -9,6 +9,7 @@ const TOOLS = new Set([
     'deriv_charts',
     'free_bots',
     'analysis_tool',
+    'risk_calculator',
     'hit_and_run',
     'even_odd',
     'momentum_70',

@@ -64,6 +64,7 @@ const labels: Record<string, string> = {
     deriv_charts: 'Tradingview',
     free_bots: 'Free Bots',
     analysis_tool: 'Analysis Tool',
+    risk_calculator: 'Risk Calculator',
     hit_and_run: 'HIT AND RUN',
     even_odd: 'Even / Odd',
     momentum_70: 'Momentum 70',
