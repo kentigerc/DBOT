@@ -22,7 +22,7 @@ beforeEach(() => {
     (getDerivAccount as jest.Mock).mockReturnValue({ account_id: 'TEST-DEMO' });
     (getDerivSession as jest.Mock).mockReturnValue({ authenticated: true, accounts: [] });
 });
-it('starts the distinct strategy with shared parity recovery and editable risk settings', async () => {
+it('starts the distinct strategy with paired Over/Under recovery and editable risk settings', async () => {
     render(<Momentum />);
     expect(screen.getByRole('heading', { name: 'Momentum 70' })).toBeTruthy();
     expect(screen.getAllByRole('meter')).toHaveLength(2);
@@ -32,9 +32,9 @@ it('starts the distinct strategy with shared parity recovery and editable risk s
         expect(client.start).toHaveBeenCalledWith(
             expect.objectContaining({
                 strategy: 'momentum-70',
-                recoveryMode: 'parity_percentage',
+                recoveryMode: 'same_contract',
                 stake: 0.5,
-                multiplier: 2.1,
+                multiplier: 2.5,
                 duration: 2,
             }),
             undefined
@@ -52,7 +52,7 @@ it('keeps risk settings locked and allows STOP for its own running session', asy
     client.getSnapshot.mockReturnValue({
         ...empty(),
         active: true,
-        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'parity_percentage' },
+        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' },
     });
     render(<Momentum />);
     expect((screen.getByLabelText('Starting stake (USD)') as HTMLInputElement).disabled).toBe(true);
@@ -68,8 +68,19 @@ it('does not start a trade session for a logged-out visitor', () => {
 it('shows the actual recovery contract in the journal and indicates the locked recovery market', () => {
     client.getSnapshot.mockReturnValue({
         ...empty(),
-        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'parity_percentage' },
+        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' },
         recovery: { streak: 0, deficit: 15, lockedSymbol: 'R_50', lockedDirection: 'DIGITEVEN', recoveryLocked: true },
+        markets: [
+            {
+                symbol: 'R_50',
+                name: 'Volatility 50 Index',
+                ready: true,
+                recoveryMomentum: {
+                    DIGITOVER: { percentage: 53, change: 0.1, armed: true, run: 2 },
+                    DIGITUNDER: { percentage: 55, change: 0.1, armed: true, run: 2 },
+                },
+            },
+        ],
         trades: [
             {
                 id: 'test',
@@ -85,10 +96,13 @@ it('shows the actual recovery contract in the journal and indicates the locked r
         ],
     });
     render(<Momentum />);
-    expect(screen.getByText('EVEN')).toBeTruthy();
-    expect(screen.getByText('ODD')).toBeTruthy();
+    expect(screen.getByText('OVER 3')).toBeTruthy();
+    expect(screen.getByText('UNDER 6')).toBeTruthy();
     expect(screen.getByText('Even · Recovery')).toBeTruthy();
     expect(screen.getByText('Locked recovery market')).toBeTruthy();
+    expect(screen.getByRole('meter', { name: 'Over 3 cumulative percentage' })).toHaveAttribute('aria-valuenow', '53');
+    expect(screen.getByRole('meter', { name: 'Under 6 cumulative percentage' })).toHaveAttribute('aria-valuenow', '55');
+    expect(screen.getAllByText('Locked recovery')).toHaveLength(2);
 });
 
 it('rotates the preview across live markets during the recovery search rather than appearing locked', () => {
@@ -104,7 +118,7 @@ it('rotates the preview across live markets during the recovery search rather th
         });
         client.getSnapshot.mockReturnValue({
             ...empty(),
-            settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'parity_percentage' },
+            settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' },
             recovery: { streak: 1, deficit: 35, countAfter: 0, pauseUntil: 0 },
             markets: [m('R_10', 'Volatility 10 Index'), m('R_50', 'Volatility 50 Index')],
         });
@@ -125,6 +139,6 @@ it('passes a custom tick duration to the shared normal and recovery session sett
     fireEvent.change(screen.getByLabelText('Duration'), { target: { value: '4' } });
     fireEvent.click(screen.getByRole('button', { name: 'RUN MOMENTUM' }));
     await waitFor(() =>
-        expect(client.start).toHaveBeenCalledWith(expect.objectContaining({ duration: 4, multiplier: 2.1 }), undefined)
+        expect(client.start).toHaveBeenCalledWith(expect.objectContaining({ duration: 4, multiplier: 2.5 }), undefined)
     );
 });

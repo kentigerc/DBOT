@@ -6,8 +6,9 @@ import './momentum.scss';
 const defaults = (): Settings => ({
     ...DEFAULT_SETTINGS,
     strategy: 'momentum-70',
-    recoveryMode: 'parity_percentage',
-    multiplier: 2.1,
+    hitRecovery: 'same_contract',
+    recoveryMode: 'same_contract',
+    multiplier: 2.5,
     duration: 2,
 });
 const money = (amount: number) => `$${(amount / 100).toFixed(2)}`;
@@ -99,7 +100,7 @@ export default function Momentum() {
                     <h2 id='momentum-title'>
                         Momentum <span>70</span>
                     </h2>
-                    <p>Over 1 & Under 8 · Three-win batches · Even / Odd recovery</p>
+                    <p>Over 1 & Under 8 · Three-win batches · Over 3 / Under 6 recovery</p>
                 </div>
                 <span className={`momentum__status${own && state.active ? ' is-live' : ''}`}>
                     {own && state.active ? 'LIVE SESSION' : 'READY WHEN YOU ARE'}
@@ -192,7 +193,7 @@ export default function Momentum() {
                     <div className='momentum__signals'>
                         {(['DIGITOVER', 'DIGITUNDER'] as const).map(direction => {
                             const reading = recovering
-                                ? focus?.parityMomentum?.[direction === 'DIGITOVER' ? 'DIGITEVEN' : 'DIGITODD']
+                                ? focus?.recoveryMomentum?.[direction]
                                 : focus?.momentum?.[direction];
                             const percent = reading?.percentage || 0,
                                 change = reading?.change || 0;
@@ -204,10 +205,10 @@ export default function Momentum() {
                                     <span>
                                         {direction === 'DIGITOVER'
                                             ? recovering
-                                                ? 'EVEN'
+                                                ? 'OVER 3'
                                                 : 'OVER 1'
                                             : recovering
-                                              ? 'ODD'
+                                              ? 'UNDER 6'
                                               : 'UNDER 8'}
                                     </span>
                                     <strong>
@@ -217,7 +218,7 @@ export default function Momentum() {
                                     <div
                                         className='momentum__meter'
                                         role='meter'
-                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Even' : 'Over 1') : recovering ? 'Odd' : 'Under 8'} cumulative percentage`}
+                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Over 3' : 'Over 1') : recovering ? 'Under 6' : 'Under 8'} cumulative percentage`}
                                         aria-valuemin={0}
                                         aria-valuemax={100}
                                         aria-valuenow={percent}
@@ -229,9 +230,11 @@ export default function Momentum() {
                                             {change > 0 ? '↑' : change < 0 ? '↓' : '—'} {Math.abs(change).toFixed(1)} pp
                                         </span>
                                         <span>
-                                            {reading?.armed
-                                                ? `${reading.run}/${recovering ? 3 : 2} observed`
-                                                : 'Observing market'}
+                                            {recovering && state.recovery.recoveryLocked
+                                                ? 'Locked recovery'
+                                                : reading?.armed
+                                                  ? `${reading.run}/2 observed`
+                                                  : 'Observing market'}
                                         </span>
                                     </footer>
                                 </article>
@@ -269,8 +272,8 @@ export default function Momentum() {
                                 <thead>
                                     <tr>
                                         <th>Market</th>
-                                        <th>{recovering ? 'Even' : 'Over 1'}</th>
-                                        <th>{recovering ? 'Odd' : 'Under 8'}</th>
+                                        <th>{recovering ? 'Over 3' : 'Over 1'}</th>
+                                        <th>{recovering ? 'Under 6' : 'Under 8'}</th>
                                         <th>Feed</th>
                                     </tr>
                                 </thead>
@@ -280,15 +283,17 @@ export default function Momentum() {
                                             <td>{m.name}</td>
                                             <td>
                                                 {(
-                                                    (recovering ? m.parityMomentum?.DIGITEVEN : m.momentum?.DIGITOVER)
+                                                    (recovering ? m.recoveryMomentum?.DIGITOVER : m.momentum?.DIGITOVER)
                                                         ?.percentage || 0
                                                 ).toFixed(1)}
                                                 %
                                             </td>
                                             <td>
                                                 {(
-                                                    (recovering ? m.parityMomentum?.DIGITODD : m.momentum?.DIGITUNDER)
-                                                        ?.percentage || 0
+                                                    (recovering
+                                                        ? m.recoveryMomentum?.DIGITUNDER
+                                                        : m.momentum?.DIGITUNDER
+                                                    )?.percentage || 0
                                                 ).toFixed(1)}
                                                 %
                                             </td>

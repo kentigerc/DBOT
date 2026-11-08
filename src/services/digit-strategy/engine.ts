@@ -214,6 +214,19 @@ export class DigitStrategyEngine {
                         data.settings = { ...DEFAULT_SETTINGS, ...data.settings };
                         validateSettings(data.settings);
                         data.settings = sharedRecoverySettings(data.settings);
+                        if (
+                            data.settings.strategy === 'momentum-70' &&
+                            data.recovery &&
+                            !['DIGITOVER', 'DIGITUNDER'].includes(data.recovery.lockedDirection)
+                        ) {
+                            // Keep pending contracts and account history; a legacy parity lock
+                            // must not prevent this strategy from finding its next recovery.
+                            data.recovery.lockedDirection = ['DIGITOVER', 'DIGITUNDER'].includes(data.recovery.previous)
+                                ? data.recovery.previous
+                                : undefined;
+                            data.recovery.lockedSymbol = undefined;
+                            data.recovery.recoveryLocked = false;
+                        }
                         saved = data;
                     }
                 } catch {
@@ -548,6 +561,7 @@ export class DigitStrategyEngine {
             return (
                 fresh?.symbol === signal.symbol &&
                 fresh.direction === signal.direction &&
+                fresh.barrier === signal.barrier &&
                 (!signal.formation || fresh.epoch === signal.epoch)
             );
         }
@@ -754,7 +768,10 @@ export class DigitStrategyEngine {
                     ...this.state.recovery,
                     lockedSymbol: p.signal.symbol,
                     lockedDirection: p.signal.direction,
-                    recoveryLocked: ['DIGITEVEN', 'DIGITODD'].includes(p.signal.direction),
+                    recoveryLocked: (this.state.settings.strategy === 'momentum-70'
+                        ? ['DIGITOVER', 'DIGITUNDER']
+                        : ['DIGITEVEN', 'DIGITODD']
+                    ).includes(p.signal.direction),
                     countAfter: 0,
                 },
             });
@@ -822,6 +839,15 @@ export class DigitStrategyEngine {
                   ? this.state.batch + 1
                   : this.state.batch;
         const pause = batch >= 3 && !momentumPending;
+        const momentum = this.state.settings.strategy === 'momentum-70';
+        const validRecoveryDirection = (momentum ? ['DIGITOVER', 'DIGITUNDER'] : ['DIGITEVEN', 'DIGITODD']).includes(
+            p.signal.direction
+        );
+        const momentumDirection = ['DIGITOVER', 'DIGITUNDER'].includes(p.signal.direction)
+            ? p.signal.direction
+            : ['DIGITOVER', 'DIGITUNDER'].includes(this.state.recovery.previous || '')
+              ? this.state.recovery.previous
+              : undefined;
         const recovery: RecoveryState = {
             streak,
             momentumPending,
@@ -829,7 +855,8 @@ export class DigitStrategyEngine {
             previous: p.signal.recovery ? this.state.recovery.previous : p.signal.direction,
             countAfter: this.now(),
             pauseUntil: pause ? this.now() + 5000 : 0,
-            ...(momentumPending && p.signal.recovery && ['DIGITEVEN', 'DIGITODD'].includes(p.signal.direction)
+            ...(momentumPending && momentum ? { lockedDirection: momentumDirection } : {}),
+            ...(momentumPending && p.signal.recovery && validRecoveryDirection
                 ? { lockedSymbol: p.signal.symbol, lockedDirection: p.signal.direction, recoveryLocked: true }
                 : {}),
         };

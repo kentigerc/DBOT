@@ -106,8 +106,8 @@ describe('standalone Even/Odd strategy', () => {
     });
 });
 
-describe.each([undefined, 'even-odd', 'over2-under7', 'momentum-70'] as const)(
-    'shared parity recovery for %s',
+describe.each([undefined, 'even-odd', 'over2-under7'] as const)(
+    'shared parity recovery for non-Momentum tools: %s',
     strategy => {
         const settings: Settings = { ...DEFAULT_SETTINGS, strategy };
         const state = { streak: 1, deficit: 35, countAfter: 9999, pauseUntil: 0, momentumPending: true };

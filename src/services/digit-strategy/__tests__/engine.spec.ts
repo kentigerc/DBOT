@@ -150,6 +150,51 @@ beforeEach(() => {
     localStorage.clear();
 });
 afterEach(() => jest.useRealTimers());
+it('restores a legacy Momentum parity contract without changing its pending order, stake or journal', () => {
+    const pending = {
+        nonce: 'old-order',
+        contractId: 12345,
+        sentAt: 999000,
+        stake: 74,
+        payout: 141,
+        signal: { symbol: 'R_100', direction: 'DIGITEVEN', epoch: 999, recovery: true, formation: false },
+    };
+    localStorage.setItem(
+        'neto.digit-strategy.v1.DEMO-TEST',
+        JSON.stringify({
+            ...empty(),
+            version: 1,
+            accountId: account.account_id,
+            settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', multiplier: 2.1 },
+            pending,
+            stake: 74,
+            pnl: -123,
+            recovery: {
+                streak: 2,
+                deficit: 123,
+                momentumPending: true,
+                previous: 'DIGITOVER',
+                lockedDirection: 'DIGITEVEN',
+                lockedSymbol: 'R_100',
+                recoveryLocked: true,
+                countAfter: 0,
+                pauseUntil: 0,
+            },
+        })
+    );
+    const createApi = jest.fn();
+    const engine = new DigitStrategyEngine({ createApi, storage: localStorage, account: () => account });
+    engine.selectAccount(account);
+    expect(engine.getSnapshot()).toMatchObject({
+        pending,
+        stake: 74,
+        pnl: -123,
+        settings: { strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2.1 },
+        recovery: { lockedDirection: 'DIGITOVER', recoveryLocked: false },
+    });
+    expect(engine.getSnapshot().recovery.lockedSymbol).toBeUndefined();
+    expect(createApi).not.toHaveBeenCalled();
+});
 describe('resuming a manually stopped session', () => {
     function restore(strategy?: Settings['strategy'], overrides: Partial<Snapshot> = {}) {
         const saved: Snapshot = {
@@ -844,14 +889,19 @@ it('initializes other market feeds while an earlier contract-capability request 
     expect(broker.buys).toHaveLength(0);
 });
 
-it.each([1, 2, 3, 4, 5])(
-    'uses %s ticks for normal trades and repeated Momentum recovery with a 2.1 multiplier',
-    async duration => {
+it.each([1, 2, 3, 4, 5].flatMap(duration => (['over', 'under'] as const).map(side => [side, duration] as const)))(
+    'uses paired %s Momentum recovery at %s ticks with a 2.5 multiplier',
+    async (side, duration) => {
+        const direction = side === 'over' ? 'DIGITOVER' : 'DIGITUNDER';
+        const winner = side === 'over' ? 7 : 2;
         const broker = new FakeBroker(),
             send = broker.send;
         broker.send = jest.fn(async body => {
             if (body.ticks_history) {
-                const digits = [...Array<number>(300).fill(9), ...Array<number>(700).fill(2)];
+                const digits = [
+                    ...Array<number>(300).fill(side === 'over' ? 0 : 9),
+                    ...Array<number>(700).fill(winner),
+                ];
                 return {
                     pip_size: 2,
                     history: { prices: digits.map(d => 100 + d / 100), times: digits.map((_, i) => i + 1) },
@@ -860,7 +910,7 @@ it.each([1, 2, 3, 4, 5])(
             return send(body);
         });
         const { engine } = await setup(
-            { strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2.1, duration },
+            { strategy: 'momentum-70', recoveryMode: 'same_contract', multiplier: 2.5, duration },
             broker,
             jest.requireActual('../../../../.server-build/engine.js').DigitStrategyEngine
         );
@@ -870,49 +920,51 @@ it.each([1, 2, 3, 4, 5])(
             broker.emit({ tick: { symbol: 'R_100', quote: 100 + digit / 100, epoch: ++epoch, pip_size: 2 } });
             await jest.advanceTimersByTimeAsync(150);
         };
-        await tick(2);
+        await tick(winner);
         await tick(4);
         expect(broker.buys[0].parameters).toMatchObject({
-            contract_type: 'DIGITUNDER',
-            barrier: '8',
+            contract_type: direction,
+            barrier: side === 'over' ? '1' : '8',
             amount: 0.35,
             duration,
         });
         broker.settle(-0.35);
-        await tick(2);
+        await tick(winner);
         await tick(4);
-        await tick(6);
+        await tick(winner);
         expect(broker.buys[1].parameters).toMatchObject({
-            contract_type: 'DIGITEVEN',
-            amount: 0.74,
+            contract_type: direction,
+            barrier: side === 'over' ? '3' : '6',
+            amount: 0.88,
             duration,
         });
-        broker.settle(-0.74);
+        broker.settle(-0.88);
         expect(engine.getSnapshot()).toMatchObject({
-            stake: 155,
+            stake: 220,
             streak: 2,
             recovery: {
                 momentumPending: true,
                 recoveryLocked: true,
                 lockedSymbol: 'R_100',
-                lockedDirection: 'DIGITEVEN',
+                lockedDirection: direction,
             },
         });
-        await tick(7);
+        await tick(side === 'over' ? 1 : 7);
         expect(broker.buys[2].parameters).toMatchObject({
             symbol: 'R_100',
-            contract_type: 'DIGITEVEN',
-            amount: 1.55,
+            contract_type: direction,
+            barrier: side === 'over' ? '3' : '6',
+            amount: 2.2,
             duration,
         });
         broker.settle(0.2);
         expect(engine.getSnapshot()).toMatchObject({ stake: 35, recovery: { momentumPending: false } });
-        await tick(2);
+        await tick(winner);
         await tick(4);
         await tick(7);
         expect(broker.buys[3].parameters).toMatchObject({
-            contract_type: 'DIGITUNDER',
-            barrier: '8',
+            contract_type: direction,
+            barrier: side === 'over' ? '1' : '8',
             amount: 0.35,
             duration,
         });
@@ -926,8 +978,6 @@ it.each([
     [undefined, true],
     ['over2-under7', false],
     ['over2-under7', true],
-    ['momentum-70', false],
-    ['momentum-70', true],
 ] as const)(
     'uses shared parity recovery for %s (Odd=%s), locks after confirmation and ends on the first win',
     async (strategy, odd) => {
@@ -947,10 +997,7 @@ it.each([
             }
             return send(body);
         });
-        const { engine } = await setup(
-            { strategy, recoveryMode: strategy === 'momentum-70' ? 'same_contract' : 'under5_run', duration: 2 },
-            broker
-        );
+        const { engine } = await setup({ strategy, recoveryMode: 'under5_run', duration: 2 }, broker);
         for (let i = 0; i < 3 && !broker.buys.length; i++) await liveTick(broker, odd ? 5 : 4);
         expect(broker.buys).toHaveLength(1);
         expect(broker.buys[0].parameters.duration).toBe(2);

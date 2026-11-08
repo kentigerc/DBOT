@@ -4,9 +4,10 @@ import {
     DigitMarket,
     momentumSignal,
     validateSettings,
+    sharedRecoverySettings,
     type Settings,
 } from '../strategy';
-const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'parity_percentage' };
+const settings: Settings = { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract' };
 const state = { streak: 0, countAfter: 0, pauseUntil: 0 };
 function feed(side: 'over' | 'under' = 'over', winners = 700) {
     let now = 1700000000000;
@@ -49,6 +50,55 @@ it('requires a 70% threshold and an actual increase; a flat share is not a risin
     expect(flat.m.momentum.DIGITOVER.change).toBe(0);
     expect(momentumSignal(flat.m, state, flat.now())).toBeUndefined();
 });
+
+it.each(['over', 'under'] as const)(
+    'scans all markets for a rising 52%% %s recovery and locks only after purchase',
+    side => {
+        const direction = side === 'over' ? 'DIGITOVER' : 'DIGITUNDER';
+        const f = feed(side, 520);
+        const recovery = { ...state, streak: 1, momentumPending: true, lockedDirection: direction } as const;
+        f.tick(side === 'over' ? 4 : 2);
+        expect(chooseSignal([f.m], recovery, settings, f.now())).toBeUndefined();
+        f.tick(side === 'over' ? 5 : 3);
+        expect(chooseSignal([f.m], recovery, settings, f.now())).toBeUndefined();
+        f.tick(side === 'over' ? 8 : 4);
+        const selected = chooseSignal([f.m], recovery, settings, f.now());
+        expect(selected).toMatchObject({
+            direction,
+            barrier: side === 'over' ? '3' : '6',
+            recovery: true,
+            formation: true,
+        });
+        const low = feed(side, 500);
+        for (let i = 0; i < 3; i++) low.tick(side === 'over' ? 4 : 2);
+        expect(chooseSignal([low.m], recovery, settings, low.now())).toBeUndefined();
+        const flat = feed(side, 1000);
+        for (let i = 0; i < 5; i++) flat.tick(side === 'over' ? 4 : 2);
+        expect(chooseSignal([flat.m], recovery, settings, flat.now())).toBeUndefined();
+        const stronger = feed(side, 800);
+        stronger.m.symbol = '1HZ100V';
+        for (let i = 0; i < 3; i++) stronger.tick(side === 'over' ? 4 : 2);
+        expect(chooseSignal([f.m, stronger.m], recovery, settings, stronger.now())?.symbol).toBe('1HZ100V');
+        f.m.resetMomentum();
+        const locked = { ...recovery, recoveryLocked: true, lockedSymbol: f.m.symbol };
+        expect(chooseSignal([f.m, stronger.m], locked, settings, f.now())).toMatchObject({
+            symbol: f.m.symbol,
+            direction,
+            formation: false,
+        });
+        expect(chooseSignal([f.m], locked, settings, f.now() + 4000)).toBeUndefined();
+    }
+);
+
+it('normalizes only Momentum to the paired recovery policy while retaining its chosen multiplier', () => {
+    expect(sharedRecoverySettings({ ...settings, recoveryMode: 'parity_percentage', multiplier: 2.5 })).toMatchObject({
+        recoveryMode: 'same_contract',
+        hitRecovery: 'same_contract',
+        multiplier: 2.5,
+    });
+    for (const strategy of [undefined, 'over2-under7', 'even-odd'] as const)
+        expect(sharedRecoverySettings({ ...DEFAULT_SETTINGS, strategy }).recoveryMode).toBe('parity_percentage');
+});
 it('breaks the formation on an outside digit and never enters from stale or gapped data', () => {
     const f = feed();
     f.tick(3);
@@ -63,7 +113,7 @@ it('breaks the formation on an outside digit and never enters from stale or gapp
     expect(f.m.momentum.DIGITOVER.armed).toBe(false);
     expect(momentumSignal(f.m, state, f.now())).toBeUndefined();
 });
-it('compares both directions across markets and locks recovery to the losing market and direction', () => {
+it('compares both normal directions across markets', () => {
     const over = feed('over', 700),
         under = feed('under', 720);
     [3, 4, 8].forEach(d => over.tick(d));
@@ -74,7 +124,7 @@ it('compares both directions across markets and locks recovery to the losing mar
     });
     expect(momentumSignal(over.m, state, over.now() + 4000)).toBeUndefined();
 });
-it('supports the shared recovery policy and validates one-to-five tick durations', () => {
+it('supports the paired recovery policy and validates one-to-five tick durations', () => {
     expect(() => validateSettings(settings)).not.toThrow();
     expect(() => validateSettings({ ...settings, duration: 5 })).not.toThrow();
     expect(() => validateSettings({ ...settings, duration: 6 })).toThrow();

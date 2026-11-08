@@ -332,27 +332,45 @@ export function cycleSignal(m: DigitMarket, state: RecoveryState, now: number): 
 export function momentumSignal(m: DigitMarket, state: RecoveryState, now: number): Signal | undefined {
     const recovering = state.momentumPending ?? (state.streak > 0 || (state.deficit || 0) > 0);
     if (!m.ready(now) || now < state.pauseUntil) return;
-    if (recovering) return chooseParityRecovery([m], state, now);
-    const readings = m.momentum;
+    if (recovering && state.recoveryLocked) {
+        if (m.symbol !== state.lockedSymbol || !['DIGITOVER', 'DIGITUNDER'].includes(state.lockedDirection || ''))
+            return;
+        return signalOn(m, state.lockedDirection!, state.lockedDirection === 'DIGITOVER' ? '3' : '6', true);
+    }
+    const readings = recovering ? m.recoveryMomentum : m.momentum;
     const direction = (['DIGITOVER', 'DIGITUNDER'] as const)
+        .filter(d => !recovering || !state.lockedDirection || state.lockedDirection === d)
         .filter(d => {
             const r = readings[d];
             return (
                 r.armed &&
                 r.run >= 2 &&
-                r.percentage >= 70 &&
+                r.percentage >= (recovering ? 52 : 70) &&
                 r.change > 0 &&
                 m.arrivals.slice(-2).every(at => at > state.countAfter)
             );
         })
         .sort((a, b) => readings[b].percentage - readings[a].percentage)[0];
-    return direction ? signalOn(m, direction, direction === 'DIGITOVER' ? '1' : '8', recovering, true) : undefined;
+    return direction
+        ? signalOn(
+              m,
+              direction,
+              recovering ? (direction === 'DIGITOVER' ? '3' : '6') : direction === 'DIGITOVER' ? '1' : '8',
+              recovering,
+              true
+          )
+        : undefined;
 }
 export function sharedRecoverySettings(settings: Settings): Settings {
     return {
         ...settings,
-        recoveryMode: 'parity_percentage',
-        hitRecovery: settings.strategy === 'over2-under7' ? 'analysis' : undefined,
+        recoveryMode: settings.strategy === 'momentum-70' ? 'same_contract' : 'parity_percentage',
+        hitRecovery:
+            settings.strategy === 'momentum-70'
+                ? 'same_contract'
+                : settings.strategy === 'over2-under7'
+                  ? 'analysis'
+                  : undefined,
         triggerCount: 3,
     };
 }
@@ -390,7 +408,7 @@ export function chooseSignal(
     now: number,
     random = Math.random
 ): Signal | undefined {
-    if (state.momentumPending ?? (state.streak > 0 || (state.deficit || 0) > 0))
+    if (config.strategy !== 'momentum-70' && (state.momentumPending ?? (state.streak > 0 || (state.deficit || 0) > 0)))
         return chooseParityRecovery(markets, state, now);
     if (config.strategy === 'momentum-70') {
         return markets
