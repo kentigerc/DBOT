@@ -76,7 +76,7 @@
             <field name="VAR" id="9dQ4tsj$@`vWpu;:2{K=">Stake</field>
             <value name="VALUE">
               <block type="math_number" id="BFj%#fR9cWa_9-+#lS1/">
-                <field name="NUM">3</field>
+                <field name="NUM">0.35</field>
                 <data>netoacademy:hosted-bot:under-8-under-9.xml</data>
               </block>
             </value>
@@ -85,7 +85,7 @@
                 <field name="VAR" id="!P]:?:q)?v?}qINF%J42">Win Stake</field>
                 <value name="VALUE">
                   <block type="math_number" id="k4ILM#0U6!(F/da:E6zY">
-                    <field name="NUM">3</field>
+                    <field name="NUM">0.35</field>
                     <data>netoacademy:hosted-bot:under-8-under-9.xml</data>
                   </block>
                 </value>
