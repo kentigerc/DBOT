@@ -2,6 +2,7 @@ export type RiskBudget = {
     balanceCents: number;
     riskBasisPoints: number;
     budgetCents: number;
+    targetCents: number;
     remainingCents: number;
 };
 
@@ -17,7 +18,9 @@ export function calculateRisk(balance: string, percentage: string): RiskBudget |
     const riskBasisPoints = Math.round(percent * 100);
     // Both operands are integers. Round down so a cent never exceeds the chosen budget.
     const budgetCents = Math.floor((balanceCents * riskBasisPoints) / 10_000);
-    return { balanceCents, riskBasisPoints, budgetCents, remainingCents: balanceCents - budgetCents };
+    // Calculate the 10× target before rounding to avoid amplifying a fractional-cent loss.
+    const targetCents = Math.floor((balanceCents * riskBasisPoints) / 1_000);
+    return { balanceCents, riskBasisPoints, budgetCents, targetCents, remainingCents: balanceCents - budgetCents };
 }
 export const dollars = (cents: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);

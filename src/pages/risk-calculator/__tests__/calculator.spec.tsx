@@ -15,6 +15,7 @@ it('rounds a fractional cent down instead of exceeding the chosen percentage', (
     expect(calculateRisk('109.99', '0.5')).toMatchObject({
         balanceCents: 10999,
         budgetCents: 54,
+        targetCents: 549,
         remainingCents: 10945,
     });
     expect(calculateRisk('0.35', '0.5')).toMatchObject({ budgetCents: 0, remainingCents: 35 });
@@ -36,12 +37,12 @@ it('updates the cycle budget immediately from balance and percentage inputs', ()
     render(<RiskCalculator />);
     const result = screen.getByLabelText('Risk budget per trading cycle');
     expect(result).toHaveTextContent('$0.50');
-    expect(screen.getByLabelText('Profit target per trading session')).toHaveTextContent('$2.00');
+    expect(screen.getByLabelText('Profit target per run')).toHaveTextContent('$5.00');
     fireEvent.change(screen.getByLabelText('Account balance (USD)'), { target: { value: '500' } });
     expect(result).toHaveTextContent('$2.50');
     fireEvent.click(screen.getByRole('button', { name: '1%' }));
     expect(result).toHaveTextContent('$5.00');
-    expect(screen.getByLabelText('Profit target per trading session')).toHaveTextContent('$10.00');
+    expect(screen.getByLabelText('Profit target per run')).toHaveTextContent('$50.00');
     fireEvent.change(screen.getByLabelText('Account balance (USD)'), { target: { value: '1000' } });
     fireEvent.click(screen.getByRole('button', { name: '0.5%' }));
     expect(result).toHaveTextContent('$5.00');
@@ -50,25 +51,26 @@ it('updates the cycle budget immediately from balance and percentage inputs', ()
     expect(screen.getByText(/does not change bot settings/)).toBeTruthy();
 });
 it.each([
-    ['100', '$0.50', '$2.00'],
-    ['500', '$2.50', '$10.00'],
-    ['1000', '$5.00', '$20.00'],
-    ['5000', '$25.00', '$100.00'],
-])('shows the requested risk and session target for a $%s balance', (balance, risk, target) => {
+    ['100', '$0.50', '$5.00'],
+    ['500', '$2.50', '$25.00'],
+    ['1000', '$5.00', '$50.00'],
+    ['5000', '$25.00', '$250.00'],
+])('shows the requested risk and per-run target for a $%s balance', (balance, risk, target) => {
     render(<RiskCalculator />);
     fireEvent.change(screen.getByLabelText('Account balance (USD)'), { target: { value: balance } });
     expect(screen.getByLabelText('Risk budget per trading cycle')).toHaveTextContent(risk);
-    expect(screen.getByLabelText('Profit target per trading session')).toHaveTextContent(target);
+    expect(screen.getByLabelText('Profit target per run')).toHaveTextContent(target);
 });
 it('clears stale results on invalid input and flags budgets below the bot minimum', () => {
     render(<RiskCalculator />);
     fireEvent.change(screen.getByLabelText('Account balance (USD)'), { target: { value: '' } });
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a balance');
     expect(screen.getByLabelText('Risk budget per trading cycle')).toHaveTextContent('—');
-    expect(screen.getByLabelText('Profit target per trading session')).toHaveTextContent('—');
+    expect(screen.getByLabelText('Profit target per run')).toHaveTextContent('—');
     fireEvent.change(screen.getByLabelText('Account balance (USD)'), { target: { value: '50' } });
     expect(screen.getByLabelText('Risk budget per trading cycle')).toHaveTextContent('$0.25');
     expect(screen.getByText(/below the \$0.35 minimum stake/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Risk per trading cycle (%)'), { target: { value: '-1' } });
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a risk percentage');
+    expect(screen.getByLabelText('Profit target per run')).toHaveTextContent('—');
 });
