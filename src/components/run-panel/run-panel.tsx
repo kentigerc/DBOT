@@ -313,9 +313,9 @@ const RunPanel = observer(() => {
         />
     );
 
-    const show_run_panel = [BOT_BUILDER, CHART].includes(active_tab) || active_tour;
+    const show_run_panel = [BOT_BUILDER, CHART, DBOT_TABS.MANUAL_TRADER].includes(active_tab) || active_tour;
     if (
-        [DBOT_TABS.ANALYSIS_TOOL, DBOT_TABS.DERIV_CHARTS, DBOT_TABS.MANUAL_TRADER].includes(active_tab) ||
+        [DBOT_TABS.ANALYSIS_TOOL, DBOT_TABS.DERIV_CHARTS].includes(active_tab) ||
         (!show_run_panel && isDesktop) ||
         active_tour === 'bot_builder'
     )

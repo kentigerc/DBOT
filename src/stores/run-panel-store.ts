@@ -180,6 +180,16 @@ export default class RunPanelStore {
     };
 
     onRunButtonClick = async (scannerAuto: unknown = false) => {
+        if (scannerAuto !== true && this.root_store.dashboard.active_tab === DBOT_TABS.MANUAL_TRADER) {
+            const workspace = (
+                window.Blockly as unknown as { derivWorkspace?: Parameters<typeof manualTraderGate.isLoaded>[0] }
+            )?.derivWorkspace;
+            if (!manualTraderGate.isLoaded(workspace)) {
+                const reason = 'Load your selected bot in Bot Builder first, then return to Manual Trader to run it.';
+                botNotification(reason);
+                return { started: false, reason };
+            }
+        }
         const restartScanner = scannerAuto === true ? null : automaticScannerWatch();
         if (scannerAuto === true) {
             if (!xmlScannerCycle.canRun()) return { started: false, reason: 'XML Auto startup was cancelled.' };

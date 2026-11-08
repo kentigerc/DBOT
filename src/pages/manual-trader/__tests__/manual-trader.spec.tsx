@@ -170,52 +170,6 @@ it('automatically follows the loaded bot market while it trades instead of jumpi
     expect(screen.getByRole('heading', { name: 'Volatility R_10' })).toBeTruthy();
     expect(screen.getByText('Trading continuously · Press STOP to end')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Load Bot' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Stop bot' }));
-    expect(mockRunPanel.onStopButtonClick).toHaveBeenCalledTimes(1);
-});
-
-function loaded() {
-    (manualTraderGate.getSnapshot as jest.Mock).mockReturnValue({
-        plan: { symbol: 'R_10', name: 'Over Switcher' },
-        active: false,
-        phase: 'Loaded · Ready for manual RUN',
-    });
-}
-it('starts the loaded XML directly here without a fresh scanner match or navigation and prevents duplicate clicks', async () => {
-    loaded();
-    let finish!: (result: { started: boolean }) => void;
-    mockRunPanel.onRunButtonClick.mockImplementationOnce(
-        () =>
-            new Promise(resolve => {
-                finish = resolve;
-            })
-    );
-    render(<ManualTrader />);
-    fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
-    expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Starting…' }));
-    expect(mockRunPanel.onRunButtonClick).toHaveBeenCalledTimes(1);
-    expect(mockNavigate).not.toHaveBeenCalled();
-    await act(async () => finish({ started: true }));
-});
-it('shows startup failures here and requires the selected XML to be loaded before starting', async () => {
-    loaded();
-    (manualTraderGate.isLoaded as jest.Mock).mockReturnValue(false);
-    render(<ManualTrader />);
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'RUN' })));
-    expect(screen.getByRole('alert')).toHaveTextContent('Load your selected bot');
-    expect(mockRunPanel.onRunButtonClick).not.toHaveBeenCalled();
-    (manualTraderGate.isLoaded as jest.Mock).mockReturnValue(true);
-    mockRunPanel.onRunButtonClick.mockResolvedValueOnce({ started: false, reason: 'Insufficient balance' });
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'RUN' })));
-    expect(screen.getByRole('alert')).toHaveTextContent('Insufficient balance');
-    expect(screen.getByRole('button', { name: 'RUN' })).toBeEnabled();
-});
-it('keeps RUN disabled until an existing contract has settled', () => {
-    loaded();
-    mockRunPanel.has_open_contract = true;
-    render(<ManualTrader />);
-    expect(screen.getByRole('button', { name: 'RUN' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
-    expect(mockRunPanel.onRunButtonClick).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Stop bot' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'RUN' })).toBeNull();
 });

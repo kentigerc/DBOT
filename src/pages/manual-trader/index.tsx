@@ -31,8 +31,6 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
     const [error, setError] = useState('');
     const [beat, setBeat] = useState(0);
     const [observedSymbol, setObservedSymbol] = useState('');
-    const [starting, setStarting] = useState(false);
-    const launching = useRef(false);
     useEffect(() => {
         if (!active) return;
         const timer = setInterval(() => setBeat(value => value + 1), 1000);
@@ -85,28 +83,6 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
     const focus = pinnedSymbol
         ? markets.find(market => market.symbol === pinnedSymbol)
         : match?.market || markets[Math.floor(beat / 2) % markets.length];
-    const run = async () => {
-        if (launching.current || gate.active || run_panel.is_running || run_panel.has_open_contract) return;
-        launching.current = true;
-        setStarting(true);
-        setError('');
-        try {
-            const workspace = (
-                window.Blockly as unknown as { derivWorkspace?: Parameters<typeof manualTraderGate.isLoaded>[0] }
-            )?.derivWorkspace;
-            if (!manualTraderGate.isLoaded(workspace))
-                throw new Error('Load your selected bot in Bot Builder first, then return here to press RUN.');
-            setObservedSymbol('');
-            const result = await run_panel.onRunButtonClick();
-            if (!result?.started)
-                throw new Error(result?.reason || 'The bot could not start. Check Bot Builder’s Journal.');
-        } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'Unable to start the selected bot.');
-        } finally {
-            launching.current = false;
-            setStarting(false);
-        }
-    };
     const load = (market: ManualMarket, side: ManualSide) => {
         setError('');
         try {
@@ -145,7 +121,8 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                     <h1 id='manual-trader-title'>Manual Trader</h1>
                     <p>
                         Live market analysis for Over Switcher and Under Switcher. Load a bot in Bot Builder, return
-                        here to watch the circles, then press RUN when you are ready.
+                        here to watch the circles, then use the Run/Stop bar when you are ready. Open its progress panel
+                        to view Summary, Transactions and Journal.
                     </p>
                 </div>
                 <button onClick={() => setEnabled(value => !value)}>
@@ -166,17 +143,6 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                         {gate.plan.name} · {gate.plan.symbol}
                     </strong>
                     <span>{gate.phase}</span>
-                    {gate.active ? (
-                        <button onClick={() => run_panel.onStopButtonClick()}>Stop bot</button>
-                    ) : (
-                        <button
-                            className='manual-trader__run'
-                            disabled={starting || run_panel.is_running || run_panel.has_open_contract}
-                            onClick={run}
-                        >
-                            {starting ? 'Starting…' : 'RUN'}
-                        </button>
-                    )}
                 </aside>
             )}
             {error && <p role='alert'>{error}</p>}

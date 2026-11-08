@@ -1,5 +1,7 @@
 import { useStore } from '@/hooks/useStore';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
+import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { DBOT_TABS } from '@/constants/bot-contents';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import TradeAnimation from '../trade-animation';
 jest.mock('@/hooks/useStore', () => ({ useStore: jest.fn() }));
@@ -33,7 +35,10 @@ jest.mock(
         }
 );
 jest.mock('../../shared_ui/tooltip/tooltip', () => () => null);
-afterEach(() => xmlScannerCycle.stop());
+afterEach(() => {
+    xmlScannerCycle.stop();
+    jest.restoreAllMocks();
+});
 it('uses the existing Stop button to cancel Auto even while the Builder runner is idle', () => {
     const stop = jest.fn(() => xmlScannerCycle.stop()),
         run = jest.fn();
@@ -73,4 +78,63 @@ it('uses the existing Stop button to cancel Auto even while the Builder runner i
     expect(stop).toHaveBeenCalledTimes(1);
     expect(run).not.toHaveBeenCalled();
     expect(xmlScannerCycle.getSnapshot().enabled).toBe(false);
+});
+
+function manualStore() {
+    const store = {
+        dashboard: { active_tab: DBOT_TABS.MANUAL_TRADER },
+        run_panel: {
+            contract_stage: 0,
+            is_stop_button_visible: false,
+            is_stop_button_disabled: false,
+            onRunButtonClick: jest.fn(),
+            onStopBotClick: jest.fn(),
+            performSelfExclusionCheck: jest.fn(),
+        },
+        summary_card: { is_contract_completed: false, profit: 0 },
+        blockly_store: { has_active_bot: false, has_saved_bots: false, checkForSavedBots: jest.fn() },
+        client: { account_status: {} },
+        load_modal: { dashboard_strategies: [], is_delete_modal_open: false },
+    };
+    (useStore as jest.Mock).mockReturnValue(store);
+    const snapshot = {
+        ...manualTraderGate.getSnapshot(),
+        plan: {
+            accountId: 'TEST',
+            symbol: 'R_100',
+            side: 'over' as const,
+            fileName: 'over-1-over-0.xml',
+            name: 'Over Switcher',
+        },
+    };
+    jest.spyOn(manualTraderGate, 'getSnapshot').mockReturnValue(snapshot);
+    jest.spyOn(manualTraderGate, 'isLoaded').mockReturnValue(true);
+    return store;
+}
+it('uses the standard Run/progress bar for a loaded Manual Trader bot even when it is not a saved bot', () => {
+    const store = manualStore();
+    render(<TradeAnimation />);
+    const button = screen.getByRole('button', { name: 'Run' });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(store.run_panel.onRunButtonClick).toHaveBeenCalledTimes(1);
+    expect(store.run_panel.onStopBotClick).not.toHaveBeenCalled();
+    expect(document.querySelector('.animation__progress')).toBeTruthy();
+});
+it('keeps the standard Run bar disabled until the selected Manual Trader XML is loaded on this account', () => {
+    const store = manualStore();
+    jest.spyOn(manualTraderGate, 'isLoaded').mockReturnValue(false);
+    render(<TradeAnimation />);
+    const button = screen.getByRole('button', { name: 'Run' });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(store.run_panel.onRunButtonClick).not.toHaveBeenCalled();
+});
+it('uses the standard Stop action while Manual Trader is running', () => {
+    const store = manualStore();
+    store.run_panel.is_stop_button_visible = true;
+    render(<TradeAnimation />);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(store.run_panel.onStopBotClick).toHaveBeenCalledTimes(1);
+    expect(store.run_panel.onRunButtonClick).not.toHaveBeenCalled();
 });

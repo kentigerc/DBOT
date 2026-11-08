@@ -7,6 +7,7 @@ import { contract_stages } from '@/constants/contract-stage';
 import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
+import { manualTraderGate } from '@/utils/manual-trader-gate';
 import { LabelPairedPlayLgFillIcon, LabelPairedSquareLgFillIcon } from '@deriv/quill-icons/LabelPaired';
 import { Localize, localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
@@ -26,6 +27,7 @@ type TTradeAnimation = {
 const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnimation) => {
     const movable = useMovablePanel('Run/Stop bar');
     const auto = React.useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
+    const manual = React.useSyncExternalStore(manualTraderGate.subscribe, manualTraderGate.getSnapshot);
     const { dashboard, run_panel, summary_card, blockly_store } = useStore();
     const { client } = useStore();
     const { active_tab } = dashboard;
@@ -124,17 +126,22 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
     // Check if there are no active or saved bots
     const has_no_bots = !has_active_bot && !has_saved_bots;
     const is_bot_builder_tab = active_tab === DBOT_TABS.BOT_BUILDER;
+    const is_manual_trader_tab = active_tab === DBOT_TABS.MANUAL_TRADER;
+    const manual_workspace = (
+        window.Blockly as unknown as { derivWorkspace?: Parameters<typeof manualTraderGate.isLoaded>[0] }
+    )?.derivWorkspace;
+    const manual_loaded = is_manual_trader_tab && !!manual.plan && manualTraderGate.isLoaded(manual_workspace);
 
     // Disable the RUN button if:
     // 1. There are no active or saved bots AND the user is not in the bot builder tab
-    const should_disable_run = has_no_bots && !is_bot_builder_tab;
+    const should_disable_run = is_manual_trader_tab ? !manual_loaded : has_no_bots && !is_bot_builder_tab;
 
     const is_disabled = is_stop_button_visible ? is_stop_button_disabled : shouldDisable || should_disable_run;
 
     // Show the tooltip when:
     // 1. The user is NOT in the bot builder tab, AND
     // 2. There are no bots
-    const should_show_tooltip = !is_stop_button_visible && !is_bot_builder_tab && has_no_bots;
+    const should_show_tooltip = !is_stop_button_visible && should_disable_run;
 
     const button_props = React.useMemo(() => {
         if (is_stop_button_visible) {
