@@ -60,7 +60,7 @@ function fixture(t, options = {}) {
                         contracts.set(id, {
                             contract_id: id,
                             is_sold: 1,
-                            profit: options.profits?.[orders.length - 1] ?? -0.35,
+                            profit: options.profits?.[orders.length - 1] ?? (orders.length === 1 ? -0.35 : 0.32),
                         });
                         await options.onBuy?.();
                         if (dropReceipt) {
@@ -83,26 +83,27 @@ function fixture(t, options = {}) {
     });
     return { runner, orders, reports, urls, records, storage, locks };
 }
-test('completes exactly two demo trades even when both lose, without touching a real account', async t => {
-    const f = fixture(t);
+test('stays on demo through losses and voids until its first win without touching a real account', async t => {
+    const f = fixture(t, { profits: [-0.35, -0.35, 0, -0.35, 0.32] });
     const held = { stake: 220, pnl: -123, streak: 4 };
     const result = await f.runner.run({}, real, spec, { sourceTool: 'even_odd' });
-    assert.equal(result.completed, 2);
+    assert.equal(result.completed, 5);
     assert.equal(result.status, 'done');
+    assert.equal(result.wins, 1);
     assert.deepEqual(
         result.trades.map(t => t.profit),
-        [-35, -35]
+        [-35, -35, 0, -35, 32]
     );
     assert.deepEqual(held, { stake: 220, pnl: -123, streak: 4 });
-    assert.equal(f.orders.length, 2);
+    assert.equal(f.orders.length, 5);
     assert.deepEqual(f.urls, ['demo://DEMO1']);
     assert.ok(f.reports.every(r => r.account.account_type === 'demo' && r.tool === 'even_odd'));
     const again = await f.runner.run({}, real, spec);
-    assert.equal(again.completed, 2);
-    assert.equal(f.orders.length, 2, 'An acknowledged pause is idempotent');
+    assert.equal(again.completed, 5);
+    assert.equal(f.orders.length, 5, 'An acknowledged pause is idempotent');
 });
-test('supports Over/Under recovery and uses the selected duration for both demo trades', async t => {
-    const f = fixture(t, { profits: [0.32, -0.35] });
+test('supports Over/Under recovery and uses the selected duration for each demo trade', async t => {
+    const f = fixture(t, { profits: [-0.35, 0.32] });
     await f.runner.run({}, real, { ...spec, direction: 'DIGITUNDER', barrier: '6', duration: 5 });
     assert.ok(
         f.orders.every(
@@ -112,6 +113,62 @@ test('supports Over/Under recovery and uses the selected duration for both demo 
                 o.parameters.barrier === '6'
         )
     );
+});
+test('returns immediately after a first-trade demo win', async t => {
+    const f = fixture(t, { profits: [0.32, -0.35] });
+    const result = await f.runner.run({}, real, spec);
+    assert.equal(result.completed, 1);
+    assert.equal(result.wins, 1);
+    assert.equal(f.orders.length, 1);
+});
+
+test('keeps waiting for a win over a long demo loss streak with bounded settlement history', async t => {
+    const f = fixture(t, { profits: [...Array(105).fill(-0.35), 0.32] });
+    const result = await f.runner.run({}, real, spec);
+    assert.equal(result.completed, 106);
+    assert.equal(result.wins, 1);
+    assert.equal(result.trades.length, 100);
+    assert.equal(f.orders.length, 106);
+});
+
+test('an older two-loss completion does not authorize real resumption without a demo win', async t => {
+    const controller = new AbortController();
+    let count = 0;
+    const f = fixture(t, {
+        profits: [-0.35, -0.35, 0.32],
+        onBuy: () => {
+            if (++count === 2) controller.abort();
+        },
+    });
+    await assert.rejects(f.runner.run({}, real, spec, { signal: controller.signal }), /stopped/);
+    const [key, value] = [...f.records][0];
+    const legacy = JSON.parse(value);
+    delete legacy.completionRule;
+    delete legacy.wins;
+    legacy.status = 'done';
+    legacy.completedTriggers = [spec.triggerContractId];
+    f.records.set(key, JSON.stringify(legacy));
+    const result = await f.runner.run({}, real, spec);
+    assert.equal(result.completed, 3);
+    assert.equal(result.wins, 1);
+    assert.equal(f.orders.length, 3);
+});
+
+test('settles a legacy pending demo order even if an earlier demo trade already won', async t => {
+    const f = fixture(t, { dropWatch: true });
+    await assert.rejects(f.runner.run({}, real, spec), /Real recovery remains paused/);
+    const [key, value] = [...f.records][0];
+    const legacy = JSON.parse(value);
+    delete legacy.completionRule;
+    delete legacy.wins;
+    legacy.completed = 1;
+    legacy.trades = [{ contractId: 999, profit: 32, stake: 35, at: 999999 }];
+    f.records.set(key, JSON.stringify(legacy));
+    const result = await f.runner.run({}, real, spec);
+    assert.equal(result.completed, 2);
+    assert.equal(result.wins, 1);
+    assert.equal(result.pendingContractId, undefined);
+    assert.equal(f.orders.length, 1, 'Reconcile the pending legacy order without buying another');
 });
 test('stops after an already purchased demo contract settles and resumes only the remaining demo trade', async t => {
     const controller = new AbortController();

@@ -65,6 +65,7 @@ function createDemoPause({
                   demoAccountId: state.demoAccountId,
                   status: state.status,
                   completed: state.completed,
+                  wins: state.wins || 0,
                   pendingContractId: state.pending?.contractId,
                   trades: state.trades,
                   error: state.error || '',
@@ -103,11 +104,13 @@ function createDemoPause({
             // instance. Refresh only after obtaining the real account lease.
             await storage.reload?.(key(real.account_id));
             state = await read(real.account_id);
-            if (state?.completedTriggers?.includes(spec.triggerContractId))
+            const completedTriggers = state?.completionRule === 'first_win' ? state.completedTriggers || [] : [];
+            if (completedTriggers.includes(spec.triggerContractId))
                 return {
                     ...publicState(state),
                     triggerContractId: spec.triggerContractId,
-                    completed: 2,
+                    completed: state.triggerContractId === spec.triggerContractId ? state.completed : 1,
+                    wins: 1,
                     status: 'done',
                 };
             if (state?.pending && state.triggerContractId !== spec.triggerContractId)
@@ -130,12 +133,21 @@ function createDemoPause({
                     demoAccountId: demo.account_id,
                     spec: { ...spec },
                     completed: 0,
+                    wins: 0,
+                    completionRule: 'first_win',
                     trades: [],
-                    completedTriggers: state?.completedTriggers || [],
+                    completedTriggers,
                     status: 'running',
                 };
             if (state.demoAccountId !== demo.account_id)
                 throw fail('The original demo account is unavailable. Real recovery remains paused.');
+            // Two completed trades from an older deployment do not establish a win.
+            // Preserve its settlements and pending order while migrating the completion rule.
+            if (state.completionRule !== 'first_win') {
+                state.wins = state.trades.some(trade => trade.profit > 0) ? 1 : 0;
+                state.completedTriggers = [];
+                state.completionRule = 'first_win';
+            }
             if (state.pending && !state.pending.contractId)
                 throw fail(
                     'Demo purchase is unconfirmed. Check demo account history before resuming; no duplicate order will be sent.'
@@ -149,8 +161,15 @@ function createDemoPause({
             broker = await brokerFactory(await auth.connectionUrl(req, demo.account_id));
             state.status = 'running';
             state.error = '';
+            const complete = () => {
+                state.status = 'done';
+                state.completedTriggers = [...new Set([...state.completedTriggers, spec.triggerContractId])].slice(
+                    -1000
+                );
+            };
+            if (state.wins >= 1 && !state.pending) complete();
             await save(real.account_id, state, progress);
-            while (state.completed < 2) {
+            while (state.wins < 1 || state.pending) {
                 if (!state.pending) {
                     await check();
                     const config = state.spec;
@@ -240,12 +259,11 @@ function createDemoPause({
                 if (profit < -pending.stake || profit > pending.payout - pending.stake)
                     throw fail('Demo settlement is outside the purchased contract bounds.');
                 state.trades.push({ contractId: pending.contractId, profit, stake: pending.stake, at: now() });
+                state.trades = state.trades.slice(-100);
                 state.completed++;
+                if (profit > 0) state.wins = 1;
                 state.pending = undefined;
-                if (state.completed === 2) {
-                    state.status = 'done';
-                    state.completedTriggers = [...state.completedTriggers, spec.triggerContractId].slice(-1000);
-                }
+                if (state.wins >= 1) complete();
                 await save(real.account_id, state, progress);
                 await locks.acknowledge(demoLease, pending.nonce, pending.contractId, true);
                 await locks.settled(demo.account_id, pending.contractId);

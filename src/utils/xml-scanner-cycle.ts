@@ -305,7 +305,7 @@ export class XmlScannerCycle {
                         ...state,
                         heldStake: parameters.amount === undefined ? undefined : Math.round(parameters.amount * 100),
                     },
-                    message: `Demo pause · ${state.completed}/2 completed · Real recovery paused`,
+                    message: `Demo pause · ${state.completed} completed · Waiting for a demo win`,
                 });
         };
         progress({ triggerContractId: trigger, completed: 0, status: 'running' });
@@ -350,16 +350,16 @@ export class XmlScannerCycle {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Demo pause failed. Real recovery remains paused.');
             if (controller.signal.aborted || !this.valid(generation)) return false;
-            if (data.demoPause?.completed !== 2 || data.demoPause?.status !== 'done')
-                throw new Error('The two demo trades have not completed.');
+            if (!(data.demoPause?.completed >= 1) || data.demoPause?.wins !== 1 || data.demoPause?.status !== 'done')
+                throw new Error('A demo win has not been confirmed. Real recovery remains paused.');
             this.recoveryLosses = 0;
             this.demoTriggerId = undefined;
             this.update({
                 demoPause: data.demoPause,
-                message: 'Two demo trades completed. Resuming the held real recovery stake.',
+                message: 'Demo win confirmed. Resuming the held real recovery stake.',
             });
             this.reportJournal?.(
-                'Two demo trades completed. Demo outcomes did not change real P/L or the next recovery stake.'
+                'Demo win confirmed. Demo outcomes did not change real P/L or the next recovery stake.'
             );
             return true;
         } catch (error) {

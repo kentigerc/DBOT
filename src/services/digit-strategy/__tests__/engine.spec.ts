@@ -1212,7 +1212,7 @@ describe('real recovery demo pauses', () => {
         expect(engine.getSnapshot()).toMatchObject({ pnl: -893, streak: 4, losses: 4, recoveryLosses: 3, stake: 1375 });
     }
     it.each([undefined, 'over2-under7', 'even-odd', 'momentum-70'] as const)(
-        'pauses the fourth real recovery for %s and ignores two losing demo results in its real ledger',
+        'pauses the fourth real recovery for %s and retains its real ledger through demo losses until a win',
         async strategy => {
             let finish!: (value: any) => void;
             const pause = jest.fn(
@@ -1245,7 +1245,9 @@ describe('real recovery demo pauses', () => {
                 demoPause: { completed: 1, heldStake: 1375 },
             });
             expect(broker.buys).toHaveLength(3);
-            finish({ ...progress, status: 'done', completed: 2 });
+            options.progress({ ...progress, completed: 2, wins: 0 });
+            expect(broker.buys).toHaveLength(3);
+            finish({ ...progress, status: 'done', completed: 3, wins: 1 });
             await jest.advanceTimersByTimeAsync(150);
             expect(broker.buys).toHaveLength(4);
             expect(broker.buys[3].price).toBe(13.75);
@@ -1291,7 +1293,7 @@ describe('real recovery demo pauses', () => {
         await threeLosses(engine, broker);
         await liveTick(broker);
         engine.stop();
-        finish({ triggerContractId: 103, completed: 2, status: 'done' });
+        finish({ triggerContractId: 103, completed: 1, wins: 1, status: 'done' });
         await jest.advanceTimersByTimeAsync(150);
         expect(broker.buys).toHaveLength(3);
         expect(engine.getSnapshot().active).toBe(false);
@@ -1303,5 +1305,13 @@ describe('real recovery demo pauses', () => {
         await liveTick(broker);
         expect(broker.buys).toHaveLength(3);
         expect(engine.getSnapshot()).toMatchObject({ active: false, error: 'Demo account unavailable', stake: 1375 });
+    });
+    it.each([undefined, 0])('cannot resume on two completed demo losses without a confirmed win (%s)', async wins => {
+        const pause = jest.fn().mockResolvedValue({ triggerContractId: 103, completed: 2, wins, status: 'done' });
+        const { engine, broker } = await recovering('even-odd', pause);
+        await threeLosses(engine, broker);
+        await liveTick(broker);
+        expect(broker.buys).toHaveLength(3);
+        expect(engine.getSnapshot()).toMatchObject({ active: false, stake: 1375, pnl: -893 });
     });
 });

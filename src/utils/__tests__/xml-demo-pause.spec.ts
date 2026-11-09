@@ -50,17 +50,19 @@ async function lose(cycle: XmlScannerCycle, id: number, amount: number) {
 const parameters = { symbol: 'R_50', contract_type: 'DIGITEVEN', duration: 2, amount: 5.6 };
 const completed = {
     triggerContractId: 4,
-    completed: 2,
+    completed: 3,
+    wins: 1,
     status: 'done',
     demoAccountId: 'DEMO1',
     trades: [
         { contractId: 51, profit: -35 },
         { contractId: 52, profit: -35 },
+        { contractId: 53, profit: 32 },
     ],
 };
 const response = (data: unknown, ok = true) => ({ ok, json: async () => data }) as Response;
 
-it('counts only recovery losses, pauses before the fourth recovery and retains real P/L and stake after two demo losses', async () => {
+it('counts only recovery losses, pauses before the fourth recovery and retains real P/L and stake after demo losses followed by a win', async () => {
     const { cycle, generation } = setup();
     for (const [index, amount] of [0.35, 0.7, 1.4].entries()) {
         await lose(cycle, index + 1, amount);
@@ -141,7 +143,9 @@ it('cannot resume after STOP even if the demo request responds late', async () =
 it('stops real recovery when demo execution is unavailable or incomplete', async () => {
     for (const result of [
         response({ error: 'Demo account unavailable' }, false),
-        response({ demoPause: { ...completed, completed: 1 } }),
+        response({ demoPause: { ...completed, completed: 2, wins: 0 } }),
+        response({ demoPause: { ...completed, completed: 0 } }),
+        response({ demoPause: { ...completed, status: 'running' } }),
     ]) {
         const { cycle, generation } = setup();
         for (let id = 1; id <= 4; id++) await lose(cycle, id, 0.35);

@@ -615,7 +615,13 @@ function demoBrokerFixture() {
                         return { buy: { contract_id: 900 + buys.length, buy_price: 0.35 } };
                     }
                     if (body.proposal_open_contract)
-                        return { proposal_open_contract: { contract_id: body.contract_id, is_sold: 1, profit: -0.35 } };
+                        return {
+                            proposal_open_contract: {
+                                contract_id: body.contract_id,
+                                is_sold: 1,
+                                profit: buys.length === 1 ? -0.35 : 0.32,
+                            },
+                        };
                     throw new Error('Unexpected broker command');
                 },
             };

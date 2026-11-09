@@ -22,6 +22,7 @@ type Packet = Record<string, any>; // Deriv's compatibility transport supplies l
 export type DemoPauseView = {
     triggerContractId: number;
     completed: number;
+    wins?: number;
     status: string;
     demoAccountId?: string;
     pendingContractId?: number;
@@ -637,9 +638,9 @@ export class DigitStrategyEngine {
             if (signal.recovery && this.account()?.account_type === 'real' && this.state.recoveryLosses >= 3) {
                 if (!this.deps.runDemoPause || !this.state.demoPause?.triggerContractId)
                     throw new Error('Demo recovery pause is unavailable. Real trading stopped.');
-                this.update({ phase: 'Demo pause · 0/2 completed · Real recovery paused' });
+                this.update({ phase: 'Demo pause · Waiting for a demo win · Real recovery paused' });
                 this.log(
-                    'Three consecutive recovery losses. Two demo trades are required before another real recovery attempt.'
+                    'Three consecutive recovery losses. A demo win is required before another real recovery attempt.'
                 );
                 const demo = await this.deps.runDemoPause(
                     {
@@ -657,13 +658,13 @@ export class DigitStrategyEngine {
                             this.update({
                                 demoPause: { ...state, heldStake: this.state.stake },
                                 phase: this.state.wantsRun
-                                    ? `Demo pause · ${state.completed}/2 completed · Real recovery paused`
+                                    ? `Demo pause · ${state.completed} completed · Waiting for a demo win`
                                     : 'Stopping after demo settlement',
                             });
                             if (state.completed > previous) {
                                 const trade = state.trades?.[state.trades.length - 1];
                                 this.log(
-                                    `DEMO ${state.completed}/2 settled${trade ? ` · contract ${trade.contractId} · virtual P/L $${(trade.profit / 100).toFixed(2)}` : ''}. Real P/L and recovery stake are unchanged.`
+                                    `DEMO trade ${state.completed} settled${trade ? ` · contract ${trade.contractId} · virtual P/L $${(trade.profit / 100).toFixed(2)}` : ''}. Real P/L and recovery stake are unchanged.`
                                 );
                             }
                             this.persist();
@@ -671,12 +672,12 @@ export class DigitStrategyEngine {
                     }
                 );
                 if (entryAbort.signal.aborted || !this.state.wantsRun) return;
-                if (demo.completed !== 2 || demo.status !== 'done')
-                    throw new Error('Demo pause has not completed. Real recovery remains paused.');
+                if (demo.completed < 1 || demo.wins !== 1 || demo.status !== 'done')
+                    throw new Error('A demo win has not been confirmed. Real recovery remains paused.');
                 this.update({ recoveryLosses: 0, demoPause: demo, phase: 'Resuming real recovery' });
                 await this.checkpoint();
                 this.log(
-                    `Demo pause complete. Resuming real recovery at the held stake $${(this.state.stake / 100).toFixed(2)}.`
+                    `Demo win confirmed. Resuming real recovery at the held stake $${(this.state.stake / 100).toFixed(2)}.`
                 );
             }
             const parameters: Packet = {

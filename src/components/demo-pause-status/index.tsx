@@ -2,11 +2,14 @@ import type { DemoPauseView } from '@/services/digit-strategy/engine';
 import './demo-pause-status.scss';
 
 export default function DemoPauseStatus({ state }: { state?: DemoPauseView }) {
-    if (!state || state.status === 'done') return null;
+    if (!state || (state.status === 'done' && state.wins === 1)) return null;
     return (
         <aside className='demo-pause-status' role='status' aria-live='polite'>
-            <strong>DEMO PAUSE · {state.completed}/2 trades completed</strong>
-            <p>Real recovery is paused. The next two completed trades use your demo account; wins are not required.</p>
+            <strong>
+                DEMO PAUSE · {state.completed} {state.completed === 1 ? 'trade' : 'trades'} completed ·{' '}
+                {state.wins || 0}/1 wins
+            </strong>
+            <p>Real recovery is paused. Trading stays on your demo account until one demo trade wins.</p>
             <div>
                 {state.demoAccountId && <span>Demo account: {state.demoAccountId}</span>}
                 {state.heldStake !== undefined && (
