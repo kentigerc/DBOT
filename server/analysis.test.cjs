@@ -228,6 +228,20 @@ for (const strategy of [undefined, 'over2-under7', 'even-odd', 'momentum-70']) {
         assert.equal(resumed.batch, 1);
         assert.deepEqual(resumed.trades, journal);
         assert.equal(buys, 0);
+        await request('phone', { action: 'stop' });
+        const updatedSettings = { ...resumed.settings, stake: 0.5, multiplier: 3, duration: 2, stopLoss: 200 };
+        assert.equal((await request('laptop', { action: 'start', settings: updatedSettings })).status, 200);
+        await service.sessions.get('demo').task;
+        const edited = (await request('phone')).data;
+        assert.equal(edited.commandError, '');
+        assert.equal(edited.active, true);
+        assert.equal(edited.settings.stake, 0.5);
+        assert.equal(edited.settings.multiplier, 3);
+        assert.equal(edited.settings.duration, 2);
+        assert.equal(edited.stake, 50);
+        assert.equal(edited.pnl, 42);
+        assert.deepEqual(edited.trades, journal);
+        assert.equal(buys, 0);
     });
 }
 for (const real of [false, true]) {

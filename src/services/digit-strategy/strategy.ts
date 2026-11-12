@@ -54,6 +54,9 @@ export function cents(value: unknown) {
         throw new Error('Invalid USD amount.');
     return Math.round(amount * 100);
 }
+export function sameSettings(a: Settings, b: Settings) {
+    return Object.keys({ ...a, ...b }).every(key => a[key as keyof Settings] === b[key as keyof Settings]);
+}
 export function validateSettings(s: Settings) {
     const fields = [
         'strategy',

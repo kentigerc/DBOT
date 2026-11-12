@@ -1,6 +1,7 @@
 import DemoPauseStatus from '@/components/demo-pause-status';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
+import useStrategyDraft from '@/hooks/useStrategyDraft';
 import { DEFAULT_SETTINGS, RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
 import './digit-cycle.scss';
@@ -17,12 +18,12 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
     const strategy = parity ? 'even-odd' : 'over2-under7';
     const titleId = parity ? 'even-odd-title' : 'digit-cycle-title';
     const state = useSyncExternalStore(digitStrategyEngine.subscribe, digitStrategyEngine.getSnapshot);
-    const [draft, setDraft] = useState(() => defaults(parity));
     const [error, setError] = useState('');
     const [contractId, setContractId] = useState('');
     const [session, setSession] = useState(getDerivSession());
     const [previewIndex, setPreviewIndex] = useState(0);
     const own = state.settings.strategy === strategy;
+    const [draft, setDraft] = useStrategyDraft(state, () => defaults(parity), own);
     const parityRecovery =
         own && parity && (state.recovery.momentumPending ?? (state.streak > 0 || (state.recovery.deficit || 0) > 0));
     const policyRecovery =
@@ -33,7 +34,7 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
         ['DIGITEVEN', 'DIGITODD'].includes(state.recovery.lockedDirection || '');
     const busy = state.active || !!state.pending;
     const history = state.trades.length > 0;
-    const locked = busy || history;
+    const locked = busy;
     useEffect(() => {
         if (!own || !state.active) return;
         const timer = window.setInterval(() => setPreviewIndex(index => index + 1), 2000);
@@ -59,9 +60,6 @@ export default function DigitCycle({ parity = false }: { parity?: boolean }) {
         window.addEventListener('neto-session', update);
         return () => window.removeEventListener('neto-session', update);
     }, []);
-    useEffect(() => {
-        if (own && locked) setDraft({ ...state.settings });
-    }, [own, locked, state.settings]);
     const command = async (action: 'run' | 'stop' | 'reset') => {
         setError('');
         try {

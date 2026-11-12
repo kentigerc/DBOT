@@ -1,6 +1,7 @@
 import DemoPauseStatus from '@/components/demo-pause-status';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
+import useStrategyDraft from '@/hooks/useStrategyDraft';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
 import { RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, getDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/deriv-session';
@@ -12,7 +13,7 @@ const time = (value: number) =>
 export default function AnalysisTool() {
     const state = useSyncExternalStore(digitStrategyEngine.subscribe, digitStrategyEngine.getSnapshot);
     const panel = useMarketPanelHeight<HTMLDivElement>();
-    const [draft, setDraft] = useState<Settings>({ ...state.settings });
+    const [draft, setDraft] = useStrategyDraft(state, () => ({ ...state.settings }));
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
     const [terminal, setTerminal] = useState(false);
@@ -26,7 +27,6 @@ export default function AnalysisTool() {
             setSession(getDerivSession());
             try {
                 digitStrategyEngine.selectAccount(getDerivAccount());
-                setDraft({ ...digitStrategyEngine.getSnapshot().settings });
             } catch (reason) {
                 setError(reason instanceof Error ? reason.message : 'Unable to restore this session.');
             }
@@ -65,10 +65,7 @@ export default function AnalysisTool() {
             setError((reason as Error).message);
         }
     };
-    useEffect(() => {
-        if (state.active || state.pending || state.trades.length) setDraft({ ...state.settings });
-    }, [state.active, state.settings, state.pending, state.trades.length]);
-    const locked = state.active || !!state.pending || state.trades.length > 0;
+    const locked = state.active || !!state.pending;
     const field = (
         label: string,
         key: keyof Pick<
@@ -196,7 +193,8 @@ export default function AnalysisTool() {
                 </div>
                 <p className='analysis-tool__hint'>
                     Runs on the server; connected devices share this session. STOP blocks new purchases and waits for an
-                    open contract to settle. Use New session to clear a stopped session and change its parameters.
+                    open contract to settle. Edit stopped settings and press RUN to apply them. New session clears the
+                    results.
                 </p>
             </section>
             <DemoPauseStatus state={state.demoPause} />

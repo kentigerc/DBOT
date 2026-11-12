@@ -283,21 +283,84 @@ describe('resuming a manually stopped session', () => {
             }
         }
     );
-    it.each([{ stake: 0.5 }, { duration: 2 }, { maxStake: 200 }, { strategy: 'even-odd' }] as Partial<Settings>[])(
-        'still requires a new session for a genuine parameter change: %j',
-        async changes => {
-            const { engine, createApi } = restore();
-            await expect(engine.start({ ...engine.getSnapshot().settings, ...changes })).rejects.toThrow(
-                'Reset the stopped session before changing parameters'
-            );
-            expect(engine.getSnapshot().active).toBe(false);
-            expect(createApi).not.toHaveBeenCalled();
+    it.each([undefined, 'over2-under7', 'even-odd', 'momentum-70'] as const)(
+        'applies edited stopped settings to %s without clearing its results',
+        async strategy => {
+            const { engine, broker } = restore(strategy, { streak: 0, recovery: empty().recovery });
+            const before = engine.getSnapshot();
+            const settings = {
+                ...before.settings,
+                stake: 0.5,
+                multiplier: 3,
+                duration: 2,
+                maxStake: 200,
+                stopLoss: 200,
+                takeProfit: 10,
+                maxLosses: 12,
+            };
+            await engine.start(settings);
+            expect(engine.getSnapshot()).toMatchObject({
+                settings,
+                stake: 50,
+                active: true,
+                pnl: before.pnl,
+                wins: before.wins,
+                losses: before.losses,
+                trades: before.trades,
+                batch: before.batch,
+                maxDrawdown: before.maxDrawdown,
+            });
+            expect(broker.buys).toHaveLength(0);
+            engine.stop();
         }
     );
+    it.each([undefined, 'over2-under7', 'even-odd', 'momentum-70'] as const)(
+        'uses a new multiplier for the held %s recovery without erasing its deficit',
+        async strategy => {
+            const { engine } = restore(strategy);
+            const before = engine.getSnapshot();
+            await engine.start({ ...before.settings, multiplier: 3, stake: 0.5, duration: 2 });
+            expect(engine.getSnapshot()).toMatchObject({
+                stake: 105,
+                settings: { multiplier: 3, stake: 0.5, duration: 2 },
+                pnl: before.pnl,
+                streak: before.streak,
+                recovery: before.recovery,
+                trades: before.trades,
+            });
+            engine.stop();
+        }
+    );
+    it('blocks changed settings while a real order still requires reconciliation', async () => {
+        const { engine, createApi } = restore(undefined, {
+            pending: {
+                nonce: 'pending',
+                contractId: 123,
+                signal: { symbol: 'R_100', direction: 'DIGITEVEN', epoch: 1000, recovery: true, formation: false },
+                stake: 74,
+                payout: 140,
+                sentAt: 999000,
+            },
+        });
+        await expect(engine.start({ ...engine.getSnapshot().settings, multiplier: 3 })).rejects.toThrow(
+            'pending contract before changing settings'
+        );
+        expect(createApi).not.toHaveBeenCalled();
+        expect(engine.getSnapshot().pending?.contractId).toBe(123);
+    });
+    it('checks the recalculated recovery stake against the newly selected limits before connecting', async () => {
+        const { engine, createApi } = restore();
+        const before = engine.getSnapshot();
+        await expect(engine.start({ ...before.settings, multiplier: 3, maxStake: 1 })).rejects.toThrow(
+            'Maximum stake reached'
+        );
+        expect(createApi).not.toHaveBeenCalled();
+        expect(engine.getSnapshot()).toMatchObject({ active: false, stake: before.stake, trades: before.trades });
+    });
     it('does not treat a missing strategy field as permission to switch tools', async () => {
         const { engine, createApi } = restore('even-odd');
         const { strategy: _strategy, ...settings } = engine.getSnapshot().settings;
-        await expect(engine.start(settings)).rejects.toThrow('Reset the stopped session before changing parameters');
+        await expect(engine.start(settings)).rejects.toThrow('Reset the stopped session before switching strategies');
         expect(createApi).not.toHaveBeenCalled();
     });
     it.each([

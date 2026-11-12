@@ -14,6 +14,7 @@ import {
     sharedRecoverySettings,
     type RecoveryState,
     riskReason,
+    sameSettings,
     type Settings,
     type Signal,
     validateSettings,
@@ -292,28 +293,27 @@ export class DigitStrategyEngine {
         if (this.state.accountId !== account.account_id) throw new Error('Resolve the previous account session first.');
         if (this.state.liveUntil > this.now() && this.state.owner && this.state.owner !== this.owner)
             throw new Error('Another trading tab is active. Stop it before continuing here.');
-        if (
-            (this.state.trades.length || this.state.pending) &&
-            // Settings are flat values. JSONB storage may reorder their keys;
-            // resuming the same session must compare values, not serialization.
-            Object.keys({ ...this.state.settings, ...settings }).some(
-                key => this.state.settings[key as keyof Settings] !== settings[key as keyof Settings]
-            )
-        )
-            throw new Error('Reset the stopped session before changing parameters. Pending contracts cannot be reset.');
+        const changed = !sameSettings(this.state.settings, settings);
+        if (changed && this.state.pending)
+            throw new Error('Settle or reconcile the pending contract before changing settings.');
+        if (this.state.trades.length && this.state.settings.strategy !== settings.strategy)
+            throw new Error('Reset the stopped session before switching strategies.');
         if (this.state.pending && !this.state.pending.contractId && !reconcileId)
             throw new Error(
                 'Purchase outcome is unconfirmed. Enter its contract ID from Deriv history to reconcile; no new orders will be sent.'
             );
-        const reason =
-            !this.state.pending &&
-            riskReason(
-                settings,
-                this.state.pnl,
-                this.state.streak,
-                this.state.trades.length ? this.state.stake : cents(settings.stake)
-            );
-        if (reason) throw new Error(`${reason}. Reset the stopped session to start a new one.`);
+        let nextStake = this.state.trades.length ? this.state.stake : cents(settings.stake);
+        if (changed && !this.state.pending) {
+            const recovering = this.state.streak > 0 || !!this.state.recovery.momentumPending;
+            if (!recovering) nextStake = cents(settings.stake);
+            else if (settings.multiplier !== this.state.settings.multiplier) {
+                const loss = [...this.state.trades].reverse().find(trade => (trade.profit ?? 0) < 0);
+                if (!loss) throw new Error('Verify the last losing trade before changing the recovery multiplier.');
+                nextStake = nextRecoveryStake(loss.stake, settings.multiplier);
+            }
+        }
+        const reason = !this.state.pending && riskReason(settings, this.state.pnl, this.state.streak, nextStake);
+        if (reason) throw new Error(`${reason}. Adjust stopped settings or reset the session before starting again.`);
         const generation = ++this.generation;
         this.closing = false;
         this.initialized = false;
@@ -329,7 +329,7 @@ export class DigitStrategyEngine {
             wantsRun: !reconcileId,
             error: '',
             phase: 'Connecting',
-            stake: this.state.trades.length ? this.state.stake : cents(settings.stake),
+            stake: nextStake,
             owner: this.owner,
             liveUntil: this.now() + 15000,
         });

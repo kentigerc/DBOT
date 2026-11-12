@@ -1,6 +1,7 @@
 import DemoPauseStatus from '@/components/demo-pause-status';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
+import useStrategyDraft from '@/hooks/useStrategyDraft';
 import { DEFAULT_SETTINGS, type Settings } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
 import './momentum.scss';
@@ -18,7 +19,7 @@ export default function Momentum() {
     const own = state.settings.strategy === 'momentum-70';
     const recovering =
         own && (state.recovery.momentumPending ?? (state.streak > 0 || (state.recovery.deficit || 0) > 0));
-    const [draft, setDraft] = useState(defaults);
+    const [draft, setDraft] = useStrategyDraft(state, defaults, own);
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
     const [reconcile, setReconcile] = useState('');
@@ -28,7 +29,8 @@ export default function Momentum() {
         return () => window.clearInterval(timer);
     }, []);
     const busy = state.active || !!state.pending,
-        locked = busy || state.trades.length > 0;
+        locked = busy,
+        otherSession = !own && (busy || state.trades.length > 0);
     useEffect(() => {
         const update = () => {
             setSession(getDerivSession());
@@ -38,9 +40,6 @@ export default function Momentum() {
         window.addEventListener('neto-session', update);
         return () => window.removeEventListener('neto-session', update);
     }, []);
-    useEffect(() => {
-        if (own && locked) setDraft({ ...state.settings });
-    }, [own, locked, state.settings]);
     const command = async (action: 'run' | 'stop' | 'reset') => {
         setError('');
         try {
@@ -49,7 +48,7 @@ export default function Momentum() {
                 await digitStrategyEngine.reset();
                 setDraft(defaults());
             } else {
-                if (!own && locked) throw new Error('Stop and reset the current tool before switching strategies.');
+                if (otherSession) throw new Error('Stop and reset the current tool before switching strategies.');
                 await digitStrategyEngine.start(
                     own && locked ? state.settings : draft,
                     own && state.pending && !state.pending.contractId ? Number(reconcile) || undefined : undefined
@@ -132,7 +131,7 @@ export default function Momentum() {
                     </label>
                     <div className='momentum__buttons'>
                         <button
-                            disabled={!session.authenticated || (own && state.active) || (!own && locked)}
+                            disabled={!session.authenticated || (own && state.active) || otherSession}
                             onClick={() => void command('run')}
                         >
                             RUN MOMENTUM
@@ -145,7 +144,7 @@ export default function Momentum() {
                         Reset stopped session
                     </button>
                     {!session.authenticated && <p>Log in with Deriv to start.</p>}
-                    {!own && locked && (
+                    {otherSession && (
                         <p>Another tool owns this account’s session. Stop and reset it before switching.</p>
                     )}
                     {own && state.pending && !state.pending.contractId && (
