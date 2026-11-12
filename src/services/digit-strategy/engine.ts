@@ -7,6 +7,7 @@ import {
     cycleSignal,
     momentumSignal,
     DEFAULT_SETTINGS,
+    DEMO_RECOVERY_LOSS_LIMIT,
     DigitMarket,
     type Direction,
     nextRecoveryStake,
@@ -635,16 +636,26 @@ export class DigitStrategyEngine {
         this.busy = true;
         this.update({ selected: signal, phase: 'Quoting' });
         try {
-            if (signal.recovery && this.account()?.account_type === 'real' && this.state.recoveryLosses >= 3) {
-                if (!this.deps.runDemoPause || !this.state.demoPause?.triggerContractId)
+            if (
+                signal.recovery &&
+                this.account()?.account_type === 'real' &&
+                this.state.recoveryLosses >= DEMO_RECOVERY_LOSS_LIMIT
+            ) {
+                const triggerContractId =
+                    [...this.state.trades].reverse().find(trade => trade.recovery && (trade.profit ?? 0) < 0)
+                        ?.contractId ||
+                    (this.state.demoPause?.status !== 'done' ? this.state.demoPause?.triggerContractId : undefined);
+                if (!this.deps.runDemoPause || !triggerContractId)
                     throw new Error('Demo recovery pause is unavailable. Real trading stopped.');
+                if (this.state.demoPause?.triggerContractId !== triggerContractId)
+                    this.update({ demoPause: { triggerContractId, completed: 0, wins: 0, status: 'required' } });
                 this.update({ phase: 'Demo pause · Waiting for a demo win · Real recovery paused' });
                 this.log(
-                    'Three consecutive recovery losses. A demo win is required before another real recovery attempt.'
+                    'Two consecutive recovery losses. A demo win is required before another real recovery attempt.'
                 );
                 const demo = await this.deps.runDemoPause(
                     {
-                        triggerContractId: this.state.demoPause.triggerContractId,
+                        triggerContractId,
                         symbol: signal.symbol,
                         direction: signal.direction,
                         barrier: signal.barrier,
@@ -790,7 +801,11 @@ export class DigitStrategyEngine {
             }
         } catch (error) {
             if (entryAbort.signal.aborted && !this.state.pending) return;
-            if (signal.recovery && this.account()?.account_type === 'real' && this.state.recoveryLosses >= 3) {
+            if (
+                signal.recovery &&
+                this.account()?.account_type === 'real' &&
+                this.state.recoveryLosses >= DEMO_RECOVERY_LOSS_LIMIT
+            ) {
                 this.halt(error instanceof Error ? error.message : 'Demo pause failed. Real recovery remains paused.');
                 return;
             }
@@ -906,7 +921,10 @@ export class DigitStrategyEngine {
         const demoPause =
             profit > 0
                 ? undefined
-                : p.signal.recovery && profit < 0 && recoveryLosses >= 3 && this.account()?.account_type === 'real'
+                : p.signal.recovery &&
+                    profit < 0 &&
+                    recoveryLosses >= DEMO_RECOVERY_LOSS_LIMIT &&
+                    this.account()?.account_type === 'real'
                   ? { triggerContractId: p.contractId!, completed: 0, status: 'required' }
                   : this.state.demoPause;
         let next =

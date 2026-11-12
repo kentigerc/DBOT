@@ -2,7 +2,7 @@ import type { ParityRecovery } from './xml-parity-recovery';
 import type { OverUnderDirection } from '@/services/digit-strategy/over-under-entry';
 import { startXmlRecoveryProgress } from './xml-recovery-progress';
 import { DEFAULT_XML_AUTO_SETTINGS, validateXmlAutoSettings, type XmlAutoSettings } from './xml-auto-settings';
-import { nextRecoveryStake } from '@/services/digit-strategy/strategy';
+import { DEMO_RECOVERY_LOSS_LIMIT, nextRecoveryStake } from '@/services/digit-strategy/strategy';
 import { evaluateScan, type ScanSide } from '@/pages/digit-analysis/scanner';
 import { getDerivAccount } from './deriv-session';
 import type { DemoPauseView } from '@/services/digit-strategy/engine';
@@ -289,7 +289,12 @@ export class XmlScannerCycle {
         parameters: { symbol: string; contract_type: string; duration: number; prediction?: number; amount?: number },
         generation: number
     ) {
-        if (!this.isRecovering() || this.recoveryLosses < 3 || getDerivAccount()?.account_type !== 'real') return true;
+        if (
+            !this.isRecovering() ||
+            this.recoveryLosses < DEMO_RECOVERY_LOSS_LIMIT ||
+            getDerivAccount()?.account_type !== 'real'
+        )
+            return true;
         if (!this.demoTriggerId || this.demoAbort) {
             this.stop('Demo pause could not start safely.');
             return false;
@@ -544,7 +549,7 @@ export class XmlScannerCycle {
             this.demoTriggerId = undefined;
         } else if (wasRecovery && profit < 0) {
             this.recoveryLosses++;
-            if (this.recoveryLosses >= 3) this.demoTriggerId = value.contract_id;
+            if (this.recoveryLosses >= DEMO_RECOVERY_LOSS_LIMIT) this.demoTriggerId = value.contract_id;
         }
         const pnl = this.state.pnl + profit;
         const deficit = profit > 0 ? 0 : Math.max(0, this.state.deficit - profit);

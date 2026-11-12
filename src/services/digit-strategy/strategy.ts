@@ -2,6 +2,7 @@ import { advanceParityRecovery, parityRecoveryReady } from './parity-recovery';
 import { OverUnderEntries } from './over-under-entry';
 // Ported from the uploaded fastbot/digits.py, recovery_filters.py and storage.py.
 export type Direction = 'DIGITOVER' | 'DIGITUNDER' | 'DIGITDIFF' | 'DIGITEVEN' | 'DIGITODD';
+export const DEMO_RECOVERY_LOSS_LIMIT = 2;
 export const RECOVERY_MODES = {
     same_contract: 'Same contract',
     parity_percentage: 'Neto Recovery',

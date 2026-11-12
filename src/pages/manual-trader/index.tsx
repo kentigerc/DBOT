@@ -7,6 +7,8 @@ import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
 import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
 import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { builderDemoPause } from '@/utils/builder-demo-pause';
+import DemoPauseStatus from '@/components/demo-pause-status';
 import {
     manualEntryReady,
     SWITCHERS,
@@ -24,6 +26,8 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
     const { dashboard, run_panel } = useStore();
     const navigate = useNavigate();
     const gate = useSyncExternalStore(manualTraderGate.subscribe, manualTraderGate.getSnapshot);
+    const builderDemo = useSyncExternalStore(builderDemoPause.subscribe, builderDemoPause.getSnapshot);
+    const demoPause = gate.active && builderDemo.accountId === gate.plan?.accountId ? builderDemo.demoPause : undefined;
     const latest = useRef(new Map<string, ManualMarket>());
     const [markets, setMarkets] = useState<ManualMarket[]>([]);
     const [enabled, setEnabled] = useState(true);
@@ -142,9 +146,12 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                     <strong>
                         {gate.plan.name} · {gate.plan.symbol}
                     </strong>
-                    <span>{gate.phase}</span>
+                    <span>
+                        {demoPause?.status === 'running' ? 'Demo pause · Waiting for one demo win' : gate.phase}
+                    </span>
                 </aside>
             )}
+            <DemoPauseStatus state={demoPause} />
             {error && <p role='alert'>{error}</p>}
             <label className='manual-trader__observe'>
                 Market to observe

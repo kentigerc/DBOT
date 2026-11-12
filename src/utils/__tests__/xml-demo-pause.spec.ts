@@ -47,9 +47,9 @@ async function lose(cycle: XmlScannerCycle, id: number, amount: number) {
     cycle.purchased(id);
     cycle.contract({ contract_id: id, is_sold: 1, profit: -amount });
 }
-const parameters = { symbol: 'R_50', contract_type: 'DIGITEVEN', duration: 2, amount: 5.6 };
+const parameters = { symbol: 'R_50', contract_type: 'DIGITEVEN', duration: 2, amount: 2.8 };
 const completed = {
-    triggerContractId: 4,
+    triggerContractId: 3,
     completed: 3,
     wins: 1,
     status: 'done',
@@ -62,16 +62,16 @@ const completed = {
 };
 const response = (data: unknown, ok = true) => ({ ok, json: async () => data }) as Response;
 
-it('counts only recovery losses, pauses before the fourth recovery and retains real P/L and stake after demo losses followed by a win', async () => {
+it('counts only recovery losses, pauses before the third recovery and retains real P/L and stake after demo losses followed by a win', async () => {
     const { cycle, generation } = setup();
-    for (const [index, amount] of [0.35, 0.7, 1.4].entries()) {
+    for (const [index, amount] of [0.35, 0.7].entries()) {
         await lose(cycle, index + 1, amount);
         expect(await cycle.runDemoPause(parameters, generation)).toBe(true);
     }
     expect(global.fetch).not.toHaveBeenCalled();
-    await lose(cycle, 4, 2.8);
+    await lose(cycle, 3, 1.4);
     const before = cycle.getSnapshot();
-    expect(cycle.recoveryStake(2.8)).toBe(5.6);
+    expect(cycle.recoveryStake(1.4)).toBe(2.8);
     let resolve!: (value: Response) => void;
     jest.mocked(global.fetch).mockImplementation(
         () =>
@@ -81,13 +81,13 @@ it('counts only recovery losses, pauses before the fourth recovery and retains r
     );
     const pending = cycle.runDemoPause(parameters, generation);
     expect(cycle.canPurchase('REAL1')).toBe(false);
-    expect(cycle.getSnapshot().demoPause).toMatchObject({ completed: 0, heldStake: 560 });
+    expect(cycle.getSnapshot().demoPause).toMatchObject({ completed: 0, heldStake: 280 });
     const [url, options] = jest.mocked(global.fetch).mock.calls[0];
     expect(url).toBe('/api/analysis?account_id=REAL1');
     expect(JSON.parse(options!.body as string)).toEqual({
         action: 'demo-break',
         spec: {
-            triggerContractId: 4,
+            triggerContractId: 3,
             symbol: 'R_50',
             direction: 'DIGITEVEN',
             duration: 2,
@@ -96,13 +96,13 @@ it('counts only recovery losses, pauses before the fourth recovery and retains r
     });
     resolve(response({ demoPause: completed }));
     expect(await pending).toBe(true);
-    expect(cycle.getSnapshot()).toMatchObject({ pnl: before.pnl, losses: 4, deficit: before.deficit });
-    expect(cycle.recoveryStake(2.8)).toBe(5.6);
+    expect(cycle.getSnapshot()).toMatchObject({ pnl: before.pnl, losses: 3, deficit: before.deficit });
+    expect(cycle.recoveryStake(1.4)).toBe(2.8);
     expect(await cycle.runDemoPause(parameters, generation)).toBe(true);
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    // A subsequent group of three real recovery losses requires another pause.
-    for (const [index, amount] of [5.6, 11.2, 22.4].entries()) await lose(cycle, index + 5, amount);
-    jest.mocked(global.fetch).mockResolvedValue(response({ demoPause: { ...completed, triggerContractId: 7 } }));
+    // A subsequent group of two real recovery losses requires another pause.
+    for (const [index, amount] of [2.8, 5.6].entries()) await lose(cycle, index + 4, amount);
+    jest.mocked(global.fetch).mockResolvedValue(response({ demoPause: { ...completed, triggerContractId: 5 } }));
     expect(await cycle.runDemoPause(parameters, generation)).toBe(true);
     expect(global.fetch).toHaveBeenCalledTimes(2);
 });
@@ -116,14 +116,14 @@ it('does not detour a demo-only session', async () => {
         balance: 1000,
     });
     const { cycle, generation } = setup();
-    for (let id = 1; id <= 4; id++) await lose(cycle, id, 0.35);
+    for (let id = 1; id <= 3; id++) await lose(cycle, id, 0.35);
     expect(await cycle.runDemoPause(parameters, generation)).toBe(true);
     expect(global.fetch).not.toHaveBeenCalled();
 });
 
 it('cannot resume after STOP even if the demo request responds late', async () => {
     const { cycle, generation } = setup();
-    for (let id = 1; id <= 4; id++) await lose(cycle, id, 0.35);
+    for (let id = 1; id <= 3; id++) await lose(cycle, id, 0.35);
     let resolve!: (value: Response) => void;
     jest.mocked(global.fetch).mockImplementation(
         () =>
@@ -148,7 +148,7 @@ it('stops real recovery when demo execution is unavailable or incomplete', async
         response({ demoPause: { ...completed, status: 'running' } }),
     ]) {
         const { cycle, generation } = setup();
-        for (let id = 1; id <= 4; id++) await lose(cycle, id, 0.35);
+        for (let id = 1; id <= 3; id++) await lose(cycle, id, 0.35);
         jest.mocked(global.fetch).mockResolvedValue(result);
         expect(await cycle.runDemoPause(parameters, generation)).toBe(false);
         expect(cycle.getSnapshot().enabled).toBe(false);

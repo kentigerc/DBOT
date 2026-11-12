@@ -1,4 +1,5 @@
 import type { DemoPauseView } from '@/services/digit-strategy/engine';
+import { DEMO_RECOVERY_LOSS_LIMIT } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, type DerivAccount } from './deriv-session';
 
 type Contract = Record<string, unknown>;
@@ -90,7 +91,7 @@ export class BuilderDemoPause {
     async beforePurchase(accountId: string, parameters: Contract, heldStake: number) {
         if (!this.state.enabled) return !this.abort;
         if (accountId !== this.state.accountId || getDerivAccount()?.account_id !== accountId) return false;
-        if (this.recoveryLosses < 3) return true;
+        if (this.recoveryLosses < DEMO_RECOVERY_LOSS_LIMIT) return true;
         if (this.abort || !this.trigger || this.initialStake === undefined) return false;
         const controller = new AbortController();
         this.abort = controller;
@@ -111,7 +112,7 @@ export class BuilderDemoPause {
         };
         progress({ triggerContractId: trigger, completed: 0, wins: 0, status: 'running' });
         this.write(
-            'Bot Builder demo pause: three recovery losses. Waiting for one demo win before resuming the held real order.'
+            'Bot Builder demo pause: two recovery losses. Waiting for one demo win before resuming the held real order.'
         );
         let polling = false;
         const timer = setInterval(async () => {
