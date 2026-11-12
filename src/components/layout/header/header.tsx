@@ -128,7 +128,10 @@ const AppHeader = observer(() => {
                                     activeAccount?.account_type === 'demo' ? 'Demo account' : `${currency} account`
                                 }
                             >
-                                <CurrencyIcon currency={currency} isVirtual={activeAccount?.account_type === 'demo'} />
+                                <CurrencyIcon
+                                    currency={canViewAnalytics ? 'USD' : currency}
+                                    isVirtual={!canViewAnalytics && activeAccount?.account_type === 'demo'}
+                                />
                             </span>
                             <span className='neto-header__account-caption'>
                                 <strong className='neto-header__balance'>
@@ -172,8 +175,8 @@ const AppHeader = observer(() => {
                                                 >
                                                     <span className='neto-header__currency-icon' aria-hidden='true'>
                                                         <CurrencyIcon
-                                                            currency={account.currency}
-                                                            isVirtual={type === 'demo'}
+                                                            currency={canViewAnalytics ? 'USD' : account.currency}
+                                                            isVirtual={!canViewAnalytics && type === 'demo'}
                                                         />
                                                     </span>
                                                     <span className='neto-header__option-caption'>

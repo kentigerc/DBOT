@@ -1,8 +1,12 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { getDerivSession, refreshDerivSession, type DerivSession } from '@/utils/deriv-session';
 import Header from '../header';
-jest.mock('@/components/currency/currency-icon', () => ({ CurrencyIcon: () => null }));
+jest.mock('@/components/currency/currency-icon', () => ({
+    CurrencyIcon: ({ currency, isVirtual }: { currency?: string; isVirtual?: boolean }) => (
+        <svg data-testid='currency-icon' data-currency={currency} data-virtual={String(!!isVirtual)} />
+    ),
+}));
 jest.mock('@/external/bot-skeleton', () => ({ api_base: { is_running: false } }));
 jest.mock('@/hooks/useStore', () => ({ useStore: () => ({ client: {} }) }));
 jest.mock('@/hooks/useThemeSwitcher', () => ({
@@ -76,6 +80,54 @@ it('keeps Analytics available on the owner’s linked real account', () => {
     localStorage.setItem('neto.account_id', owner.account_id);
     act(() => window.dispatchEvent(new Event('neto-session')));
     expect(screen.getByRole('link', { name: 'Analytics' })).toBeTruthy();
+});
+it('shows the owner the US flag on both demo and linked real accounts while keeping account labels accurate', () => {
+    const real = { ...owner, account_id: 'CR123456', account_type: 'real' as const, currency: 'EUR' };
+    const data = session({ accounts: [owner, real] });
+    localStorage.setItem('neto.account_id', owner.account_id);
+    show(data);
+    const demoIcon = within(screen.getByRole('img', { name: 'Demo account' })).getByTestId('currency-icon');
+    expect(demoIcon).toHaveAttribute('data-currency', 'USD');
+    expect(demoIcon).toHaveAttribute('data-virtual', 'false');
+    expect(screen.getByText('USD Demo')).toBeTruthy();
+    localStorage.setItem('neto.account_id', real.account_id);
+    (getDerivSession as jest.Mock).mockReturnValue({ ...data });
+    act(() => window.dispatchEvent(new Event('neto-session')));
+    const realIcon = within(screen.getByRole('img', { name: 'EUR account' })).getByTestId('currency-icon');
+    expect(realIcon).toHaveAttribute('data-currency', 'USD');
+    expect(realIcon).toHaveAttribute('data-virtual', 'false');
+    expect(screen.getByText('EUR Real')).toBeTruthy();
+    screen.getAllByTestId('currency-icon').forEach(icon => {
+        expect(icon).toHaveAttribute('data-currency', 'USD');
+        expect(icon).toHaveAttribute('data-virtual', 'false');
+    });
+});
+it('keeps ordinary users’ demo and real currency icons, even with a forged owner selection', () => {
+    const real = { ...visitor, account_id: 'OTHER-REAL', account_type: 'real' as const, currency: 'EUR' };
+    const data = session({ accounts: [visitor, real], isAdmin: false, adminAccounts: [] });
+    localStorage.setItem('neto.account_id', owner.account_id);
+    show(data);
+    const demoIcon = within(screen.getByRole('img', { name: 'Demo account' })).getByTestId('currency-icon');
+    expect(demoIcon).toHaveAttribute('data-virtual', 'true');
+    localStorage.setItem('neto.account_id', real.account_id);
+    (getDerivSession as jest.Mock).mockReturnValue({ ...data });
+    act(() => window.dispatchEvent(new Event('neto-session')));
+    const realIcon = within(screen.getByRole('img', { name: 'EUR account' })).getByTestId('currency-icon');
+    expect(realIcon).toHaveAttribute('data-currency', 'EUR');
+    expect(realIcon).toHaveAttribute('data-virtual', 'false');
+});
+it('restores the normal demo icon when the owner session is replaced by an ordinary user', () => {
+    show(session());
+    expect(within(screen.getByRole('img', { name: 'Demo account' })).getByTestId('currency-icon')).toHaveAttribute(
+        'data-virtual',
+        'false'
+    );
+    (getDerivSession as jest.Mock).mockReturnValue(session({ accounts: [visitor], isAdmin: false, adminAccounts: [] }));
+    act(() => window.dispatchEvent(new Event('neto-session')));
+    expect(within(screen.getByRole('img', { name: 'Demo account' })).getByTestId('currency-icon')).toHaveAttribute(
+        'data-virtual',
+        'true'
+    );
 });
 it('keeps Analytics hidden for non-owner real accounts, even with a forged local selection', () => {
     localStorage.setItem('neto.account_id', owner.account_id);
