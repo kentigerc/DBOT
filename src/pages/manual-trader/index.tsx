@@ -11,6 +11,10 @@ import { builderDemoPause } from '@/utils/builder-demo-pause';
 import DemoPauseStatus from '@/components/demo-pause-status';
 import {
     manualEntryReady,
+    manualLead,
+    rankManualMarkets,
+    DEFAULT_MANUAL_LEAD,
+    MANUAL_MOMENTUM_TICKS,
     SWITCHERS,
     watchManualMarkets,
     type ManualMarket,
@@ -35,6 +39,9 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
     const [error, setError] = useState('');
     const [beat, setBeat] = useState(0);
     const [observedSymbol, setObservedSymbol] = useState('');
+    const [minimumLead, setMinimumLead] = useState(String(DEFAULT_MANUAL_LEAD));
+    const lead = Number(minimumLead);
+    const validLead = minimumLead.trim() !== '' && Number.isFinite(lead) && lead >= 0.1 && lead <= 100;
     useEffect(() => {
         if (!active) return;
         const timer = setInterval(() => setBeat(value => value + 1), 1000);
@@ -73,15 +80,7 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
         };
     }, [active, enabled]);
     const scanning = active && enabled;
-    const candidates = scanning
-        ? markets
-              .flatMap(market =>
-                  (['over', 'under'] as const)
-                      .filter(side => manualEntryReady(market, side))
-                      .map(side => ({ market, side }))
-              )
-              .sort((a, b) => b.market[b.side].percentage - a.market[a.side].percentage)
-        : [];
+    const candidates = scanning && validLead ? rankManualMarkets(markets, Date.now(), lead) : [];
     const match = candidates[0];
     const pinnedSymbol = observedSymbol || gate.plan?.symbol;
     const focus = pinnedSymbol
@@ -90,9 +89,12 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
     const load = (market: ManualMarket, side: ManualSide) => {
         setError('');
         try {
-            const fresh = latest.current.get(market.symbol);
-            if (!scanning || !fresh || !manualEntryReady(fresh, side))
+            const best = rankManualMarkets([...latest.current.values()], Date.now(), lead)[0];
+            if (!scanning || !validLead || !best)
                 throw new Error('This entry has changed. Waiting for another qualifying live market.');
+            if (best.market.symbol !== market.symbol || best.side !== side)
+                throw new Error('A stronger live match is now available. Review the latest suggestion.');
+            const fresh = best.market;
             const account = getDerivAccount();
             if (!getDerivSession().authenticated || !account || account.status !== 'active')
                 throw new Error('Log in with Deriv and select an active account first.');
@@ -129,14 +131,35 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                         to view Summary, Transactions and Journal.
                     </p>
                 </div>
-                <button onClick={() => setEnabled(value => !value)}>
-                    {enabled ? 'Pause scanner' : 'Resume scanner'}
-                </button>
+                <div className='manual-trader__controls'>
+                    <label>
+                        Minimum lead (pp)
+                        <input
+                            type='number'
+                            inputMode='decimal'
+                            min='0.1'
+                            max='100'
+                            step='0.1'
+                            value={minimumLead}
+                            onChange={event => {
+                                setMinimumLead(event.target.value);
+                                setError('');
+                            }}
+                        />
+                    </label>
+                    <button onClick={() => setEnabled(value => !value)}>
+                        {enabled ? 'Pause scanner' : 'Resume scanner'}
+                    </button>
+                </div>
             </header>
             <div className='manual-trader__summary'>
                 <span>{scanning ? 'Live scanning' : 'Scanner paused'}</span>
                 <span>{markets.filter(market => market.ready).length} markets live</span>
                 <span>1,000 ticks per market</span>
+                <span>
+                    {markets.filter(market => market.trend.samples >= MANUAL_MOMENTUM_TICKS).length} momentum windows
+                    ready
+                </span>
             </div>
             <p className='manual-trader__status' role='status'>
                 {scanning ? status : 'Displayed percentages are snapshots.'}
@@ -152,7 +175,9 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                 </aside>
             )}
             <DemoPauseStatus state={demoPause} />
-            {error && <p role='alert'>{error}</p>}
+            {(error || !validLead) && (
+                <p role='alert'>{error || 'Enter a minimum lead from 0.1 to 100 percentage points.'}</p>
+            )}
             <label className='manual-trader__observe'>
                 Market to observe
                 <select value={observedSymbol} onChange={event => setObservedSymbol(event.target.value)}>
@@ -178,7 +203,13 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                     <div className='manual-trader__shares'>
                         {(['over', 'under'] as const).map(side => {
                             const reading = focus[side];
-                            const ready = scanning && manualEntryReady(focus, side);
+                            const ready = scanning && validLead && manualEntryReady(focus, side, Date.now(), lead);
+                            const momentum = focus.trend[side];
+                            const difference = manualLead(focus, side);
+                            const fresh =
+                                focus.ready &&
+                                Date.now() - focus.checkedAt <= 3500 &&
+                                Date.now() / 1000 - focus.epoch <= 6;
                             return (
                                 <div key={side} className={`manual-trader__share manual-trader__share--${side}`}>
                                     <div>
@@ -196,13 +227,27 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                                         <span style={{ width: `${reading.percentage}%` }} />
                                     </div>
                                     <p>
+                                        {MANUAL_MOMENTUM_TICKS}-tick momentum:{' '}
+                                        {momentum === null
+                                            ? '—'
+                                            : `${momentum > 0 ? '+' : ''}${momentum.toFixed(1)} pp`}
+                                        {' · '}Lead: {difference > 0 ? '+' : ''}
+                                        {difference.toFixed(1)} pp
+                                    </p>
+                                    <p>
                                         {ready
                                             ? 'Entry qualified'
                                             : !scanning
                                               ? 'Snapshot'
-                                              : reading.change > 0
-                                                ? 'Rising · Observing entry'
-                                                : 'Observing market conditions'}
+                                              : !fresh
+                                                ? 'Waiting for fresh live data'
+                                                : focus.trend.samples < MANUAL_MOMENTUM_TICKS
+                                                  ? `Building momentum · ${focus.trend.samples}/${MANUAL_MOMENTUM_TICKS} live ticks`
+                                                  : difference < lead
+                                                    ? 'No clear lead'
+                                                    : (momentum ?? 0) <= 0
+                                                      ? 'Waiting for rising momentum'
+                                                      : 'Observing entry formation'}
                                     </p>
                                 </div>
                             );
@@ -227,6 +272,32 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                                 {match.market.name} · {match.side === 'over' ? 'Over' : 'Under'} ·{' '}
                                 {match.market[match.side].percentage.toFixed(1)}%
                             </p>
+                            <p className='manual-trader__rank'>
+                                Combined rank #1 of {candidates.length} qualifying entries
+                            </p>
+                            <small>
+                                Share rank #{match.shareRank} · Momentum rank #{match.momentumRank}
+                            </small>
+                            <dl className='manual-trader__metrics'>
+                                <div>
+                                    <dt>Chosen share</dt>
+                                    <dd>{match.percentage.toFixed(1)}%</dd>
+                                </div>
+                                <div>
+                                    <dt>Opposite share</dt>
+                                    <dd>
+                                        {match.market[match.side === 'over' ? 'under' : 'over'].percentage.toFixed(1)}%
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt>Lead</dt>
+                                    <dd>+{match.lead.toFixed(1)} pp</dd>
+                                </div>
+                                <div>
+                                    <dt>{MANUAL_MOMENTUM_TICKS}-tick momentum</dt>
+                                    <dd>+{match.momentum.toFixed(1)} pp</dd>
+                                </div>
+                            </dl>
                         </div>
                         <button
                             disabled={run_panel.is_running || gate.active}
@@ -237,9 +308,11 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                     </>
                 ) : (
                     <div>
-                        <h2>Looking for a qualifying entry</h2>
+                        <h2>No clear entry</h2>
                         <p>
-                            All supported Volatility markets are observed together. The preview rotates while searching.
+                            Waiting for rising {MANUAL_MOMENTUM_TICKS}-tick momentum, a{' '}
+                            {validLead ? lead.toFixed(1) : 'valid'} pp lead and the entry formation. All supported
+                            Volatility markets are observed together.
                         </p>
                     </div>
                 )}
@@ -247,7 +320,8 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
             <p className='manual-trader__note'>
                 Loading never starts trading. Press RUN when you are ready; the XML bot then trades continuously until
                 you press STOP or its risk limits are reached. Recovery follows the XML bot’s own rules. Keep this tab
-                open and connected.
+                open and connected. Rankings combine share and momentum from recent ticks and do not guarantee trade
+                results.
             </p>
         </section>
     );

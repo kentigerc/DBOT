@@ -49,6 +49,7 @@ const market = (symbol: string, side: 'over' | 'under', percentage = 75): Manual
         run: 2,
         epoch: Date.now() / 1000,
     },
+    trend: { samples: 20, over: side === 'over' ? 0.5 : 0, under: side === 'under' ? 0.5 : 0 },
     digits: Array.from({ length: 10 }, (_, digit) => ({
         digit,
         count: 100,
@@ -172,4 +173,82 @@ it('automatically follows the loaded bot market while it trades instead of jumpi
     expect(screen.getByRole('button', { name: 'Load Bot' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Stop bot' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'RUN' })).toBeNull();
+});
+
+it('balances share and sustained momentum instead of simply picking the largest percentage', () => {
+    render(<ManualTrader />);
+    act(() => {
+        const slow = market('R_10', 'over', 84);
+        slow.under.percentage = 80;
+        slow.trend.over = 0.1;
+        const balanced = market('R_50', 'under', 83);
+        balanced.over.percentage = 80;
+        balanced.trend.under = 0.9;
+        const third = market('R_100', 'over', 82);
+        third.under.percentage = 80;
+        third.trend.over = 0.6;
+        [slow, balanced, third].forEach(publish);
+        jest.advanceTimersByTime(100);
+    });
+    expect(screen.getByText('Combined rank #1 of 3 qualifying entries')).toBeTruthy();
+    expect(screen.getByText('Share rank #2 · Momentum rank #1')).toBeTruthy();
+    const suggestion = screen.getByRole('region', { name: 'Suggested bot' });
+    expect(suggestion.textContent).toContain('Chosen share83.0%');
+    expect(suggestion.textContent).toContain('Opposite share80.0%');
+    expect(suggestion.textContent).toContain('Lead+3.0 pp');
+    expect(suggestion.textContent).toContain('20-tick momentum+0.9 pp');
+    fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
+    expect(JSON.parse(sessionStorage.getItem('neto.pendingBot')!)).toMatchObject({
+        symbol: 'R_50',
+        manualTraderSide: 'under',
+    });
+    expect(mockRunPanel.onRunButtonClick).not.toHaveBeenCalled();
+});
+
+it.each(['close', 'warming', 'flat'] as const)('shows no clear entry for a %s market', reason => {
+    render(<ManualTrader />);
+    act(() => {
+        const value = market('R_10', 'over', 80);
+        if (reason === 'close') value.under.percentage = 79;
+        if (reason === 'warming') value.trend = { samples: 19, over: null, under: null };
+        if (reason === 'flat') value.trend.over = 0;
+        publish(value);
+        jest.advanceTimersByTime(100);
+    });
+    expect(screen.getByText('No clear entry')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Load Bot' })).toBeNull();
+});
+
+it('makes the two-percentage-point minimum lead adjustable and validates it', () => {
+    render(<ManualTrader />);
+    act(() => {
+        publish(market('R_10', 'over', 71));
+        jest.advanceTimersByTime(100);
+    });
+    const input = screen.getByLabelText('Minimum lead (pp)');
+    expect(input).toHaveValue(2);
+    expect(screen.getByRole('button', { name: 'Load Bot' })).toBeTruthy();
+    fireEvent.change(input, { target: { value: '5' } });
+    expect(screen.getByText('No clear entry')).toBeTruthy();
+    fireEvent.change(input, { target: { value: '' } });
+    expect(screen.getByRole('alert').textContent).toContain('Enter a minimum lead');
+    fireEvent.change(input, { target: { value: '3' } });
+    expect(screen.getByRole('button', { name: 'Load Bot' })).toBeTruthy();
+});
+
+it('rechecks the top-ranked market on click even before the batched display updates', () => {
+    render(<ManualTrader />);
+    act(() => {
+        publish(market('R_10', 'over'));
+        jest.advanceTimersByTime(100);
+    });
+    act(() => {
+        publish(market('R_50', 'under', 85));
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
+    expect(screen.getByRole('alert').textContent).toContain('A stronger live match');
+    expect(sessionStorage.getItem('neto.pendingBot')).toBeNull();
+    act(() => jest.advanceTimersByTime(100));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Bot' }));
+    expect(JSON.parse(sessionStorage.getItem('neto.pendingBot')!).symbol).toBe('R_50');
 });
