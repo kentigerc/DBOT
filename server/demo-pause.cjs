@@ -10,6 +10,65 @@ const cents = value => {
     return result;
 };
 function validate(spec) {
+    if (spec?.contract !== undefined) {
+        const contract = spec.contract;
+        if (
+            Object.keys(spec).some(key => !['triggerContractId', 'stake', 'contract'].includes(key)) ||
+            !Number.isSafeInteger(spec.triggerContractId) ||
+            spec.triggerContractId <= 0 ||
+            typeof spec.stake !== 'number' ||
+            cents(spec.stake) < 35 ||
+            cents(spec.stake) > 100000000 ||
+            !contract ||
+            typeof contract !== 'object' ||
+            Array.isArray(contract) ||
+            Object.keys(contract).some(
+                key =>
+                    ![
+                        'symbol',
+                        'contract_type',
+                        'duration',
+                        'duration_unit',
+                        'date_expiry',
+                        'barrier',
+                        'barrier2',
+                        'selected_tick',
+                    ].includes(key)
+            ) ||
+            !/^[A-Za-z0-9_.-]{1,80}$/.test(contract.symbol || '') ||
+            !/^[A-Z][A-Z0-9_]{0,31}$/.test(contract.contract_type || '') ||
+            ['MULTUP', 'MULTDOWN', 'ACCU'].includes(contract.contract_type)
+        )
+            throw fail('This bot contract cannot use an automatic demo pause. Real trading remains paused.');
+        if (contract.date_expiry !== undefined) {
+            if (
+                contract.duration !== undefined ||
+                contract.duration_unit !== undefined ||
+                !Number.isSafeInteger(contract.date_expiry) ||
+                contract.date_expiry * 1000 <= Date.now() ||
+                contract.date_expiry * 1000 > Date.now() + 366 * 86400000
+            )
+                throw fail('Invalid demo contract expiry. Real trading remains paused.');
+        } else {
+            const units = { t: 2, s: 1, m: 60, h: 3600, d: 86400 };
+            if (
+                !Object.hasOwn(units, contract.duration_unit) ||
+                !Number.isSafeInteger(contract.duration) ||
+                contract.duration < 1 ||
+                contract.duration * units[contract.duration_unit] > 366 * 86400
+            )
+                throw fail('A finite demo contract duration is required. Real trading remains paused.');
+        }
+        for (const key of ['barrier', 'barrier2'])
+            if (contract[key] !== undefined && !/^[+-]?\d+(?:\.\d+)?$/.test(String(contract[key])))
+                throw fail('Invalid demo contract barrier. Real trading remains paused.');
+        if (
+            contract.selected_tick !== undefined &&
+            (!Number.isSafeInteger(contract.selected_tick) || contract.selected_tick < 1 || contract.selected_tick > 10)
+        )
+            throw fail('Invalid demo tick selection. Real trading remains paused.');
+        return;
+    }
     if (
         !spec ||
         typeof spec !== 'object' ||
@@ -176,18 +235,25 @@ function createDemoPause({
                     const balance = (await broker.send({ balance: 1 })).balance;
                     if (balance?.currency !== 'USD' || cents(balance.balance) < cents(config.stake))
                         throw fail('Insufficient demo balance. Real recovery remains paused.');
-                    const parameters = {
-                        amount: config.stake,
-                        basis: 'stake',
-                        currency: 'USD',
-                        duration: config.duration,
-                        duration_unit: 't',
-                        symbol: config.symbol,
-                        contract_type: config.direction,
-                        ...(['DIGITOVER', 'DIGITUNDER'].includes(config.direction)
-                            ? { barrier: String(config.barrier) }
-                            : {}),
-                    };
+                    const parameters = config.contract
+                        ? {
+                              ...config.contract,
+                              amount: config.stake,
+                              basis: 'stake',
+                              currency: 'USD',
+                          }
+                        : {
+                              amount: config.stake,
+                              basis: 'stake',
+                              currency: 'USD',
+                              duration: config.duration,
+                              duration_unit: 't',
+                              symbol: config.symbol,
+                              contract_type: config.direction,
+                              ...(['DIGITOVER', 'DIGITUNDER'].includes(config.direction)
+                                  ? { barrier: String(config.barrier) }
+                                  : {}),
+                          };
                     const proposal = (await broker.send({ proposal: 1, ...parameters })).proposal;
                     if (
                         !proposal ||
@@ -244,7 +310,18 @@ function createDemoPause({
                 }
                 // STOP blocks subsequent demo orders; an already purchased contract still settles.
                 const pending = state.pending;
-                const deadline = now() + 90000;
+                const config = state.spec.contract;
+                const durationSeconds = config
+                    ? config.date_expiry
+                        ? 0
+                        : config.duration * { t: 2, s: 1, m: 60, h: 3600, d: 86400 }[config.duration_unit]
+                    : state.spec.duration * 2;
+                const deadline = Math.max(
+                    now() + 90000,
+                    config?.date_expiry
+                        ? config.date_expiry * 1000 + 90000
+                        : pending.at + durationSeconds * 1000 + 90000
+                );
                 let contract;
                 do {
                     contract = (await broker.send({ proposal_open_contract: 1, contract_id: pending.contractId }))
@@ -252,6 +329,10 @@ function createDemoPause({
                     if (Number(contract?.contract_id) !== pending.contractId)
                         throw fail('Demo settlement did not match its purchase.');
                     if ([1, true].includes(contract.is_sold)) break;
+                    // Imported bots may use long expiries. A stop/revocation must
+                    // release the worker while preserving its confirmed demo order
+                    // for reconciliation, rather than polling until that expiry.
+                    if (config) await check();
                     if (now() > deadline) throw fail('Demo contract has not settled. Real recovery remains paused.');
                     await wait(500);
                 } while (true);

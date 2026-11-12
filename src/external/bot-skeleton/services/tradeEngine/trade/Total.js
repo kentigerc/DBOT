@@ -1,4 +1,5 @@
 import { getRoundedNumber } from '@/components/shared';
+import { builderDemoPause } from '@/utils/builder-demo-pause';
 import { localize } from '@deriv-com/translations';
 import { LogTypes } from '../../../constants/messages';
 import { createError } from '../../../utils/error';
@@ -38,6 +39,7 @@ export default Engine =>
             const { sell_price: sellPrice, buy_price: buyPrice, currency } = contract;
 
             const profit = getRoundedNumber(Number(sellPrice) - Number(buyPrice), currency);
+            builderDemoPause.contract(this.accountInfo.loginid, contract, Number(profit));
 
             const win = profit > 0;
 

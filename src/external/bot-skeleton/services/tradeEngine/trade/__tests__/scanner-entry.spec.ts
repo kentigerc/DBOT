@@ -9,6 +9,7 @@ import { BEFORE_PURCHASE } from '../state/constants';
 import { api_base } from '../../../api/api-base';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { builderDemoPause } from '@/utils/builder-demo-pause';
 jest.mock('../../../api/api-helpers', () => ({
     __esModule: true,
     default: { instance: { contracts_for: { getContractsFor: jest.fn() } } },
@@ -63,6 +64,48 @@ it('does not send the XML purchase until the scanner entry gate allows it', asyn
 });
 it('STOP while waiting for entry prevents a wire purchase', async () => {
     jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(false);
+    const engine = new (Purchase(Base))();
+    await engine.purchase('DIGITOVER');
+    expect(api_base.api.send).not.toHaveBeenCalled();
+});
+
+it('holds a standard Builder XML order behind its demo pause and preserves the XML recovery stake', async () => {
+    jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
+    let release!: (allow: boolean) => void;
+    const pause = jest.spyOn(builderDemoPause, 'beforePurchase').mockImplementation(
+        () =>
+            new Promise(resolve => {
+                release = resolve;
+            })
+    );
+    const record = jest.spyOn(builderDemoPause, 'purchased');
+    (api_base.api.send as jest.Mock).mockResolvedValue({
+        buy: { contract_id: 321, transaction_id: 322, buy_price: 6.85 },
+    });
+    const engine = new (Purchase(Base))();
+    engine.tradeOptions.amount = 6.85;
+    const task = engine.purchase('DIGITUNDER', 8);
+    for (let n = 0; n < 10 && !release; n++) await Promise.resolve();
+    expect(pause).toHaveBeenCalledWith(
+        'TEST',
+        expect.objectContaining({ symbol: 'R_100', contract_type: 'DIGITUNDER', prediction: 8 }),
+        6.85
+    );
+    expect(api_base.api.send).not.toHaveBeenCalled();
+    release(true);
+    await task;
+    expect(api_base.api.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+            price: 6.85,
+            parameters: expect.objectContaining({ amount: 6.85, contract_type: 'DIGITUNDER' }),
+        })
+    );
+    expect(record).toHaveBeenCalledWith('TEST', 321, 6.85);
+});
+
+it('sends no Builder order when the demo pause stops or cannot confirm a win', async () => {
+    jest.spyOn(xmlScannerCycle, 'beforePurchase').mockResolvedValue(true);
+    jest.spyOn(builderDemoPause, 'beforePurchase').mockResolvedValue(false);
     const engine = new (Purchase(Base))();
     await engine.purchase('DIGITOVER');
     expect(api_base.api.send).not.toHaveBeenCalled();

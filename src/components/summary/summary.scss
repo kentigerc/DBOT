@@ -16,6 +16,12 @@
     &--loading {
         width: 100%;
     }
+    &--demo-pause {
+        display: block;
+        .demo-pause-status {
+            margin: 12px;
+        }
+    }
 
     &--delayed-loading {
         justify-content: center;

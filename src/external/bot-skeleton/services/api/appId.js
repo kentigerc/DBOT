@@ -3,12 +3,14 @@ import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
 import { scannerExitGuard } from '@/utils/scanner-exit-guard';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { builderDemoPause } from '@/utils/builder-demo-pause';
 import DerivAPIBasic from '@deriv/deriv-api/dist/DerivAPIBasic';
 import APIMiddleware from './api-middleware';
 import { NewApiTransport } from './new-api-transport';
 
 export const accountPurchaseGuard = accountId => ({
     purchase: () =>
+        builderDemoPause.canPurchase(accountId) &&
         xmlScannerCycle.canPurchase(accountId) &&
         scannerExitGuard.purchase() &&
         xmlScannerCycle.purchase(accountId) &&

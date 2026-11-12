@@ -3,6 +3,7 @@ import { scanXmlParityRecovery, refreshXmlParityRecovery } from '@/utils/xml-par
 import { generateDerivApiInstance } from '../../api/appId';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { builderDemoPause } from '@/utils/builder-demo-pause';
 import { LogTypes } from '../../../constants/messages';
 import { api_base } from '../../api/api-base';
 import { contractStatus, info, log } from '../utils/broadcast';
@@ -96,11 +97,25 @@ export default Engine =>
             )
                 return;
             if (this.store.getState().scope !== BEFORE_PURCHASE) return;
+            const heldPrice =
+                this.is_proposal_subscription_required && !parityRecovery && prediction === undefined
+                    ? this.selectProposal(contract_type).askPrice
+                    : purchaseOptions.amount;
+            if (
+                !(await builderDemoPause.beforePurchase(
+                    this.accountInfo.loginid,
+                    tradeOptionToBuy(contract_type, purchaseOptions).parameters,
+                    Number(heldPrice)
+                ))
+            )
+                return;
+            if (this.store.getState().scope !== BEFORE_PURCHASE) return;
             const onSuccess = response => {
                 if (response === manualCancelled) return;
                 // Don't unnecessarily send a forget request for a purchased contract.
                 const { buy } = response;
                 this.xmlLastPurchaseStake = Number(buy.buy_price);
+                builderDemoPause.purchased(this.accountInfo.loginid, buy.contract_id, Number(buy.buy_price));
                 if (parityRecovery && recoveryPlan) xmlScannerCycle.lockRecoveryPlan(recoveryPlan);
 
                 contractStatus({

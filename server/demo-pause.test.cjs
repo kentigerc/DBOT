@@ -74,7 +74,12 @@ function fixture(t, options = {}) {
                             dropWatch = false;
                             throw new Error('Connection closed during settlement');
                         }
-                        return { proposal_open_contract: contracts.get(body.contract_id) };
+                        return {
+                            proposal_open_contract: {
+                                ...contracts.get(body.contract_id),
+                                ...(options.open ? { is_sold: 0 } : {}),
+                            },
+                        };
                     }
                     throw new Error('Unexpected request');
                 },
@@ -120,6 +125,65 @@ test('returns immediately after a first-trade demo win', async t => {
     assert.equal(result.completed, 1);
     assert.equal(result.wins, 1);
     assert.equal(f.orders.length, 1);
+});
+test('Builder demo pauses preserve uploaded bot digit contracts and tick duration', async t => {
+    const f = fixture(t);
+    const result = await f.runner.run({}, real, {
+        triggerContractId: 100,
+        stake: 0.35,
+        contract: { symbol: '1HZ90V', contract_type: 'DIGITDIFF', barrier: '4', duration: 10, duration_unit: 't' },
+    });
+    assert.equal(result.wins, 1);
+    assert.equal(result.completed, 2);
+    assert.ok(
+        f.orders.every(
+            order =>
+                order.parameters.contract_type === 'DIGITDIFF' &&
+                order.parameters.barrier === '4' &&
+                order.parameters.duration === 10 &&
+                order.parameters.symbol === '1HZ90V'
+        )
+    );
+});
+test('Builder demo pauses support finite Rise/Fall contracts and retain their duration unit', async t => {
+    const f = fixture(t, { profits: [0.32] });
+    await f.runner.run({}, real, {
+        triggerContractId: 100,
+        stake: 0.35,
+        contract: { symbol: 'frxEURUSD', contract_type: 'CALL', duration: 5, duration_unit: 'm' },
+    });
+    assert.equal(f.orders[0].parameters.duration_unit, 'm');
+    assert.equal(f.orders[0].parameters.contract_type, 'CALL');
+});
+
+test('STOP releases a long-expiry Builder demo worker and retains its confirmed order for reconciliation', async t => {
+    const controller = new AbortController();
+    const options = { open: true, onBuy: () => controller.abort() };
+    const f = fixture(t, options);
+    const plan = {
+        triggerContractId: 100,
+        stake: 0.35,
+        contract: { symbol: 'R_100', contract_type: 'CALL', duration: 1, duration_unit: 'd' },
+    };
+    await assert.rejects(f.runner.run({}, real, plan, { signal: controller.signal }), /stopped/);
+    assert.equal(f.orders.length, 1);
+    assert.equal((await f.runner.status(real.account_id, 100)).pendingContractId, 1001);
+    options.open = false;
+    assert.equal((await f.runner.run({}, real, plan)).wins, 1);
+    assert.equal(f.orders.length, 2, 'The confirmed demo order is reconciled instead of duplicated');
+});
+test('rejects unsupported or tampered Builder contract parameters before any demo purchase', async t => {
+    const f = fixture(t);
+    for (const contract of [
+        { symbol: '../private', contract_type: 'CALL', duration: 1, duration_unit: 't' },
+        { symbol: 'R_100', contract_type: 'ACCU', duration: 1, duration_unit: 't' },
+        { symbol: 'R_100', contract_type: 'CALL', duration: 1, duration_unit: 'constructor' },
+        { symbol: 'R_100', contract_type: 'CALL', duration: 1, duration_unit: 't', account_id: 'OTHER' },
+        { symbol: 'R_100', contract_type: 'CALL' },
+        { symbol: 'R_100', contract_type: 'CALL', duration: -1, duration_unit: 't' },
+    ])
+        await assert.rejects(f.runner.run({}, real, { triggerContractId: 100, stake: 0.35, contract }));
+    assert.equal(f.orders.length, 0);
 });
 
 test('keeps waiting for a win over a long demo loss streak with bounded settlement history', async t => {

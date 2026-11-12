@@ -20,6 +20,7 @@ import { helpers } from '@/utils/store-helpers';
 import { checkServerAnalysis, isAnalysisTrading } from '@/utils/trading-lock';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { builderDemoPause } from '@/utils/builder-demo-pause';
 import { Buy, ProposalOpenContract } from '@deriv/api-types';
 import { TStores } from '@deriv/stores/types';
 import { localize } from '@deriv-com/translations';
@@ -397,6 +398,18 @@ export default class RunPanelStore {
                 }
                 this.onStopButtonClick();
             });
+            builderDemoPause.begin(
+                getDerivAccount(),
+                xmlScannerCycle.getSnapshot().enabled,
+                () => this.onStopButtonClick(),
+                message =>
+                    this.root_store.journal.onNotify({
+                        message,
+                        message_type: MessageTypes.NOTIFY,
+                        className: 'journal__text--info',
+                        sound: 'silent',
+                    })
+            );
             this.setIsRunning(true);
             ui.setPromptHandler(true);
             this.toggleDrawer(true);
@@ -448,6 +461,7 @@ export default class RunPanelStore {
     };
 
     stopBot = () => {
+        builderDemoPause.stop();
         manualTraderGate.stop();
         const { ui } = this.core;
 
@@ -920,6 +934,7 @@ export default class RunPanelStore {
     };
 
     setIsRunning = (is_running: boolean) => {
+        if (!is_running) builderDemoPause.stop();
         if (!is_running) manualTraderGate.stop();
         this.is_running = is_running;
     };

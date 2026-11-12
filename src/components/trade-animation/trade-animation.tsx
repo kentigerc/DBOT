@@ -8,6 +8,7 @@ import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { manualTraderGate } from '@/utils/manual-trader-gate';
+import { builderDemoPause } from '@/utils/builder-demo-pause';
 import { LabelPairedPlayLgFillIcon, LabelPairedSquareLgFillIcon } from '@deriv/quill-icons/LabelPaired';
 import { Localize, localize } from '@deriv-com/translations';
 import { useDevice } from '@deriv-com/ui';
@@ -28,6 +29,7 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
     const movable = useMovablePanel('Run/Stop bar');
     const auto = React.useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
     const manual = React.useSyncExternalStore(manualTraderGate.subscribe, manualTraderGate.getSnapshot);
+    const builderDemo = React.useSyncExternalStore(builderDemoPause.subscribe, builderDemoPause.getSnapshot);
     const { dashboard, run_panel, summary_card, blockly_store } = useStore();
     const { client } = useStore();
     const { active_tab } = dashboard;
@@ -159,7 +161,10 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
             icon: <LabelPairedPlayLgFillIcon fill='#fff' />,
         };
     }, [is_stop_button_visible]);
-    const show_overlay = should_show_overlay && is_contract_completed;
+    const demo_paused =
+        (builderDemo.enabled && builderDemo.demoPause?.status === 'running') ||
+        (auto.enabled && auto.demoPause?.status === 'running');
+    const show_overlay = should_show_overlay && is_contract_completed && !demo_paused;
 
     // Fix TypeScript error by ensuring active_tab is a number
     // Use a non-null assertion to tell TypeScript that active_tab will be a number
@@ -262,7 +267,9 @@ const TradeAnimation = observer(({ className, should_show_overlay }: TTradeAnima
             >
                 {show_overlay && <ContractResultOverlay profit={profit} />}
                 <span className='animation__text'>
-                    {auto.enabled && auto.demoPause?.status === 'running' ? (
+                    {builderDemo.enabled && builderDemo.demoPause?.status === 'running' ? (
+                        <span>Demo pause · {builderDemo.demoPause.completed} trades · Waiting for a win</span>
+                    ) : auto.enabled && auto.demoPause?.status === 'running' ? (
                         <span>Demo pause · {auto.demoPause.completed} trades · Waiting for a win</span>
                     ) : auto.enabled &&
                       ['waiting', 'loading', 'scanning', 'cooldown', 'switching'].includes(auto.phase) ? (
