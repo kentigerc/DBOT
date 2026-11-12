@@ -38,7 +38,7 @@ it('exposes the requested settings and starts the named strategy only on RUN', a
         expect(client.start).toHaveBeenCalledWith(
             expect.objectContaining({
                 strategy: 'over2-under7',
-                duration: 2,
+                duration: 1,
                 multiplier: 3,
                 stake: 0.35,
                 maxLosses: 10,
@@ -162,7 +162,7 @@ it('shows the full journal newest first with contract details and coloured net r
 it('starts the standalone Even/Odd tool with the selected tick duration', async () => {
     render(<DigitCycle parity />);
     expect(screen.getByRole('heading', { name: 'EVEN / ODD STRATEGY' })).toBeTruthy();
-    expect((screen.getByLabelText('Contract duration') as HTMLSelectElement).value).toBe('2');
+    expect((screen.getByLabelText('Contract duration') as HTMLSelectElement).value).toBe('1');
     expect((screen.getByLabelText('Martingale multiplier') as HTMLInputElement).value).toBe('2.1');
     fireEvent.change(screen.getByLabelText('Contract duration'), { target: { value: '5' } });
     expect(screen.queryByRole('option', { name: '6 ticks' })).toBeNull();
@@ -331,12 +331,12 @@ it.each(['open contract', 'batch', 'recovery'])('pins the HIT AND RUN preview du
     }
 });
 
-it('starts Even/Odd with shared x2.1 and two-tick defaults and restores them on reset', async () => {
+it('starts Even/Odd with shared x2.1 and one-tick defaults and restores them on reset', async () => {
     render(<DigitCycle parity />);
     fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
     await waitFor(() =>
         expect(client.start).toHaveBeenCalledWith(
-            expect.objectContaining({ strategy: 'even-odd', multiplier: 2.1, duration: 2 }),
+            expect.objectContaining({ strategy: 'even-odd', multiplier: 2.1, duration: 1 }),
             undefined
         )
     );
@@ -344,5 +344,5 @@ it('starts Even/Odd with shared x2.1 and two-tick defaults and restores them on 
     fireEvent.change(screen.getByLabelText('Contract duration'), { target: { value: '4' } });
     fireEvent.click(screen.getByRole('button', { name: 'Reset stopped session' }));
     await waitFor(() => expect((screen.getByLabelText('Martingale multiplier') as HTMLInputElement).value).toBe('2.1'));
-    expect((screen.getByLabelText('Contract duration') as HTMLSelectElement).value).toBe('2');
+    expect((screen.getByLabelText('Contract duration') as HTMLSelectElement).value).toBe('1');
 });

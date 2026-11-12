@@ -10,7 +10,6 @@ const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const defaults = (parity = false): Settings => ({
     ...DEFAULT_SETTINGS,
     ...(parity ? { multiplier: 2.1 } : {}),
-    duration: 2,
     strategy: parity ? 'even-odd' : 'over2-under7',
     hitRecovery: 'analysis',
 });

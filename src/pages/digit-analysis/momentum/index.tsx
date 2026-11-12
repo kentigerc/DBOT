@@ -11,7 +11,6 @@ const defaults = (): Settings => ({
     hitRecovery: 'same_contract',
     recoveryMode: 'same_contract',
     multiplier: 2.5,
-    duration: 1,
 });
 const money = (amount: number) => `$${(amount / 100).toFixed(2)}`;
 export default function Momentum() {
