@@ -93,14 +93,38 @@ class ManualMomentum {
         return { samples, over: change('over'), under: change('under') };
     }
 }
-function delay(signal: AbortSignal) {
+// Show controlled diagnostics, never arbitrary provider messages, URLs, tokens or stack traces.
+export function manualConnectionReason(error: unknown): string {
+    const known = new Set([
+        'Live market connection unavailable.',
+        'All live Volatility feeds became stale.',
+        'Market discovery request timed out.',
+        'Market history request timed out.',
+        'Market data request timed out.',
+        'No available Volatility markets.',
+        'Market history is incomplete.',
+        'Market precision is unavailable.',
+        'Market history timestamps are delayed. Check your device clock.',
+        'Invalid market digits.',
+    ]);
+    let current = error;
+    for (let depth = 0; depth < 3 && current && typeof current === 'object'; depth++) {
+        const value = current as { message?: unknown; code?: unknown; error?: unknown; cause?: unknown };
+        if (typeof value.code === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(value.code))
+            return `Market data error (${value.code}).`;
+        if (typeof value.message === 'string' && known.has(value.message)) return value.message;
+        current = value.cause || value.error;
+    }
+    return 'Live market data could not be loaded.';
+}
+function delay(signal: AbortSignal, milliseconds: number) {
     return new Promise<void>(resolve => {
         const finish = () => {
             clearTimeout(timer);
             signal.removeEventListener('abort', finish);
             resolve();
         };
-        const timer = setTimeout(finish, 2000);
+        const timer = setTimeout(finish, milliseconds);
         signal.addEventListener('abort', finish, { once: true });
         if (signal.aborted) finish();
     });
@@ -115,11 +139,13 @@ export async function watchManualMarkets(
     onlySymbol?: string,
     after?: () => number
 ) {
+    let failures = 0;
     while (!signal.aborted) {
         let api: (VolatilityApi & { disconnect: () => void }) | undefined;
         const markets = new Map<string, DigitMarket>();
         const trends = new Map<string, ManualMomentum>();
         let lastReset = after?.() || 0;
+        let retrySeconds = 2;
         try {
             status('Connecting to live markets…');
             api = await createApi();
@@ -129,6 +155,7 @@ export async function watchManualMarkets(
                 1000,
                 signal,
                 sample => {
+                    if (sample.live) failures = 0;
                     const reset = after?.() || 0;
                     if (reset !== lastReset) {
                         markets.forEach(market => market.resetMomentum());
@@ -175,13 +202,14 @@ export async function watchManualMarkets(
                     },
                 }
             );
-        } catch {
+        } catch (error) {
             if (signal.aborted) return;
             stale();
-            status('Market connection interrupted. Reconnecting…');
+            retrySeconds = Math.min(30, 2 ** Math.min(++failures, 5));
+            status(`Market connection interrupted. ${manualConnectionReason(error)} Reconnecting in ${retrySeconds}s…`);
         } finally {
             api?.disconnect();
         }
-        if (!signal.aborted) await delay(signal);
+        if (!signal.aborted) await delay(signal, retrySeconds * 1000);
     }
 }

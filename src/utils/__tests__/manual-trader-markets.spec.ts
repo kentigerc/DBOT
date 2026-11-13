@@ -1,5 +1,11 @@
 import { observeVolatilityMarkets, type LiveVolatilitySample } from '../live-volatility-markets';
-import { watchManualMarkets, manualEntryReady, rankManualMarkets, type ManualMarket } from '../manual-trader-markets';
+import {
+    watchManualMarkets,
+    manualEntryReady,
+    rankManualMarkets,
+    manualConnectionReason,
+    type ManualMarket,
+} from '../manual-trader-markets';
 jest.mock('../live-volatility-markets', () => ({ observeVolatilityMarkets: jest.fn() }));
 it('uses Momentum’s live rising share and 20 live ticks and two-digit formation, clearing only that formation after settlement', async () => {
     jest.useFakeTimers();
@@ -170,3 +176,54 @@ it.each(['over', 'under'] as const)(
         });
     }
 );
+
+it('explains failed history and provider codes without exposing arbitrary error text', () => {
+    expect(
+        manualConnectionReason(
+            Object.assign(new Error('No fresh live Volatility feeds.'), {
+                cause: new Error('Market history is incomplete.'),
+            })
+        )
+    ).toBe('Market history is incomplete.');
+    expect(manualConnectionReason({ error: { code: 'RateLimit', message: 'private provider detail' } })).toBe(
+        'Market data error (RateLimit).'
+    );
+    expect(manualConnectionReason(new Error('wss://private.example/?token=secret'))).toBe(
+        'Live market data could not be loaded.'
+    );
+    expect(manualConnectionReason({ code: 'bad secret token', message: 'private detail' })).toBe(
+        'Live market data could not be loaded.'
+    );
+});
+
+it('backs off repeated initialization failures and cancels retry when stopped', async () => {
+    jest.useFakeTimers();
+    const controller = new AbortController(),
+        status = jest.fn(),
+        disconnect = jest.fn();
+    const create = jest.fn(async () => ({ disconnect }) as any);
+    (observeVolatilityMarkets as jest.Mock).mockRejectedValue({ code: 'RateLimit' });
+    const watching = watchManualMarkets(create, controller.signal, jest.fn(), status, jest.fn());
+    try {
+        await jest.advanceTimersByTimeAsync(0);
+        expect(status).toHaveBeenLastCalledWith(
+            'Market connection interrupted. Market data error (RateLimit). Reconnecting in 2s…'
+        );
+        await jest.advanceTimersByTimeAsync(2000);
+        expect(create).toHaveBeenCalledTimes(2);
+        expect(status).toHaveBeenLastCalledWith(
+            'Market connection interrupted. Market data error (RateLimit). Reconnecting in 4s…'
+        );
+        await jest.advanceTimersByTimeAsync(4000);
+        expect(create).toHaveBeenCalledTimes(3);
+        expect(status).toHaveBeenLastCalledWith(
+            'Market connection interrupted. Market data error (RateLimit). Reconnecting in 8s…'
+        );
+        expect(disconnect).toHaveBeenCalledTimes(3);
+    } finally {
+        controller.abort();
+        await watching;
+        expect(jest.getTimerCount()).toBe(0);
+        jest.useRealTimers();
+    }
+});

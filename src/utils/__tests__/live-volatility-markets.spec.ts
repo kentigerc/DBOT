@@ -121,3 +121,55 @@ it('refills one stalled feed without disconnecting the other live markets', asyn
     await pending;
     expect(jest.getTimerCount()).toBe(0);
 });
+
+it('does not wait for a discovery timeout if the socket already closed before observation started', async () => {
+    const api = fixture();
+    Object.assign(api.connection, { readyState: 3 });
+    await expect(
+        observeVolatilityMarkets(api, 100, new AbortController().signal, jest.fn(), jest.fn())
+    ).rejects.toThrow('connection unavailable');
+    expect(api.send).not.toHaveBeenCalled();
+    expect(api.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it('preserves provider error codes instead of reporting rejected discovery as an empty market list', async () => {
+    const api = fixture();
+    api.send = jest.fn(async (_body: Record<string, unknown>) => ({
+        error: { code: 'RateLimit', message: 'provider detail' },
+    }));
+    await expect(
+        observeVolatilityMarkets(api, 100, new AbortController().signal, jest.fn(), jest.fn())
+    ).rejects.toMatchObject({ code: 'RateLimit' });
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it('preserves the failed history reason when no market can be initialized', async () => {
+    const api = fixture(),
+        send = api.send;
+    api.send = jest.fn(async body =>
+        body.active_symbols
+            ? send(body)
+            : {
+                  pip_size: 2,
+                  history: { prices: Array(100).fill(100.01), times: [now - 30] },
+              }
+    );
+    await expect(
+        observeVolatilityMarkets(api, 100, new AbortController().signal, jest.fn(), jest.fn())
+    ).rejects.toMatchObject({
+        message: 'No fresh live Volatility feeds.',
+        cause: expect.objectContaining({ message: 'Market history timestamps are delayed. Check your device clock.' }),
+    });
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it('records a socket close code without including the remote close reason', async () => {
+    const api = fixture(),
+        controller = new AbortController();
+    const pending = observeVolatilityMarkets(api, 100, controller.signal, jest.fn(), jest.fn());
+    const result = expect(pending).rejects.toMatchObject({ code: 'Socket1006' });
+    api.connection.dispatchEvent(new CloseEvent('close', { code: 1006, reason: 'private remote detail' }));
+    await result;
+    expect(jest.getTimerCount()).toBe(0);
+});

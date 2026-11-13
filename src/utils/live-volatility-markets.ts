@@ -17,7 +17,7 @@ type Response = {
     subscription?: { id: string };
 };
 export type VolatilityApi = {
-    connection?: EventTarget;
+    connection?: EventTarget & { readyState?: number };
     onMessage: () => { subscribe: (fn: (event: { data: Response }) => void) => { unsubscribe: () => void } };
     send: (body: Record<string, unknown>) => Promise<Response>;
 };
@@ -74,7 +74,15 @@ export async function observeVolatilityMarkets(
         pending.abort();
     };
     const abort = () => finish();
-    const closed = () => finish(new Error('Live market connection unavailable.'));
+    const closed = (event: Event) => {
+        const code = (event as CloseEvent).code;
+        finish(
+            Object.assign(new Error('Live market connection unavailable.'), {
+                code:
+                    Number.isInteger(code) && code >= 1000 && code <= 4999 ? `Socket${code}` : 'MarketConnectionClosed',
+            })
+        );
+    };
     const invalidate = (feed: Feed) => {
         if (feed.failed) return;
         feed.failed = true;
@@ -102,15 +110,22 @@ export async function observeVolatilityMarkets(
         let timer: ReturnType<typeof setTimeout> | undefined;
         let cancel = () => {};
         try {
-            return await Promise.race([
+            const response = await Promise.race([
                 api.send(body),
                 new Promise<never>((_, no) => {
                     cancel = () => no(new Error('Market observation stopped.'));
                     requestSignal.addEventListener('abort', cancel, { once: true });
                     if (requestSignal.aborted) cancel();
-                    timer = setTimeout(() => no(new Error('Market data request timed out.')), 15000);
+                    const type = body.active_symbols
+                        ? 'Market discovery'
+                        : body.ticks_history
+                          ? 'Market history'
+                          : 'Market data';
+                    timer = setTimeout(() => no(new Error(`${type} request timed out.`)), 15000);
                 }),
             ]);
+            if (response.error) throw response.error;
+            return response;
         } finally {
             clearTimeout(timer);
             requestSignal.removeEventListener('abort', cancel);
@@ -155,13 +170,10 @@ export async function observeVolatilityMarkets(
             const prices = h.history?.prices,
                 times = h.history?.times;
             const epoch = Number(times?.slice(-1)[0]);
-            if (
-                !Array.isArray(prices) ||
-                prices.length < sampleSize ||
-                !Number.isInteger(h.pip_size) ||
-                !freshVolatilityEpoch(epoch)
-            )
-                throw new Error('Invalid market history.');
+            if (!Array.isArray(prices) || prices.length < sampleSize) throw new Error('Market history is incomplete.');
+            if (!Number.isInteger(h.pip_size)) throw new Error('Market precision is unavailable.');
+            if (!freshVolatilityEpoch(epoch))
+                throw new Error('Market history timestamps are delayed. Check your device clock.');
             const digits = prices.slice(-sampleSize).map(price => lastDigit(price, h.pip_size!));
             if (digits.some(d => d === null)) throw new Error('Invalid market digits.');
             feed.digits = digits as number[];
@@ -210,11 +222,14 @@ export async function observeVolatilityMarkets(
     }, 1000);
     try {
         if (signal.aborted) return;
+        if ((api.connection?.readyState ?? 0) >= 2) throw new Error('Live market connection unavailable.');
+        status('Discovering Volatility markets…');
         const response = await request({ active_symbols: 'brief' });
         const markets = (response.active_symbols || []).filter(
             m => /^(R_\d+|1HZ\d+V)$/.test(m.symbol) && m.exchange_is_open && !m.is_trading_suspended
         );
         if (!markets.length) throw new Error('No available Volatility markets.');
+        status(`Loading live histories for ${markets.length} Volatility markets…`);
         markets.forEach(market =>
             feeds.set(market.symbol, {
                 market,
