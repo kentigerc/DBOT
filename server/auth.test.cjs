@@ -67,7 +67,16 @@ async function fixture(t, options = {}) {
             await request('/api/auth/terms', { accepted: true, version: require('../config/terms.json').version });
         return auth;
     }
-    return { request, login, authenticated, cookies, calls, handler };
+    // Exercise OTP authorization internally; credentials must never have an HTTP response route.
+    const connection = async accountId => {
+        const req = { headers: { cookie: [...cookies].map(([key, value]) => `${key}=${value}`).join('; ') } };
+        try {
+            return Response.json({ url: await handler.connectionUrl(req, accountId) });
+        } catch (error) {
+            return Response.json({ error: error.message }, { status: error.status || 500 });
+        }
+    };
+    return { request, connection, login, authenticated, cookies, calls, handler };
 }
 
 test('recovery demo account is selected only from the authenticated Deriv session', async t => {
@@ -148,20 +157,20 @@ test('session returns account metadata and never a bearer token', async t => {
 test('unknown accounts cannot request a trading connection', async t => {
     const app = await fixture(t);
     await app.authenticated();
-    assert.equal((await app.request('/api/connection', { account_id: 'SOMEONE-ELSE' })).status, 403);
+    assert.equal((await app.connection('SOMEONE-ELSE')).status, 403);
     assert.ok(!app.calls.some(call => call.url.endsWith('/otp')));
 });
 
 test('owned account requests get fresh OTP URLs; logout clears authentication', async t => {
     const app = await fixture(t);
     await app.authenticated();
-    const response = await app.request('/api/connection', { account_id: 'DOT100' });
+    const response = await app.connection('DOT100');
     assert.equal(response.status, 200);
     assert.equal(new URL((await response.json()).url).hostname, 'api.derivws.com');
     assert.ok(app.calls.at(-1).url.endsWith('/accounts/DOT100/otp'));
     await app.request('/api/auth/logout', {});
     assert.equal((await (await app.request('/api/session')).json()).authenticated, false);
-    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 401);
+    assert.equal((await app.connection('DOT100')).status, 401);
 });
 
 test('tampered session cookies are not accepted', async t => {
@@ -195,7 +204,7 @@ test('unexpected OTP destination fails closed', async t => {
         },
     });
     await app.authenticated();
-    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 502);
+    assert.equal((await app.connection('DOT100')).status, 502);
 });
 
 test('production needs a strong secret and HTTPS', () => {
@@ -380,7 +389,7 @@ test('account lookup and OTP requests explicitly attribute trading connections t
     const app = await fixture(t);
     await app.authenticated();
     await app.request('/api/session');
-    const response = await app.request('/api/connection', { account_id: 'DOT100' });
+    const response = await app.connection('DOT100');
     assert.equal(response.status, 200);
     const tradingCalls = app.calls.filter(call => call.url.startsWith('https://api.derivws.com/trading/'));
     assert.ok(tradingCalls.some(call => call.url.endsWith('/accounts')));
@@ -472,19 +481,19 @@ test('terms acceptance belongs to this login, survives refresh and is cleared by
     const version = require('../config/terms.json').version;
     await app.authenticated(false);
     assert.equal((await (await app.request('/api/session')).json()).termsAccepted, false);
-    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 403);
+    assert.equal((await app.connection('DOT100')).status, 403);
     assert.equal((await app.request('/api/auth/terms', { accepted: false, version })).status, 400);
     assert.equal((await app.request('/api/auth/terms', { accepted: true, version: 'old' })).status, 400);
     assert.equal((await app.request('/api/auth/terms', { accepted: true, version })).status, 200);
     assert.equal((await (await app.request('/api/session')).json()).termsAccepted, true);
     const oldAcceptance = app.cookies.get('neto_terms');
-    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 200);
+    assert.equal((await app.connection('DOT100')).status, 200);
     await app.request('/api/auth/logout', {});
     assert.equal(app.cookies.get('neto_terms'), '');
     await app.authenticated(false);
     app.cookies.set('neto_terms', oldAcceptance);
     assert.equal((await (await app.request('/api/session')).json()).termsAccepted, false);
-    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 403);
+    assert.equal((await app.connection('DOT100')).status, 403);
 });
 test('terms cannot be accepted by guests or from a foreign origin', async t => {
     const app = await fixture(t);
@@ -545,7 +554,7 @@ test('permission failures are not retried and OTP POSTs are never replayed', asy
     state.failures = 1;
     assert.equal((await app.request('/api/session')).status, 502);
     assert.equal(state.accountCalls, 1);
-    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 503);
+    assert.equal((await app.connection('DOT100')).status, 503);
     assert.equal(state.otpCalls, 1);
 });
 test('an unavailable OAuth token endpoint is not retried', async t => {
@@ -699,8 +708,7 @@ test('parallel session checks share one account read and connection checks reuse
     release();
     assert.ok((await parallel).every(response => response.status === 200));
     assert.equal(accountCalls, 1);
-    for (let i = 0; i < 2; i++)
-        assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 200);
+    for (let i = 0; i < 2; i++) assert.equal((await app.connection('DOT100')).status, 200);
     assert.equal(accountCalls, 1);
     assert.equal(otpCalls, 2); // OTPs remain single-use and are never cached.
     clock += 30000;
@@ -727,7 +735,61 @@ test('rate-limited OTP POSTs are never automatically replayed', async t => {
         },
     });
     await app.authenticated();
-    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 429);
-    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 429);
+    assert.equal((await app.connection('DOT100')).status, 429);
+    assert.equal((await app.connection('DOT100')).status, 429);
     assert.equal(otpCalls, 1);
 });
+
+test('HTTP clients cannot obtain an OTP URL, even with an owned account and accepted terms', async t => {
+    const app = await fixture(t);
+    for (const loggedIn of [false, true]) {
+        if (loggedIn) await app.authenticated();
+        const before = app.calls.length;
+        for (const body of [undefined, { account_id: 'DOT100' }]) {
+            const response = await app.request('/api/connection', body);
+            assert.equal(response.status, 404);
+            assert.doesNotMatch(await response.text(), /otp|wss:|test-one-time/);
+        }
+        assert.equal(app.calls.length, before);
+    }
+});
+
+for (const operation of ['authorizeAccount', 'requireAdmin', 'demoAccount', 'connectionUrl']) {
+    test(`${operation} refuses logout on another instance during upstream authorization`, async t => {
+        let release, announce;
+        const started = new Promise(resolve => {
+            announce = resolve;
+        });
+        const held = new Promise(resolve => {
+            release = resolve;
+        });
+        const revoked = new Set();
+        const revocations = { isRevoked: async sid => revoked.has(sid), revoke: async sid => revoked.add(sid) };
+        const app = await fixture(t, {
+            handler: { adminAccountIds: ['DOT100'], revocations },
+            upstream: async url => {
+                if (url.endsWith('/oauth2/token'))
+                    return Response.json({ access_token: 'test-only-bearer', expires_in: 3600 });
+                // OTP authorization already rechecks account discovery. Hold its OTP response instead.
+                if ((operation === 'connectionUrl') === url.endsWith('/otp')) {
+                    announce();
+                    await held;
+                }
+                return url.endsWith('/otp')
+                    ? Response.json({ data: { url: 'wss://api.derivws.com/trading/v1/options/ws/demo?otp=test-only' } })
+                    : Response.json({
+                          data: [{ account_id: 'DOT100', account_type: 'demo', currency: 'USD', status: 'active' }],
+                      });
+            },
+        });
+        await app.authenticated();
+        const req = { headers: { cookie: [...app.cookies].map(([key, value]) => `${key}=${value}`).join('; ') } };
+        const other = await fixture(t, { handler: { revocations } });
+        for (const [key, value] of app.cookies) other.cookies.set(key, value);
+        const result = assert.rejects(app.handler[operation](req, 'DOT100'), { status: 401 });
+        await started;
+        assert.equal((await other.request('/api/auth/logout', {})).status, 200);
+        release();
+        await result;
+    });
+}

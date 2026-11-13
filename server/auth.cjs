@@ -335,6 +335,8 @@ function createAuthHandler({
         ) {
             throw new HttpError(502, 'Deriv returned an unexpected connection URL.');
         }
+        // Logout may complete while OTP issuance is in flight, including on another instance.
+        await verifiedSession(req);
         return socket.toString();
     }
     const handle = async function (req, res) {
@@ -476,10 +478,6 @@ function createAuthHandler({
                     renewable: !!readCookie(req, REFRESH_COOKIE),
                 });
             }
-            if (url.pathname === '/api/connection' && req.method === 'POST') {
-                const { account_id } = await readBody(req);
-                return json(res, 200, { url: await connectionUrl(req, account_id) });
-            }
             return json(res, 404, { error: 'API route not found.' });
         } catch (error) {
             if (error.status === 429 && error.retryAfter) res.setHeader('Retry-After', String(error.retryAfter));
@@ -519,6 +517,7 @@ function createAuthHandler({
     handle.authorizeAccount = async (req, accountId) => {
         const saved = await verifiedSession(req);
         const accounts = await cachedAccounts(saved);
+        await verifiedSession(req);
         const account = accounts.find(item => item.account_id === accountId && item.status === 'active');
         if (!account) throw new HttpError(403, 'This trading account is not available in your Deriv session.');
         return account;
@@ -526,6 +525,7 @@ function createAuthHandler({
     handle.demoAccount = async req => {
         const saved = await verifiedSession(req);
         const accounts = await cachedAccounts(saved);
+        await verifiedSession(req);
         const account = accounts.find(
             item => item.account_type === 'demo' && item.currency === 'USD' && item.status === 'active'
         );
@@ -541,6 +541,7 @@ function createAuthHandler({
             throw new HttpError(503, 'Admin access is not configured. Set NETO_ADMIN_ACCOUNT_IDS on the server.');
         const saved = await verifiedSession(req);
         const accounts = await cachedAccounts(saved);
+        await verifiedSession(req);
         if (!accounts.some(account => account.status === 'active' && adminAccountIds.includes(account.account_id)))
             throw new HttpError(403, 'This account does not have admin access.');
         return saved;

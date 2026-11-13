@@ -5,7 +5,7 @@ const Client = require('ws');
 const { attachSockets } = require('./socket.cjs');
 const { createSecurity } = require('./security.cjs');
 
-async function fixture(t, expired = false, limits = {}, analysis) {
+async function fixture(t, expired = false, limits = {}, analysis, authOverrides = {}) {
     const targets = [],
         upstreams = [],
         connections = [],
@@ -40,6 +40,7 @@ async function fixture(t, expired = false, limits = {}, analysis) {
                     throw Object.assign(new Error('Denied'), { status: 403 });
                 return 'wss://api.derivws.com/trading/v1/options/ws/demo?otp=test-only';
             },
+            ...authOverrides,
         },
         undefined,
         {
@@ -253,4 +254,62 @@ test('Builder purchases wait for the account journal and cannot bypass a storage
     assert.equal((await result).req_id, 124);
     assert.equal(prepared, 2);
     client.close();
+});
+
+test('logout during Builder authorization cancels the purchase permit without sending a buy', async t => {
+    let revoked = false,
+        release,
+        announce;
+    const held = new Promise(resolve => {
+        release = resolve;
+    });
+    const started = new Promise(resolve => {
+        announce = resolve;
+    });
+    const cancelled = [];
+    const { connect, upstreams } = await fixture(
+        t,
+        false,
+        {},
+        {
+            authorizeBuilderBuy: async (_account, body) => {
+                announce();
+                await held;
+                return { ...body, passthrough: { neto_lock_order: 'test-order' } };
+            },
+            cancelBuilderBuy: async (...args) => {
+                cancelled.push(args);
+            },
+        },
+        {
+            verifySession: async () => {
+                if (revoked) throw Object.assign(new Error('Please log in to Deriv.'), { status: 401 });
+            },
+        }
+    );
+    const client = connect('?account_id=DOT100', 'http://neto.example', 'session=owned');
+    await opened(client);
+    const sent = [];
+    let forwarded;
+    const sentMessage = new Promise(resolve => {
+        forwarded = resolve;
+    });
+    upstreams[0].send = value => {
+        sent.push(JSON.parse(value));
+        forwarded({ forwarded: true });
+    };
+    const response = new Promise(resolve => client.once('message', raw => resolve(JSON.parse(raw))));
+    const body = { buy: 'proposal-id', price: 0.35, req_id: 88 };
+    client.send(JSON.stringify(body));
+    await started;
+    revoked = true;
+    release();
+    // A pre-fix bridge sends the buy rather than responding; record that outcome too.
+    const outcome = await Promise.race([response, sentMessage]);
+    client.close();
+    assert.match(outcome.error?.message || '', /log in/);
+    assert.deepEqual(sent, []);
+    assert.equal(cancelled.length, 1);
+    assert.equal(cancelled[0][0], 'DOT100');
+    assert.deepEqual(cancelled[0][1], body);
 });
