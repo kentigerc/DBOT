@@ -597,3 +597,137 @@ test('HTTPS sessions use host-prefixed, secure, HttpOnly cookies to resist subdo
     assert.ok(cookies.every(cookie => !cookie.includes('Domain=')));
     assert.equal((await app.request('/api/session')).status, 200);
 });
+
+test('Deriv 429 returns a cooldown, keeps login cookies and suppresses repeat account reads', async t => {
+    let clock = Date.now(),
+        accountCalls = 0;
+    const app = await fixture(t, {
+        handler: { now: () => clock },
+        upstream: async url => {
+            if (url.endsWith('/oauth2/token'))
+                return Response.json({ access_token: 'limited-token', expires_in: 3600 });
+            accountCalls++;
+            if (accountCalls === 1)
+                return Response.json(
+                    { secret: 'never-forward-this' },
+                    { status: 429, headers: { 'Retry-After': '20' } }
+                );
+            return Response.json({
+                data: [{ account_id: 'DOT100', account_type: 'demo', currency: 'USD', status: 'active' }],
+            });
+        },
+    });
+    await app.authenticated();
+    const cookie = app.cookies.get('neto_session');
+    const first = await app.request('/api/session');
+    assert.equal(first.status, 429);
+    assert.equal(first.headers.get('retry-after'), '20');
+    const body = await first.json();
+    assert.equal(body.retryAfter, 20);
+    assert.match(body.error, /temporarily limited requests/);
+    assert.doesNotMatch(body.error, /registration|never-forward-this/);
+    assert.equal(app.cookies.get('neto_session'), cookie);
+    clock += 5000;
+    const repeated = await app.request('/api/session');
+    assert.equal(repeated.status, 429);
+    assert.equal(repeated.headers.get('retry-after'), '15');
+    assert.equal(accountCalls, 1);
+    clock += 15000;
+    const recovered = await app.request('/api/session');
+    assert.equal(recovered.status, 200);
+    assert.equal((await recovered.json()).authenticated, true);
+    assert.equal(accountCalls, 2);
+});
+
+test('Retry-After dates are honored and a missing header uses a safe default', async t => {
+    for (const withDate of [true, false]) {
+        let clock = Math.floor(Date.now() / 1000) * 1000;
+        const app = await fixture(t, {
+            handler: { now: () => clock },
+            upstream: async url =>
+                url.endsWith('/oauth2/token')
+                    ? Response.json({ access_token: 'date-test-token', expires_in: 3600 })
+                    : Response.json(
+                          {},
+                          {
+                              status: 429,
+                              headers: withDate ? { 'Retry-After': new Date(clock + 45000).toUTCString() } : {},
+                          }
+                      ),
+        });
+        await app.authenticated();
+        const response = await app.request('/api/session');
+        assert.equal(response.status, 429);
+        assert.equal(response.headers.get('retry-after'), withDate ? '45' : '30');
+    }
+});
+
+test('parallel session checks share one account read and connection checks reuse it for only 30 seconds', async t => {
+    let clock = Date.now(),
+        accountCalls = 0,
+        otpCalls = 0,
+        release;
+    const held = new Promise(resolve => {
+        release = resolve;
+    });
+    let announce;
+    const started = new Promise(resolve => {
+        announce = resolve;
+    });
+    const app = await fixture(t, {
+        handler: { now: () => clock },
+        upstream: async url => {
+            if (url.endsWith('/oauth2/token'))
+                return Response.json({ access_token: 'shared-test-token', expires_in: 3600 });
+            if (url.endsWith('/otp')) {
+                otpCalls++;
+                return Response.json({
+                    data: { url: 'wss://api.derivws.com/trading/v1/options/ws/demo?otp=test-only' },
+                });
+            }
+            accountCalls++;
+            announce();
+            await held;
+            return Response.json({
+                data: [{ account_id: 'DOT100', account_type: 'demo', currency: 'USD', status: 'active' }],
+            });
+        },
+    });
+    await app.authenticated();
+    const parallel = Promise.all(Array.from({ length: 6 }, () => app.request('/api/session')));
+    await started;
+    release();
+    assert.ok((await parallel).every(response => response.status === 200));
+    assert.equal(accountCalls, 1);
+    for (let i = 0; i < 2; i++)
+        assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 200);
+    assert.equal(accountCalls, 1);
+    assert.equal(otpCalls, 2); // OTPs remain single-use and are never cached.
+    clock += 30000;
+    assert.equal((await app.request('/api/session')).status, 200);
+    assert.equal(accountCalls, 2);
+    await app.request('/api/auth/logout', {});
+    assert.equal((await app.request('/api/session')).status, 200);
+    assert.equal(accountCalls, 2); // Cached accounts cannot restore a logged-out session.
+});
+
+test('rate-limited OTP POSTs are never automatically replayed', async t => {
+    let otpCalls = 0;
+    const app = await fixture(t, {
+        upstream: async url => {
+            if (url.endsWith('/oauth2/token'))
+                return Response.json({ access_token: 'otp-test-token', expires_in: 3600 });
+            if (url.endsWith('/otp')) {
+                otpCalls++;
+                return Response.json({}, { status: 429, headers: { 'Retry-After': '10' } });
+            }
+            return Response.json({
+                data: [{ account_id: 'DOT100', account_type: 'demo', currency: 'USD', status: 'active' }],
+            });
+        },
+    });
+    await app.authenticated();
+    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 429);
+    assert.equal((await app.request('/api/connection', { account_id: 'DOT100' })).status, 429);
+    assert.equal(otpCalls, 1);
+});

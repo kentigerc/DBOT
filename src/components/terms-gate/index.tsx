@@ -29,6 +29,21 @@ export default function TermsGate({ children }: { children: React.ReactNode }) {
     const [checked, setChecked] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [retryAt, setRetryAt] = useState(0);
+    const [clock, setClock] = useState(Date.now());
+    const retrySeconds = Math.max(0, Math.ceil((retryAt - clock) / 1000));
+    useEffect(() => {
+        if (!retryAt) return;
+        const timer = window.setInterval(() => {
+            const current = Date.now();
+            setClock(current);
+            if (current >= retryAt) {
+                setRetryAt(0);
+                window.clearInterval(timer);
+            }
+        }, 1000);
+        return () => window.clearInterval(timer);
+    }, [retryAt]);
     const dialog = useRef<HTMLDialogElement>(null);
     const admin = location.pathname === '/admin';
     const refresh = async () => {
@@ -36,7 +51,13 @@ export default function TermsGate({ children }: { children: React.ReactNode }) {
             await refreshDerivSession();
             setReady(true);
             setError('');
+            setRetryAt(0);
         } catch (reason) {
+            const seconds = (reason as { retryAfter?: number })?.retryAfter;
+            if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) {
+                setClock(Date.now());
+                setRetryAt(Date.now() + Math.min(86400, seconds) * 1000);
+            }
             setError(
                 reason instanceof Error
                     ? reason.message
@@ -81,7 +102,11 @@ export default function TermsGate({ children }: { children: React.ReactNode }) {
         return (
             <div className='neto-terms neto-terms--loading' role='status'>
                 <p>{error || 'Checking your session…'}</p>
-                {error && <button onClick={() => void refresh()}>Try again</button>}
+                {error && (
+                    <button disabled={retrySeconds > 0} onClick={() => void refresh()}>
+                        {retrySeconds > 0 ? `Try again in ${retrySeconds}s` : 'Try again'}
+                    </button>
+                )}
                 <a href='/'>Return to landing page</a>
             </div>
         );

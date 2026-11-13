@@ -42,6 +42,7 @@ function createAuthHandler({
     const key = createHash('sha256').update(secret).digest();
     const renewed = new Map();
     const renewing = new Map();
+    const providerCooldowns = new Map();
     const redirectUri = publicOrigin + configuration.callbackPath;
     // One-time flow consumption is shared across instances using an encrypted cookie
     // cleared before exchange. Deriv also enforces single-use authorization codes.
@@ -98,6 +99,24 @@ function createAuthHandler({
         }
     }
     async function requestJson(url, options, refresh = false, reporting = false) {
+        // Credential-scoped cooldowns prevent focus events, reconnects and reloads
+        // from immediately repeating a request that Deriv has rate-limited.
+        const scope =
+            url +
+            ':' +
+            createHash('sha256')
+                .update(options.headers?.Authorization || options.body || '')
+                .digest('hex');
+        const rateLimited = seconds => {
+            const error = new HttpError(
+                429,
+                `Deriv has temporarily limited requests. Please wait ${seconds} seconds before trying again.`
+            );
+            error.retryAfter = seconds;
+            return error;
+        };
+        const cooldown = providerCooldowns.get(scope);
+        if (cooldown > now()) throw rateLimited(Math.max(1, Math.ceil((cooldown - now()) / 1000)));
         let response;
         try {
             // Retry only account discovery reads. Never replay token exchanges, OTP issuance or trading requests.
@@ -114,6 +133,21 @@ function createAuthHandler({
         }
         // Do not forward upstream bodies: they can contain credentials or authorization codes.
         if (!response.ok) {
+            if (response.status === 429) {
+                const header = response.headers.get('Retry-After')?.trim();
+                await response.body?.cancel().catch(() => {});
+                const delay =
+                    header && /^\d+$/.test(header)
+                        ? Number(header)
+                        : header
+                          ? Math.ceil((Date.parse(header) - now()) / 1000)
+                          : NaN;
+                const seconds = Number.isFinite(delay) ? Math.min(86400, Math.max(1, delay)) : 30;
+                for (const [key, until] of providerCooldowns) if (until <= now()) providerCooldowns.delete(key);
+                if (providerCooldowns.size >= 1000) providerCooldowns.delete(providerCooldowns.keys().next().value);
+                providerCooldowns.set(scope, now() + seconds * 1000);
+                throw rateLimited(seconds);
+            }
             if ([502, 503, 504].includes(response.status))
                 throw new HttpError(
                     503,
@@ -272,7 +306,8 @@ function createAuthHandler({
     async function connectionUrl(req, account_id) {
         const saved = await verifiedSession(req);
         requireTerms(req, saved);
-        const accounts = await getAccounts(saved.access_token);
+        const accounts = await cachedAccounts(saved);
+        await verifiedSession(req);
         if (!accounts.some(account => account.account_id === account_id && account.status === 'active')) {
             throw new HttpError(403, 'This trading account is not available in your Deriv session.');
         }
@@ -425,7 +460,8 @@ function createAuthHandler({
             if (url.pathname === '/api/session' && req.method === 'GET') {
                 const saved = await browserSession(req, res);
                 if (!saved?.access_token) return json(res, 200, { authenticated: false, accounts: [] });
-                const accounts = await getAccounts(saved.access_token);
+                const accounts = await cachedAccounts(saved);
+                await verifiedSession(req);
                 const adminAccounts = accounts
                     .filter(account => account.status === 'active' && adminAccountIds.includes(account.account_id))
                     .map(account => account.account_id);
@@ -446,26 +482,38 @@ function createAuthHandler({
             }
             return json(res, 404, { error: 'API route not found.' });
         } catch (error) {
+            if (error.status === 429 && error.retryAfter) res.setHeader('Retry-After', String(error.retryAfter));
             if (error.status === 401) {
                 setCookie(res, SESSION_COOKIE, null, 0);
                 setCookie(res, REFRESH_COOKIE, null, 0);
             }
             return json(res, error.status || 500, {
                 error: error.status ? error.message : 'Unable to complete the request.',
+                ...(error.status === 429 && error.retryAfter ? { retryAfter: error.retryAfter } : {}),
             });
         }
     };
     const accountCache = new Map();
+    const accountRequests = new Map();
     const reportCache = new Map();
     const cachedAccounts = async saved => {
         const cacheKey = createHash('sha256').update(saved.access_token).digest('hex');
-        let cached = accountCache.get(cacheKey);
-        if (!cached || cached.until < now()) {
-            cached = { accounts: await getAccounts(saved.access_token), until: now() + 30000 };
-            if (accountCache.size > 1000) accountCache.clear();
-            accountCache.set(cacheKey, cached);
+        const cached = accountCache.get(cacheKey);
+        if (cached && cached.until > now()) return cached.accounts;
+        if (!accountRequests.has(cacheKey)) {
+            if (accountRequests.size >= 1000)
+                throw new HttpError(503, 'Account verification is busy. Please try again shortly.');
+            const task = getAccounts(saved.access_token)
+                .then(accounts => {
+                    for (const [key, value] of accountCache) if (value.until <= now()) accountCache.delete(key);
+                    if (accountCache.size >= 1000) accountCache.delete(accountCache.keys().next().value);
+                    accountCache.set(cacheKey, { accounts, until: now() + 30000 });
+                    return accounts;
+                })
+                .finally(() => accountRequests.delete(cacheKey));
+            accountRequests.set(cacheKey, task);
         }
-        return cached.accounts;
+        return accountRequests.get(cacheKey);
     };
     handle.requireTerms = req => requireTerms(req, session(req));
     handle.authorizeAccount = async (req, accountId) => {

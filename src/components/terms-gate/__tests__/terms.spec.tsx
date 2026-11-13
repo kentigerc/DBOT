@@ -77,3 +77,25 @@ it('recognizes acceptance in another tab of the same login when returning to thi
     await screen.findByText('Trading workspace');
     expect(sessionRequest).not.toHaveBeenCalled();
 });
+
+it('disables repeated retry clicks while Deriv has requested a cooldown', async () => {
+    jest.useFakeTimers();
+    (refreshDerivSession as jest.Mock).mockRejectedValueOnce(
+        Object.assign(new Error('Deriv has temporarily limited requests.'), { retryAfter: 3 })
+    );
+    try {
+        show();
+        await act(async () => {});
+        expect(screen.getByRole('button', { name: 'Try again in 3s' })).toBeDisabled();
+        expect(screen.queryByText('Trading workspace')).toBeNull();
+        await act(async () => {
+            jest.advanceTimersByTime(3000);
+        });
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        await act(async () => {});
+        expect(screen.getByRole('checkbox')).toBeTruthy(); // Acceptance is still required.
+    } finally {
+        jest.useRealTimers();
+    }
+});

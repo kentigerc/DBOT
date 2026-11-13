@@ -15,6 +15,16 @@ export type DerivSession = {
 };
 let current: DerivSession = { authenticated: false, accounts: [] };
 let pending: Promise<DerivSession> | undefined;
+let sessionRetryUntil = 0;
+class SessionRequestError extends Error {
+    constructor(
+        message: string,
+        public status: number,
+        public retryAfter = 0
+    ) {
+        super(message);
+    }
+}
 export const getDerivSession = () => current;
 export const getDerivAccount = () =>
     current.accounts.find(account => account.account_id === localStorage.getItem('neto.account_id'));
@@ -39,18 +49,41 @@ export async function sessionRequest(path: string, body?: unknown) {
             current = { authenticated: false, accounts: [] };
             window.dispatchEvent(new Event('neto-session'));
         }
-        throw new Error(
+        const retryHeader = response.headers?.get('Retry-After');
+        const suggestedDelay =
+            Number(result?.retryAfter) ||
+            (retryHeader && /^\d+$/.test(retryHeader)
+                ? Number(retryHeader)
+                : Math.ceil((Date.parse(retryHeader || '') - Date.now()) / 1000));
+        const retryAfter =
+            response.status === 429
+                ? Math.min(86400, Math.max(1, Number.isFinite(suggestedDelay) ? suggestedDelay : 30))
+                : 0;
+        throw new SessionRequestError(
             typeof result?.error === 'string'
                 ? result.error
-                : `NetoAcademy returned HTTP ${response.status}. Please try again shortly.`
+                : `NetoAcademy returned HTTP ${response.status}. Please try again shortly.`,
+            response.status,
+            retryAfter
         );
     }
     return result;
 }
 export function refreshDerivSession() {
+    if (sessionRetryUntil > Date.now()) {
+        const seconds = Math.max(1, Math.ceil((sessionRetryUntil - Date.now()) / 1000));
+        return Promise.reject(
+            new SessionRequestError(
+                `Deriv has temporarily limited requests. Please wait ${seconds} seconds before trying again.`,
+                429,
+                seconds
+            )
+        );
+    }
     if (!pending)
         pending = sessionRequest('/api/session')
             .then((data: DerivSession) => {
+                sessionRetryUntil = 0;
                 current = data;
                 const available = data.accounts.filter(account => account.status === 'active');
                 if (!available.some(account => account.account_id === localStorage.getItem('neto.account_id'))) {
@@ -60,6 +93,11 @@ export function refreshDerivSession() {
                 }
                 window.dispatchEvent(new Event('neto-session'));
                 return data;
+            })
+            .catch(reason => {
+                if (reason instanceof SessionRequestError && reason.status === 429)
+                    sessionRetryUntil = Date.now() + reason.retryAfter * 1000;
+                throw reason;
             })
             .finally(() => {
                 pending = undefined;
