@@ -822,6 +822,7 @@ body.neto-landing-page {
             display: flex;
             flex-shrink: 0;
             gap: 10px;
+            flex-wrap: wrap;
             button {
                 display: grid;
                 place-items: center;
@@ -839,6 +840,12 @@ body.neto-landing-page {
                 &:disabled {
                     opacity: 0.35;
                     cursor: default;
+                }
+                &.nl-reviews__play {
+                    width: auto;
+                    padding: 0 18px;
+                    border-radius: 24px;
+                    font-size: 13px;
                 }
             }
         }

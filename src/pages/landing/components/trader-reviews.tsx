@@ -215,14 +215,21 @@ const reviews = [
 ];
 
 export default function TraderReviews() {
+    const section = useRef<HTMLElement>(null);
     const track = useRef<HTMLUListElement>(null);
+    const quietUntil = useRef(0);
+    const [autoPlay, setAutoPlay] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const [hovered, setHovered] = useState(false);
+    const [focused, setFocused] = useState(false);
+    const [visible, setVisible] = useState(true);
     const [edges, setEdges] = useState({ start: true, end: false });
     const updateEdges = useCallback(() => {
         const element = track.current;
         if (element)
-            setEdges({
-                start: element.scrollLeft <= 1,
-                end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1,
+            setEdges(previous => {
+                const start = element.scrollLeft <= 1;
+                const end = element.scrollLeft + element.clientWidth >= element.scrollWidth - 1;
+                return previous.start === start && previous.end === end ? previous : { start, end };
             });
     }, []);
     useEffect(() => {
@@ -231,7 +238,44 @@ export default function TraderReviews() {
         if (track.current) observer?.observe(track.current);
         return () => observer?.disconnect();
     }, [updateEdges]);
+    useEffect(() => {
+        const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const change = () => setAutoPlay(!preference.matches);
+        if (preference.addEventListener) preference.addEventListener('change', change);
+        else preference.addListener(change);
+        const observer =
+            typeof IntersectionObserver !== 'undefined'
+                ? new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting))
+                : undefined;
+        if (section.current) observer?.observe(section.current);
+        return () => {
+            if (preference.removeEventListener) preference.removeEventListener('change', change);
+            else preference.removeListener(change);
+            observer?.disconnect();
+        };
+    }, []);
+    // Give swipes, wheel scrolling and keyboard navigation time to finish before advancing again.
+    const interact = () => {
+        quietUntil.current = Date.now() + 6000;
+    };
+    useEffect(() => {
+        if (!autoPlay || hovered || focused || !visible) return;
+        const timer = window.setInterval(() => {
+            const element = track.current;
+            if (!element || document.hidden || Date.now() < quietUntil.current) return;
+            const end = element.scrollWidth - element.clientWidth;
+            if (end <= 1) return;
+            const wrap = element.scrollLeft >= end - 1;
+            const card = element.firstElementChild as HTMLElement | null;
+            element.scrollTo({
+                left: wrap ? 0 : Math.min(end, element.scrollLeft + (card?.offsetWidth || element.clientWidth) + 20),
+                behavior: wrap || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+            });
+        }, 5000);
+        return () => window.clearInterval(timer);
+    }, [autoPlay, hovered, focused, visible]);
     const scroll = (direction: number) => {
+        interact();
         const element = track.current;
         if (!element) return;
         const card = element.firstElementChild as HTMLElement | null;
@@ -241,7 +285,30 @@ export default function TraderReviews() {
         });
     };
     return (
-        <section className='nl-reviews nl-section' id='reviews' aria-labelledby='nl-reviews-heading'>
+        <section
+            className='nl-reviews nl-section'
+            id='reviews'
+            ref={section}
+            aria-labelledby='nl-reviews-heading'
+            onPointerEnter={event => {
+                if (event.pointerType === 'mouse') setHovered(true);
+            }}
+            onPointerLeave={event => {
+                if (event.pointerType === 'mouse') setHovered(false);
+            }}
+            onFocusCapture={event => setFocused(event.target.matches(':focus-visible'))}
+            onBlurCapture={event => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+            }}
+            onPointerDownCapture={interact}
+            onPointerUpCapture={interact}
+            onTouchEndCapture={interact}
+            onWheelCapture={interact}
+            onKeyDownCapture={() => {
+                setFocused(true);
+                interact();
+            }}
+        >
             <div className='nl-reviews__heading'>
                 <div>
                     <p className='nl-eyebrow'>FROM THE COMMUNITY</p>
@@ -249,6 +316,15 @@ export default function TraderReviews() {
                     <p className='nl-reviews__intro'>Experiences from people using NetoAcademy.</p>
                 </div>
                 <div className='nl-reviews__controls'>
+                    <button
+                        type='button'
+                        className='nl-reviews__play'
+                        aria-label={autoPlay ? 'Pause automatic reviews' : 'Play automatic reviews'}
+                        aria-controls='nl-reviews-track'
+                        onClick={() => setAutoPlay(value => !value)}
+                    >
+                        {autoPlay ? 'Pause' : 'Play'}
+                    </button>
                     <button
                         type='button'
                         aria-label='Previous reviews'
@@ -270,6 +346,7 @@ export default function TraderReviews() {
                 </div>
             </div>
             <p className='nl-reviews__hint' id='nl-reviews-hint'>
+                {autoPlay ? 'Reviews advance automatically. Hover or focus to pause. ' : ''}
                 Swipe, scroll sideways or use the arrows to read more.
             </p>
             <ul
