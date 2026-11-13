@@ -12,6 +12,7 @@ import DemoPauseStatus from '@/components/demo-pause-status';
 import {
     manualEntryReady,
     manualLead,
+    manualMarketFresh,
     rankManualMarkets,
     DEFAULT_MANUAL_LEAD,
     MANUAL_MOMENTUM_TICKS,
@@ -206,10 +207,7 @@ const ManualTrader = observer(({ active = true }: { active?: boolean }) => {
                             const ready = scanning && validLead && manualEntryReady(focus, side, Date.now(), lead);
                             const momentum = focus.trend[side];
                             const difference = manualLead(focus, side);
-                            const fresh =
-                                focus.ready &&
-                                Date.now() - focus.checkedAt <= 3500 &&
-                                Date.now() / 1000 - focus.epoch <= 6;
+                            const fresh = manualMarketFresh(focus);
                             return (
                                 <div key={side} className={`manual-trader__share manual-trader__share--${side}`}>
                                     <div>

@@ -17,6 +17,7 @@ it('uses Momentum’s live rising share and 20 live ticks and two-digit formatio
     (observeVolatilityMarkets as jest.Mock).mockImplementation((_api, _size, signal, sample, _status, options) => {
         update = sample;
         invalidate = options.stale;
+        options.clock.synchronize(Math.floor(Date.now() / 1000), performance.now(), performance.now());
         return new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
     });
     const readings: ManualMarket[] = [];
@@ -194,6 +195,20 @@ it('explains failed history and provider codes without exposing arbitrary error 
     expect(manualConnectionReason({ code: 'bad secret token', message: 'private detail' })).toBe(
         'Live market data could not be loaded.'
     );
+});
+
+it('compares entry epochs with Deriv time while still enforcing recent arrivals', () => {
+    const market = candidate('R_100', 82, 1);
+    const deviceNow = 2000000 + 3600000;
+    market.checkedAt = deviceNow;
+    market.marketNow = () => 2000000;
+    expect(manualEntryReady(market, 'over', deviceNow)).toBe(true);
+    expect(manualEntryReady(market, 'over', deviceNow + 3501)).toBe(false);
+    market.epoch -= 7;
+    expect(manualEntryReady(market, 'over', deviceNow)).toBe(false);
+    market.epoch += 7;
+    market.marketNow = () => NaN;
+    expect(manualEntryReady(market, 'over', deviceNow)).toBe(false);
 });
 
 it('backs off repeated initialization failures and cancels retry when stopped', async () => {

@@ -1,4 +1,5 @@
 import { lastDigit } from '@/pages/digit-analysis/digits';
+import type { MarketClock } from './market-clock';
 
 export type VolatilityMarket = {
     symbol: string;
@@ -9,6 +10,7 @@ export type VolatilityMarket = {
 };
 type Tick = { symbol?: string; underlying_symbol?: string; quote: number; pip_size: number; epoch: number };
 type Response = {
+    time?: number;
     tick?: Tick;
     error?: unknown;
     active_symbols?: VolatilityMarket[];
@@ -22,8 +24,8 @@ export type VolatilityApi = {
     send: (body: Record<string, unknown>) => Promise<Response>;
 };
 export type LiveVolatilitySample = { market: VolatilityMarket; digits: number[]; epoch: number; live: boolean };
-export const freshVolatilityEpoch = (epoch: number) =>
-    Number.isFinite(epoch) && epoch <= Date.now() / 1000 + 2 && Date.now() / 1000 - epoch <= 6;
+export const freshVolatilityEpoch = (epoch: number, now = Date.now()) =>
+    Number.isFinite(epoch) && Number.isFinite(now) && epoch <= now / 1000 + 2 && now / 1000 - epoch <= 6;
 
 // One socket, one rolling subscription per market. Discovery requests are bounded;
 // once seeded, every market is evaluated on its own arriving ticks, without polling.
@@ -37,6 +39,7 @@ export async function observeVolatilityMarkets(
         prepare?: (market: VolatilityMarket) => Promise<boolean>;
         stale?: (symbol: string) => void;
         ready?: () => void;
+        clock?: MarketClock;
     } = {}
 ): Promise<void> {
     type Feed = {
@@ -53,6 +56,7 @@ export async function observeVolatilityMarkets(
         subscriptionId?: string;
     };
     const feeds = new Map<string, Feed>();
+    const marketNow = options.clock?.now || Date.now;
     const pending = new AbortController();
     const requestSignal = pending.signal;
     let failure: Error | undefined;
@@ -96,7 +100,7 @@ export async function observeVolatilityMarkets(
     const accept = (feed: Feed, tick: Tick) => {
         if (finished || signal.aborted || feed.failed || tick.epoch <= feed.epoch) return;
         const digit = lastDigit(tick.quote, tick.pip_size);
-        if (digit === null || !freshVolatilityEpoch(tick.epoch) || tick.epoch - feed.epoch > 6) {
+        if (digit === null || !freshVolatilityEpoch(tick.epoch, marketNow()) || tick.epoch - feed.epoch > 6) {
             invalidate(feed);
             return;
         }
@@ -129,6 +133,27 @@ export async function observeVolatilityMarkets(
         } finally {
             clearTimeout(timer);
             requestSignal.removeEventListener('abort', cancel);
+        }
+    };
+    let clockPending = false;
+    let clockSyncedAt = 0;
+    const synchronizeClock = async () => {
+        if (!options.clock || clockPending || finished) return;
+        clockPending = true;
+        try {
+            // The first request can include the socket handshake. Measure a second request
+            // if that startup delay would make the time estimate too imprecise.
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const sent = performance.now();
+                const response = await request({ time: 1 });
+                const received = performance.now();
+                if (received - sent > 2000 && attempt === 0) continue;
+                options.clock.synchronize(response.time, sent, received);
+                clockSyncedAt = received;
+                break;
+            }
+        } finally {
+            clockPending = false;
         }
     };
     signal.addEventListener('abort', abort, { once: true });
@@ -172,8 +197,13 @@ export async function observeVolatilityMarkets(
             const epoch = Number(times?.slice(-1)[0]);
             if (!Array.isArray(prices) || prices.length < sampleSize) throw new Error('Market history is incomplete.');
             if (!Number.isInteger(h.pip_size)) throw new Error('Market precision is unavailable.');
-            if (!freshVolatilityEpoch(epoch))
-                throw new Error('Market history timestamps are delayed. Check your device clock.');
+            if (!Number.isFinite(epoch) || epoch <= 0) throw new Error('Market history timestamps are unavailable.');
+            if (!freshVolatilityEpoch(epoch, marketNow()))
+                throw new Error(
+                    options.clock
+                        ? 'Market history is stale relative to Deriv time.'
+                        : 'Market history timestamps are delayed. Check your device clock.'
+                );
             const digits = prices.slice(-sampleSize).map(price => lastDigit(price, h.pip_size!));
             if (digits.some(d => d === null)) throw new Error('Invalid market digits.');
             feed.digits = digits as number[];
@@ -197,6 +227,8 @@ export async function observeVolatilityMarkets(
     let lastStatus = 0;
     const watchdog = setInterval(() => {
         if (finished) return;
+        if (options.clock && !clockPending && performance.now() - clockSyncedAt >= 30000)
+            void synchronizeClock().catch(error => finish(error));
         for (const feed of feeds.values()) if (feed.ready && Date.now() - feed.arrival > 6000) invalidate(feed);
         const live = [...feeds.values()].filter(f => f.ready && !f.failed).length;
         if (initialized && !live) finish(new Error('All live Volatility feeds became stale.'));
@@ -223,6 +255,10 @@ export async function observeVolatilityMarkets(
     try {
         if (signal.aborted) return;
         if ((api.connection?.readyState ?? 0) >= 2) throw new Error('Live market connection unavailable.');
+        if (options.clock) {
+            status('Synchronizing with Deriv time…');
+            await synchronizeClock();
+        }
         status('Discovering Volatility markets…');
         const response = await request({ active_symbols: 'brief' });
         const markets = (response.active_symbols || []).filter(

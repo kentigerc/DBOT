@@ -1,5 +1,6 @@
 import { DigitMarket, type MomentumReading } from '@/services/digit-strategy/strategy';
 import { observeVolatilityMarkets, type VolatilityApi } from './live-volatility-markets';
+import { MarketClock } from './market-clock';
 
 export type ManualSide = 'over' | 'under';
 export const MANUAL_MOMENTUM_TICKS = 20;
@@ -10,6 +11,7 @@ export type ManualMarket = {
     submarket: string;
     epoch: number;
     checkedAt: number;
+    marketNow?: () => number;
     ready: boolean;
     latest?: number;
     count: number;
@@ -25,6 +27,17 @@ export const SWITCHERS = {
 } as const;
 export const manualLead = (market: ManualMarket, side: ManualSide) =>
     Math.round((market[side].percentage - market[side === 'over' ? 'under' : 'over'].percentage) * 10) / 10;
+export function manualMarketFresh(market: ManualMarket, now = Date.now()) {
+    const providerNow = market.marketNow?.() ?? now;
+    return (
+        market.ready &&
+        now - market.checkedAt >= 0 &&
+        now - market.checkedAt <= 3500 &&
+        Number.isFinite(providerNow) &&
+        providerNow / 1000 - market.epoch <= 6 &&
+        market.epoch <= providerNow / 1000 + 2
+    );
+}
 export function manualEntryReady(
     market: ManualMarket,
     side: ManualSide,
@@ -33,11 +46,8 @@ export function manualEntryReady(
 ) {
     const reading = market[side];
     return (
-        market.ready &&
+        manualMarketFresh(market, now) &&
         market.count === 1000 &&
-        now - market.checkedAt <= 3500 &&
-        now / 1000 - market.epoch <= 6 &&
-        market.epoch <= now / 1000 + 2 &&
         reading.percentage >= 70 &&
         reading.change > 0 &&
         Number.isFinite(minimumLead) &&
@@ -105,6 +115,9 @@ export function manualConnectionReason(error: unknown): string {
         'Market history is incomplete.',
         'Market precision is unavailable.',
         'Market history timestamps are delayed. Check your device clock.',
+        'Market history timestamps are unavailable.',
+        'Market history is stale relative to Deriv time.',
+        'Deriv clock synchronization is unavailable.',
         'Invalid market digits.',
     ]);
     let current = error;
@@ -144,6 +157,7 @@ export async function watchManualMarkets(
         let api: (VolatilityApi & { disconnect: () => void }) | undefined;
         const markets = new Map<string, DigitMarket>();
         const trends = new Map<string, ManualMomentum>();
+        const clock = new MarketClock();
         let lastReset = after?.() || 0;
         let retrySeconds = 2;
         try {
@@ -182,6 +196,7 @@ export async function watchManualMarkets(
                         submarket: sample.market.submarket || 'random_index',
                         epoch: market.epoch,
                         checkedAt: Date.now(),
+                        marketNow: clock.now,
                         ready: market.ready(Date.now()),
                         latest: market.digits[market.digits.length - 1],
                         count: market.digits.length,
@@ -194,6 +209,7 @@ export async function watchManualMarkets(
                 },
                 status,
                 {
+                    clock,
                     prepare: onlySymbol ? async market => market.symbol === onlySymbol : undefined,
                     stale: symbol => {
                         markets.delete(symbol);

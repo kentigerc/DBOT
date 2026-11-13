@@ -1,4 +1,5 @@
 import { observeVolatilityMarkets } from '../live-volatility-markets';
+import { MarketClock } from '../market-clock';
 const now = 1700000000;
 function fixture() {
     let callback: (event: { data: any }) => void = () => {};
@@ -171,5 +172,67 @@ it('records a socket close code without including the remote close reason', asyn
     const result = expect(pending).rejects.toMatchObject({ code: 'Socket1006' });
     api.connection.dispatchEvent(new CloseEvent('close', { code: 1006, reason: 'private remote detail' }));
     await result;
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it.each([-3600000, 3600000])('loads genuine live data with a device clock skew of %s ms', async skew => {
+    jest.setSystemTime(now * 1000 + skew);
+    const api = fixture(),
+        send = api.send,
+        clock = new MarketClock(),
+        controller = new AbortController(),
+        sample = jest.fn();
+    api.send = jest.fn(async body => {
+        if (body.time) return { time: now + Math.floor(performance.now() / 1000) };
+        const response = await send(body);
+        if (response.history) response.history.times = [now - 1];
+        return response;
+    });
+    const pending = observeVolatilityMarkets(api, 100, controller.signal, sample, jest.fn(), { clock });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(sample).toHaveBeenCalledTimes(3);
+    api.tick('R_10', 7, now);
+    expect(sample.mock.calls.slice(-1)[0]?.[0]).toMatchObject({ live: true, epoch: now });
+    for (let i = 1; i <= 31; i++) {
+        await jest.advanceTimersByTimeAsync(1000);
+        for (const symbol of ['R_10', '1HZ50V', 'R_100']) api.tick(symbol, 1, now + i);
+    }
+    expect(api.send.mock.calls.filter(([body]) => body.time)).toHaveLength(2);
+    expect(clock.now()).toBe(now * 1000 + 31000);
+    controller.abort();
+    await pending;
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it('does not make stale history tradable by synchronizing to that history', async () => {
+    const api = fixture(),
+        send = api.send,
+        clock = new MarketClock();
+    api.send = jest.fn(async body =>
+        body.time
+            ? { time: now }
+            : body.active_symbols
+              ? send(body)
+              : {
+                    pip_size: 2,
+                    history: { prices: Array(100).fill(100.01), times: [now - 30] },
+                }
+    );
+    await expect(
+        observeVolatilityMarkets(api, 100, new AbortController().signal, jest.fn(), jest.fn(), { clock })
+    ).rejects.toMatchObject({
+        cause: expect.objectContaining({ message: 'Market history is stale relative to Deriv time.' }),
+    });
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it('fails safely if Deriv time cannot be verified', async () => {
+    const api = fixture(),
+        clock = new MarketClock(),
+        sample = jest.fn();
+    await expect(
+        observeVolatilityMarkets(api, 100, new AbortController().signal, sample, jest.fn(), { clock })
+    ).rejects.toThrow('Deriv clock synchronization');
+    expect(sample).not.toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
 });
