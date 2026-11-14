@@ -274,7 +274,7 @@ export default function Admin() {
                     <section className='neto-admin__cards' aria-label='Period activity'>
                         {[
                             ['Browser visitors', data?.visitors],
-                            ['Connected Deriv accounts', data?.connectedAccounts],
+                            ['Unique Deriv accounts', data?.connectedAccounts],
                             ['Trading accounts', data?.tradingAccounts],
                             ['Confirmed purchases', data?.trades],
                         ].map(([label, value]) => (
@@ -285,8 +285,9 @@ export default function Admin() {
                         ))}
                     </section>
                     <p className='neto-admin__hint'>
-                        Connected Deriv accounts counts distinct server-verified account IDs in the selected dates,
-                        once per account across repeat logins. Demo activity is shown until that user makes a real-account trade. Their demo history is then
+                        Unique Deriv accounts counts distinct server-verified account IDs in the selected dates,
+                        once per account across repeat logins. This is not a people count: one person can have
+                        separate demo and real accounts, and your own accounts are included. Demo activity is shown until that user makes a real-account trade. Their demo history is then
                         hidden from trading totals and tables; other demo users remain visible.
                         {!!data?.hiddenDemoTrades && ` ${data.hiddenDemoTrades} demo trades hidden for these dates.`}
                     </p>
