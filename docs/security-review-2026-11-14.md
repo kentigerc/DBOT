@@ -89,3 +89,15 @@ Source/control inspection also covered OAuth/PKCE/state and cookie handling, sha
 - Node syntax checks for both changed code/test files and `git diff --check` pass. Full build, frontend/server suites, PostgreSQL checks and a networked audit remain required in CI/a capable environment before launch.
 
 No Render, registrar/Whois, DNS or Deriv settings were changed or independently verified during this additional pass. Keep the exact canonical origin/callback, Node 24, persistent secret/database, restricted owner allowlist, single-instance deployment, MFA, backup/restore and domain/edge checks listed above. A GitHub commit does not establish a successful Render deployment.
+
+### Completed networked CI verification
+
+Fix commit: [`0393376677983c77d8fbd2017a0a787cef975590`](https://github.com/kentigerc/DBOT/commit/0393376677983c77d8fbd2017a0a787cef975590), pushed to `main` using a non-forced expected-head update and independently checked against the tested file contents. [NetoAcademy CI run 225](https://github.com/kentigerc/DBOT/actions/runs/43576992018) subsequently completed successfully on that exact revision on 14 November 2026 (job completed around 08:44 UTC). This resolves the full-suite and fresh-advisory validation gaps above through GitHub CI; the local sandbox restrictions themselves remain.
+
+- Locked dependency installation and the normal tracked-file credential scan passed.
+- Networked `npm audit --audit-level=low`: **zero known vulnerabilities**.
+- Full server suite, including isolated PostgreSQL 16 integration tests: **180 passed, zero failures, zero skips**.
+- Frontend: **75 suites / 614 tests passed**.
+- Production build: **passed**. Non-fatal React act/findDOMNode, module-format and Sass deprecation warnings remain; no application test/build failure was observed. The standalone full-project TypeScript check was not run and retains its previously documented limitation.
+
+These are automated source/build/fixture results. Render deployment, live TLS/headers, registrar/DNS configuration, actual OAuth/demo trading, production backup restoration and historical-secret rotation evidence remain unverified. This documentation-only follow-up does not replace the security fix SHA above.
