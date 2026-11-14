@@ -11,7 +11,6 @@ export default function DemoPauseStatus({ state }: { state?: DemoPauseView }) {
             </strong>
             <p>Real recovery is paused. Trading stays on your demo account until one demo trade wins.</p>
             <div>
-                {state.demoAccountId && <span>Demo account: {state.demoAccountId}</span>}
                 {state.heldStake !== undefined && (
                     <span>Held real recovery stake: ${(state.heldStake / 100).toFixed(2)}</span>
                 )}

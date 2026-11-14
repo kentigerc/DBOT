@@ -111,11 +111,6 @@ export default function AnalysisTool() {
                 <div>
                     <p className='analysis-tool__eyebrow'>NETOACADEMY STRATEGIES</p>
                     <h1>Digit Strategy</h1>
-                    <span className='analysis-tool__account'>
-                        {account
-                            ? `${account.account_type === 'demo' ? 'Demo' : 'Real'} · ${account.account_id} · ${account.currency}`
-                            : 'Not logged in'}
-                    </span>
                 </div>
                 <button className='analysis-tool__terminal-button' onClick={() => setTerminal(true)}>
                     <span aria-hidden='true'>›_</span> Execution terminal

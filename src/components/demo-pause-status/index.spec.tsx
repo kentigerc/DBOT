@@ -14,7 +14,7 @@ it('shows actual demo progress and the held real stake without presenting demo r
         />
     );
     expect(screen.getByRole('status')).toHaveTextContent('1 trade completed');
-    expect(screen.getByText('Demo account: DOT100')).toBeInTheDocument();
+    expect(screen.queryByText(/DOT100/)).not.toBeInTheDocument();
     expect(screen.getByText('Held real recovery stake: $13.75')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('until one demo trade wins');
 });
