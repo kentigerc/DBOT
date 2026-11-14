@@ -271,7 +271,7 @@ export default function TraderReviews() {
                 left: wrap ? 0 : Math.min(end, element.scrollLeft + (card?.offsetWidth || element.clientWidth) + 20),
                 behavior: wrap || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
             });
-        }, 5000);
+        }, 2000);
         return () => window.clearInterval(timer);
     }, [autoPlay, hovered, focused, visible]);
     const scroll = (direction: number) => {
