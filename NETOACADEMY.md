@@ -1,5 +1,15 @@
 # NetoAcademy
 
+## Momentum 70 recovery — updated entry policy
+
+Normal Over 1 / Under 8 entries and three-win batches are unchanged. An Over 1 loss pairs with Over 4 recovery (winning digits 5–9); an Under 8 loss pairs with Under 5 recovery (winning digits 0–4).
+
+Before the first recovery purchase, compare supported live markets for the paired side. Keep the existing 52% minimum group share, and rank by the fastest positive percentage-point increase per second over the preceding ten seconds of live data, rather than the largest absolute share. A complete ten-second live window is required; historical prices do not establish live momentum. Ties use the larger group share, then market symbol. Select the fastest qualifying market before checking its pattern; a slower market cannot bypass it merely because its pattern is ready.
+
+For Over 4, wait for two consecutive digits from 5–9 (repeated digits are allowed), followed by one digit from 0–4. For Under 5, wait for two consecutive digits from 0–4, followed by one digit from 5–9. All three ticks must arrive after the loss. The reversal digit may reduce the instantaneous share; entry uses the positive ten-second trend, not a requirement for that opposite digit to increase the share.
+
+Only the first recovery entry requires momentum and the pattern. Once its purchase is confirmed, keep its market and Over 4 / Under 5 contract locked through further losses or voids. Subsequent attempts do not wait for another pattern or momentum qualification. A recovery win clears the lock and returns to the normal starting stake, even if total session P/L remains negative. The existing multiplier, duration, stake/balance/session limits, STOP, account protection, demo pauses and pending-purchase reconciliation still apply. Already pending legacy contracts retain their saved contract details for settlement; new recovery purchases use the updated barriers.
+
 NetoAcademy uses application ID `34JTY4LLFlIghrMont8RN` and the production callback `https://netoacademy.com/callback`. Public registration values live in `config/netoacademy.json`. There is no frontend client secret.
 
 ## What is connected

@@ -99,7 +99,7 @@ export default function Momentum() {
                     <h2 id='momentum-title'>
                         Momentum <span>70</span>
                     </h2>
-                    <p>Over 1 & Under 8 · Three-win batches · Over 3 / Under 6 recovery</p>
+                    <p>Over 1 & Under 8 · Three-win batches · Over 4 / Under 5 recovery</p>
                 </div>
                 <span className={`momentum__status${own && state.active ? ' is-live' : ''}`}>
                     {own && state.active ? 'LIVE SESSION' : 'READY WHEN YOU ARE'}
@@ -173,9 +173,14 @@ export default function Momentum() {
                     {own && (state.recovery.deficit || 0) > 0 && (
                         <p className='momentum__balance' role='status'>
                             Recovery balance <strong>{money(state.recovery.deficit || 0)}</strong> · Waiting for the
-                            same contract’s next qualifying entry.
+                            recovery win on the locked market and contract.
                         </p>
                     )}
+                    <p className='momentum__scan-status'>
+                        Recovery: fastest rising share over 10 seconds, at least 52%. Over 4 waits for two digits
+                        5–9, then one 0–4. Under 5 waits for two digits 0–4, then one 5–9. The first purchase locks the
+                        market and contract until a recovery win; retries do not wait for another pattern.
+                    </p>
                     <div className='momentum__steps'>
                         <span>
                             <b>01</b> Live market scan
@@ -196,7 +201,7 @@ export default function Momentum() {
                                 ? focus?.recoveryMomentum?.[direction]
                                 : focus?.momentum?.[direction];
                             const percent = reading?.percentage || 0,
-                                change = reading?.change || 0;
+                                change = (recovering ? reading?.rate : reading?.change) || 0;
                             return (
                                 <article
                                     key={direction}
@@ -205,10 +210,10 @@ export default function Momentum() {
                                     <span>
                                         {direction === 'DIGITOVER'
                                             ? recovering
-                                                ? 'OVER 3'
+                                                ? 'OVER 4'
                                                 : 'OVER 1'
                                             : recovering
-                                              ? 'UNDER 6'
+                                              ? 'UNDER 5'
                                               : 'UNDER 8'}
                                     </span>
                                     <strong>
@@ -218,7 +223,7 @@ export default function Momentum() {
                                     <div
                                         className='momentum__meter'
                                         role='meter'
-                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Over 3' : 'Over 1') : recovering ? 'Under 6' : 'Under 8'} cumulative percentage`}
+                                        aria-label={`${direction === 'DIGITOVER' ? (recovering ? 'Over 4' : 'Over 1') : recovering ? 'Under 5' : 'Under 8'} cumulative percentage`}
                                         aria-valuemin={0}
                                         aria-valuemax={100}
                                         aria-valuenow={percent}
@@ -227,13 +232,14 @@ export default function Momentum() {
                                     </div>
                                     <footer>
                                         <span>
-                                            {change > 0 ? '↑' : change < 0 ? '↓' : '—'} {Math.abs(change).toFixed(1)} pp
+                                            {change > 0 ? '↑' : change < 0 ? '↓' : '—'} {Math.abs(change).toFixed(recovering ? 3 : 1)}{' '}
+                                            {recovering ? 'pp/s · 10s' : 'pp'}
                                         </span>
                                         <span>
                                             {recovering && state.recovery.recoveryLocked
                                                 ? 'Locked recovery'
                                                 : reading?.armed
-                                                  ? `${reading.run}/2 observed`
+                                                  ? `${reading.run}/${recovering ? 3 : 2} observed`
                                                   : 'Observing market'}
                                         </span>
                                     </footer>
@@ -272,8 +278,8 @@ export default function Momentum() {
                                 <thead>
                                     <tr>
                                         <th>Market</th>
-                                        <th>{recovering ? 'Over 3' : 'Over 1'}</th>
-                                        <th>{recovering ? 'Under 6' : 'Under 8'}</th>
+                                        <th>{recovering ? 'Over 4' : 'Over 1'}</th>
+                                        <th>{recovering ? 'Under 5' : 'Under 8'}</th>
                                         <th>Feed</th>
                                     </tr>
                                 </thead>

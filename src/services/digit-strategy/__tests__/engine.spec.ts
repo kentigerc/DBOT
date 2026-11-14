@@ -994,12 +994,15 @@ it.each([1, 2, 3, 4, 5].flatMap(duration => (['over', 'under'] as const).map(sid
             duration,
         });
         broker.settle(-0.35);
-        await tick(winner);
-        await tick(4);
-        await tick(winner);
+        // Warm a full ten-second live momentum window without completing the reversal.
+        for (let i = 0; i < 7; i++) await tick(winner);
+        await tick(side === 'over' ? 5 : 0);
+        await tick(side === 'over' ? 9 : 4);
+        expect(broker.buys).toHaveLength(1);
+        await tick(side === 'over' ? 4 : 5);
         expect(broker.buys[1].parameters).toMatchObject({
             contract_type: direction,
-            barrier: side === 'over' ? '3' : '6',
+            barrier: side === 'over' ? '4' : '5',
             amount: 0.88,
             duration,
         });
@@ -1014,11 +1017,13 @@ it.each([1, 2, 3, 4, 5].flatMap(duration => (['over', 'under'] as const).map(sid
                 lockedDirection: direction,
             },
         });
+        // A single opposite-group tick retries immediately on the locked market.
+        // No new three-digit pattern or momentum qualification is required.
         await tick(side === 'over' ? 1 : 7);
         expect(broker.buys[2].parameters).toMatchObject({
             symbol: 'R_100',
             contract_type: direction,
-            barrier: side === 'over' ? '3' : '6',
+            barrier: side === 'over' ? '4' : '5',
             amount: 2.2,
             duration,
         });

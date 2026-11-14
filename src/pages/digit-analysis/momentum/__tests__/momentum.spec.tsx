@@ -96,13 +96,14 @@ it('shows the actual recovery contract in the journal and indicates the locked r
         ],
     });
     render(<Momentum />);
-    expect(screen.getByText('OVER 3')).toBeTruthy();
-    expect(screen.getByText('UNDER 6')).toBeTruthy();
+    expect(screen.getByText('OVER 4')).toBeTruthy();
+    expect(screen.getByText('UNDER 5')).toBeTruthy();
     expect(screen.getByText('Even · Recovery')).toBeTruthy();
     expect(screen.getByText('Locked recovery market')).toBeTruthy();
-    expect(screen.getByRole('meter', { name: 'Over 3 cumulative percentage' })).toHaveAttribute('aria-valuenow', '53');
-    expect(screen.getByRole('meter', { name: 'Under 6 cumulative percentage' })).toHaveAttribute('aria-valuenow', '55');
+    expect(screen.getByRole('meter', { name: 'Over 4 cumulative percentage' })).toHaveAttribute('aria-valuenow', '53');
+    expect(screen.getByRole('meter', { name: 'Under 5 cumulative percentage' })).toHaveAttribute('aria-valuenow', '55');
     expect(screen.getAllByText('Locked recovery')).toHaveLength(2);
+    expect(screen.getByText(/fastest rising share over 10 seconds/)).toBeTruthy();
 });
 
 it('rotates the preview across live markets during the recovery search rather than appearing locked', () => {
