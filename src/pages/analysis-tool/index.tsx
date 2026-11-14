@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import useStrategyDraft from '@/hooks/useStrategyDraft';
 import { digitStrategyEngine } from '@/services/digit-strategy/client';
-import { RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
+import { empty } from '@/services/digit-strategy/engine';
+import { DEFAULT_SETTINGS, RECOVERY_MODES, type Settings } from '@/services/digit-strategy/strategy';
 import { getDerivAccount, getDerivSession, refreshDerivSession, startDerivLogin } from '@/utils/deriv-session';
 import './analysis-tool.scss';
 
@@ -11,9 +12,14 @@ const money = (value: number) => `$${(value / 100).toFixed(2)}`;
 const time = (value: number) =>
     new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(value);
 export default function AnalysisTool() {
-    const state = useSyncExternalStore(digitStrategyEngine.subscribe, digitStrategyEngine.getSnapshot);
+    const shared = useSyncExternalStore(digitStrategyEngine.subscribe, digitStrategyEngine.getSnapshot);
+    const own = shared.settings.strategy === undefined;
+    const otherSession = !own && (shared.active || !!shared.pending || shared.trades.length > 0);
+    // Shared status still protects the account, but another tool's settings,
+    // trades, quotes and logs must never become this dashboard's session.
+    const state = own ? shared : { ...empty(), accountId: shared.accountId };
     const panel = useMarketPanelHeight<HTMLDivElement>();
-    const [draft, setDraft] = useStrategyDraft(state, () => ({ ...state.settings }));
+    const [draft, setDraft] = useStrategyDraft(shared, () => ({ ...DEFAULT_SETTINGS }), own);
     const [session, setSession] = useState(getDerivSession());
     const [error, setError] = useState('');
     const [terminal, setTerminal] = useState(false);
@@ -46,6 +52,7 @@ export default function AnalysisTool() {
     const run = async (reconcile?: number) => {
         setError('');
         try {
+            if (otherSession) throw new Error('Stop and reset the current tool in Digit Analysis before switching.');
             await digitStrategyEngine.start(
                 reconcile
                     ? state.settings
@@ -59,6 +66,7 @@ export default function AnalysisTool() {
     const reset = async () => {
         setError('');
         try {
+            if (!own) throw new Error('Reset the owning tool in Digit Analysis before switching.');
             await digitStrategyEngine.reset();
             setDraft({ ...digitStrategyEngine.getSnapshot().settings });
         } catch (reason) {
@@ -116,7 +124,7 @@ export default function AnalysisTool() {
                     <span aria-hidden='true'>›_</span> Execution terminal
                 </button>
             </header>
-            {state.settings.strategy !== undefined && (
+            {otherSession && (
                 <p className='analysis-tool__hint'>
                     This account’s session belongs to the strategy in Digit Analysis. Stop and reset the stopped session
                     before switching strategies.
@@ -164,6 +172,7 @@ export default function AnalysisTool() {
                         className='analysis-tool__run'
                         onClick={() => void run()}
                         disabled={
+                            otherSession ||
                             state.active ||
                             !session.authenticated ||
                             account?.currency !== 'USD' ||
@@ -179,7 +188,7 @@ export default function AnalysisTool() {
                     >
                         STOP
                     </button>
-                    <button className='analysis-tool__reset' onClick={reset} disabled={state.active || !!state.pending}>
+                    <button className='analysis-tool__reset' onClick={reset} disabled={!own || state.active || !!state.pending}>
                         New session
                     </button>
                     <span role='status' className='analysis-tool__phase'>

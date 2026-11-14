@@ -134,3 +134,66 @@ it.each(tools)('$name discards another account\'s stopped edits on account chang
     });
     expect(stake).toHaveValue(DEFAULT_SETTINGS.stake);
 });
+
+it.each(['over2-under7', 'even-odd', 'momentum-70'] as const)(
+    'Analysis Tool does not display %s settings, trades, recovery or execution logs',
+    strategy => {
+        mockSnapshot = {
+            ...mockSnapshot,
+            settings: sharedRecoverySettings({ ...DEFAULT_SETTINGS, strategy, stake: 8, multiplier: 7, duration: 2 }),
+            phase: 'Foreign tool running',
+            error: 'Foreign tool error',
+            logs: [{ at: Date.now(), level: 'info', message: 'Foreign tool execution message' }],
+            trades: [{ ...mockSnapshot.trades[0], market: 'FOREIGN_MARKET', contractId: 87654321 }],
+            demoPause: { triggerContractId: 99, status: 'running', completed: 4 },
+            pending: {
+                nonce: 'foreign-pending', sentAt: Date.now(), stake: 800, payout: 1000,
+                signal: { symbol: 'FOREIGN_MARKET', direction: 'DIGITOVER', epoch: 1, recovery: true, formation: false },
+            },
+        };
+        render(<AnalysisTool />);
+        expect(screen.getByLabelText('Starting stake (USD)')).toHaveValue(DEFAULT_SETTINGS.stake);
+        expect(screen.getByLabelText('Martingale multiplier')).toHaveValue(DEFAULT_SETTINGS.multiplier);
+        expect(screen.getByLabelText('Contract duration')).toHaveValue(String(DEFAULT_SETTINGS.duration));
+        expect(screen.getByRole('button', { name: 'RUN' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'STOP' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'New session' })).toBeDisabled();
+        expect(screen.queryByText('FOREIGN_MARKET')).toBeNull();
+        expect(screen.queryByText('Foreign tool execution message')).toBeNull();
+        expect(screen.queryByText('Foreign tool error')).toBeNull();
+        expect(screen.queryByText('Foreign tool running')).toBeNull();
+        expect(screen.queryByText('Trade journal')).toBeNull();
+        expect(screen.queryByText('Unconfirmed purchase')).toBeNull();
+        expect(screen.queryByText(/DEMO PAUSE/)).toBeNull();
+    }
+);
+
+it('Analysis Tool keeps its own edited settings while another tool runs, and uses them once that tool is reset', async () => {
+    mockSnapshot.active = false;
+    mockSnapshot.settings = { ...DEFAULT_SETTINGS, stake: 0.7, duration: 2 };
+    render(<AnalysisTool />);
+    const stake = screen.getByLabelText('Starting stake (USD)');
+    fireEvent.change(stake, { target: { value: '0.9' } });
+    act(() => {
+        mockSnapshot = {
+            ...mockSnapshot,
+            active: true,
+            settings: sharedRecoverySettings({ ...DEFAULT_SETTINGS, strategy: 'momentum-70', stake: 8, multiplier: 7 }),
+        };
+        mockListeners.forEach(fn => fn());
+    });
+    expect(stake).toHaveValue(0.9);
+    expect(screen.getByLabelText('Contract duration')).toHaveValue('2');
+    expect(screen.getByRole('button', { name: 'RUN' })).toBeDisabled();
+    expect(screen.queryByText('Session P/L')).toBeNull();
+    act(() => {
+        mockSnapshot = { ...mockSnapshot, active: false, trades: [], recovery: empty().recovery };
+        mockListeners.forEach(fn => fn());
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'RUN' }));
+    await waitFor(() => expect(client.start).toHaveBeenCalledWith(
+        expect.objectContaining({ strategy: undefined, stake: 0.9, duration: 2, multiplier: DEFAULT_SETTINGS.multiplier }),
+        undefined
+    ));
+    expect(client.reset).not.toHaveBeenCalled();
+});
