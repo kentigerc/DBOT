@@ -55,6 +55,7 @@ function createAnalysisService(
         brokerFactory = url => createBroker(url, dispatcher),
         Engine = DigitStrategyEngine,
         onOperationalEvent = () => {},
+        onConnection = () => {},
         locks = createAccountLocks({ onFailure: onOperationalEvent }),
     } = {}
 ) {
@@ -62,6 +63,35 @@ function createAnalysisService(
     const builderBuys = new Map();
     const builderOrders = new Map();
     const epochs = new Map();
+    const connectBroker = async (url, accountId) => {
+        const broker = await brokerFactory(url);
+        const connectionKey = randomUUID();
+        let released = false;
+        const report = open => {
+            try {
+                onConnection(accountId, connectionKey, open);
+            } catch {
+                // Analytics must never affect trading or connection cleanup.
+            }
+        };
+        const release = () => {
+            if (released) return;
+            released = true;
+            report(false);
+        };
+        broker.connection?.addEventListener('close', release, { once: true });
+        broker.connection?.addEventListener('error', release, { once: true });
+        const disconnect = broker.disconnect.bind(broker);
+        broker.disconnect = (...args) => {
+            try {
+                return disconnect(...args);
+            } finally {
+                release();
+            }
+        };
+        report(true);
+        return broker;
+    };
     let closing = false;
     const key = id => `neto.digit-strategy.v1.${id}`;
     const prepareAccount = async id => {
@@ -112,7 +142,7 @@ function createAnalysisService(
         auth,
         storage,
         locks,
-        brokerFactory,
+        brokerFactory: connectBroker,
         busy: async id => {
             await prepareAccount(id);
             return sessionBusy(id) || (builderBuys.get(id)?.size || 0) > 0;
@@ -149,7 +179,7 @@ function createAnalysisService(
                 // request for later revocation checks after startup completes.
                 const request = value.request;
                 const lease = value.lease;
-                const broker = await brokerFactory(await auth.connectionUrl(request, account.account_id));
+                const broker = await connectBroker(await auth.connectionUrl(request, account.account_id), account.account_id);
                 broker.connection?.addEventListener(
                     'close',
                     () => {
@@ -509,7 +539,7 @@ function createAnalysisService(
                             await storage.flush?.(key(id));
                             if (value.cancelled) throw new Error('Start cancelled.');
                             if (!value.engine.getSnapshot().pending) {
-                                check = await brokerFactory(await auth.connectionUrl(req, id));
+                                check = await connectBroker(await auth.connectionUrl(req, id), id);
                                 const result = await Promise.race([
                                     check.send({ portfolio: 1 }),
                                     new Promise((_, reject) => {

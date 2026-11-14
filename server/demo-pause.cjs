@@ -217,7 +217,7 @@ function createDemoPause({
                 reconcile: state.pending ? [state.pending.nonce] : [],
             });
             locks.hold(demoLease, { onLost: stop, onStop: stop });
-            broker = await brokerFactory(await auth.connectionUrl(req, demo.account_id));
+            broker = await brokerFactory(await auth.connectionUrl(req, demo.account_id), demo.account_id);
             state.status = 'running';
             state.error = '';
             const complete = () => {

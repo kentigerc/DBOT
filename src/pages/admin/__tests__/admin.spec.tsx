@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import Admin from '..';
 const health = {
     status: 'ok',
@@ -85,6 +85,19 @@ it('shows owner analytics, real/demo labels and a clear preview-storage notice',
     expect(screen.getByText('real')).toBeTruthy();
     expect(screen.getByText('-0.35')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Export daily CSV' })).toBeEnabled();
+});
+
+it('distinguishes unique connected accounts from multiple underlying Deriv sockets', async () => {
+    render(<Admin />);
+    const live = await screen.findByRole('region', { name: 'Live activity' });
+    await waitFor(() => {
+        const sockets = within(live).getByText('Open Deriv sockets').closest('article')!;
+        const accounts = within(live).getByText('Connected accounts now').closest('article')!;
+        expect(within(sockets).getByText('2')).toBeInTheDocument();
+        expect(within(accounts).getByText('1')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/counts each account once across/)).toBeInTheDocument();
+    expect(screen.getByText(/once per account across repeat logins/)).toBeInTheDocument();
 });
 it('loads commission only on request and displays provider figures', async () => {
     (fetch as jest.Mock).mockImplementation(async url =>

@@ -94,6 +94,81 @@ test('two independent device sessions see one runner and either device can stop 
     await request('laptop', { action: 'stop' });
     assert.equal((await request('phone')).data.active, false);
 });
+
+for (const strategy of [undefined, 'over2-under7', 'even-odd', 'momentum-70']) {
+    test(`${strategy || 'Analysis Tool'} reports live server sockets and removes each exactly once`, async t => {
+        class ConnectedEngine extends ControlledEngine {
+            async start(settings) {
+                await super.start(settings);
+                this.broker = await this.deps.createApi();
+            }
+            stop() {
+                this.broker?.disconnect();
+                super.stop();
+            }
+        }
+        const events = [];
+        const active = new Map();
+        const { request, service } = await fixture(t, {
+            Engine: ConnectedEngine,
+            onConnection: (account, key, open) => {
+                events.push({ account, key, open });
+                if (open) active.set(key, account);
+                else active.delete(key);
+            },
+            brokerFactory: async () => {
+                const connection = new EventTarget();
+                return {
+                    connection,
+                    send: async () => ({ portfolio: { contracts: [] } }),
+                    disconnect: () => connection.dispatchEvent(new Event('close')),
+                };
+            },
+        });
+        const settings = {
+            ...DEFAULT_SETTINGS, strategy,
+            recoveryMode: strategy === 'momentum-70' ? 'same_contract' : 'parity_percentage',
+        };
+        assert.equal((await request('phone', { action: 'start', settings })).status, 200);
+        await service.sessions.get('demo').task;
+        assert.equal(service.sessions.get('demo').engine.getSnapshot().active, true);
+        assert.equal(active.size, 1, 'The temporary portfolio connection must already be removed');
+        assert.deepEqual([...active.values()], ['demo']);
+        const broker = service.sessions.get('demo').engine.broker;
+        broker.connection.dispatchEvent(new Event('error'));
+        broker.connection.dispatchEvent(new Event('close'));
+        broker.disconnect();
+        assert.equal(active.size, 0);
+        const opened = events.filter(event => event.open);
+        assert.equal(opened.length, 2, 'Portfolio preflight and trading socket are accounted separately');
+        for (const event of opened)
+            assert.equal(events.filter(other => other.key === event.key && !other.open).length, 1);
+        await request('phone', { action: 'stop' });
+        assert.equal(active.size, 0);
+    });
+}
+
+test('connection accounting failure cannot prevent portfolio checks or server startup', async t => {
+    const { request, service } = await fixture(t, {
+        onConnection: () => { throw new Error('Analytics unavailable'); },
+    });
+    assert.equal((await request('phone', { action: 'start', settings: DEFAULT_SETTINGS })).status, 200);
+    await service.sessions.get('demo').task;
+    assert.equal(service.sessions.get('demo').engine.getSnapshot().active, true);
+    await request('phone', { action: 'stop' });
+});
+
+test('a failed provider connection does not create a phantom connected account', async t => {
+    const events = [];
+    const { request, service } = await fixture(t, {
+        onConnection: (...event) => events.push(event),
+        brokerFactory: async () => { throw new Error('Provider unavailable'); },
+    });
+    await request('phone', { action: 'start', settings: DEFAULT_SETTINGS });
+    await service.sessions.get('demo').task;
+    assert.equal(service.sessions.get('demo').engine.getSnapshot().active, false);
+    assert.deepEqual(events, []);
+});
 test('account authorization and origin checks protect status and commands', async t => {
     const { request } = await fixture(t);
     assert.equal((await request('stranger')).status, 401);

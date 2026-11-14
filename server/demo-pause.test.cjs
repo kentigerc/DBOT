@@ -11,6 +11,7 @@ function fixture(t, options = {}) {
         orders = [],
         reports = [],
         urls = [],
+        brokerAccounts = [],
         contracts = new Map();
     let nextId = 1000,
         clock = 1000000,
@@ -43,8 +44,9 @@ function fixture(t, options = {}) {
         },
         busy: id => options.busyDemo && id === demo.account_id,
         onTrade: (account, tool, packet) => reports.push({ account, tool, packet }),
-        brokerFactory: async url => {
+        brokerFactory: async (url, accountId) => {
             urls.push(url);
+            brokerAccounts.push(accountId);
             return {
                 disconnect() {},
                 async send(body) {
@@ -86,7 +88,7 @@ function fixture(t, options = {}) {
             };
         },
     });
-    return { runner, orders, reports, urls, records, storage, locks, auth };
+    return { runner, orders, reports, urls, brokerAccounts, records, storage, locks, auth };
 }
 test('stays on demo through losses and voids until its first win without touching a real account', async t => {
     const f = fixture(t, { profits: [-0.35, -0.35, 0, -0.35, 0.32] });
@@ -102,6 +104,7 @@ test('stays on demo through losses and voids until its first win without touchin
     assert.deepEqual(held, { stake: 220, pnl: -123, streak: 4 });
     assert.equal(f.orders.length, 5);
     assert.deepEqual(f.urls, ['demo://DEMO1']);
+    assert.deepEqual(f.brokerAccounts, ['DEMO1'], 'Connection accounting must use the actual demo account');
     assert.ok(f.reports.every(r => r.account.account_type === 'demo' && r.tool === 'even_odd'));
     const again = await f.runner.run({}, real, spec);
     assert.equal(again.completed, 5);

@@ -255,7 +255,7 @@ export default function Admin() {
                         {[
                             ['Online browsers', data?.onlineBrowsers],
                             ['Signed-in browsers', data?.onlineAuthenticatedBrowsers],
-                            ['Live Deriv connections', data?.liveDerivConnections],
+                            ['Open Deriv sockets', data?.liveDerivConnections],
                             ['Connected accounts now', data?.liveConnectedAccounts],
                             ['Active server bots', data?.activeServerBots],
                         ].map(([label, value]) => (
@@ -267,7 +267,9 @@ export default function Admin() {
                     </section>
                     <p className='neto-admin__hint'>
                         Online browsers sent a heartbeat within 90 seconds. Browser counts are estimates; devices and
-                        accounts are counted separately. Live cards ignore the date filter.
+                        accounts are counted separately. Connected accounts now counts each account once across
+                        browser and server-tool sockets; multiple tabs or reconnecting sockets do not add another
+                        account. Open Deriv sockets counts the underlying connections. Live cards ignore the date filter.
                     </p>
                     <section className='neto-admin__cards' aria-label='Period activity'>
                         {[
@@ -283,7 +285,8 @@ export default function Admin() {
                         ))}
                     </section>
                     <p className='neto-admin__hint'>
-                        Demo activity is shown until that user makes a real-account trade. Their demo history is then
+                        Connected Deriv accounts counts distinct server-verified account IDs in the selected dates,
+                        once per account across repeat logins. Demo activity is shown until that user makes a real-account trade. Their demo history is then
                         hidden from trading totals and tables; other demo users remain visible.
                         {!!data?.hiddenDemoTrades && ` ${data.hiddenDemoTrades} demo trades hidden for these dates.`}
                     </p>

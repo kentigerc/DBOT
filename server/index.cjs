@@ -57,6 +57,7 @@ admin = createAdminAnalytics({
 });
 analysis = createAnalysisService(handleAuth, {
     dispatcher,
+    onConnection: (account, key, open) => admin.connection(account, key, open),
     onOperationalEvent: event => operations?.record(event),
     onTrade: (account, state, packet) =>
         admin.trade(

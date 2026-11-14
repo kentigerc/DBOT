@@ -39,6 +39,8 @@ class PersistedEngine {
     async start(settings) {
         this.state = { ...this.state, settings, active: true, wantsRun: true, liveUntil: Date.now() + 15000 };
         this.save();
+        // Match the real engine's startup commit barrier before another instance reads status.
+        await this.deps.storage.flush?.(`neto.digit-strategy.v1.${this.state.accountId}`);
     }
     stop() {
         this.state = { ...this.state, active: false, wantsRun: false, liveUntil: 0 };

@@ -33,6 +33,7 @@ async function fixture(t, options = {}) {
         secret: 'test-only-at-least-32-byte-analytics-key',
         activeBots: () => 2,
         operations: options.operations,
+        now: options.now,
     });
     const server = http.createServer(analytics.handle);
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -87,6 +88,51 @@ test('signed browser heartbeat counts visits once, keeps online counts distinct 
     assert.equal(data.activeServerBots, 2);
     assert.equal(data.storage, 'preview-file');
     assert.ok(!JSON.stringify(await store.list(0, Date.now() + 1000)).includes('PRIVATE-ACCOUNT'));
+});
+
+test('live accounts deduplicate browser and server sockets, reconnects and repeated close notifications', async t => {
+    const { analytics, request } = await fixture(t);
+    const read = async () => (await request('/api/admin/overview', { owner: true })).json();
+    analytics.connection('ACCOUNT-A', 'browser-1', true);
+    analytics.connection('ACCOUNT-A', 'browser-1', true);
+    analytics.connection('ACCOUNT-A', 'browser-2', true);
+    analytics.connection('ACCOUNT-A', 'server-runner', true);
+    let data = await read();
+    assert.equal(data.liveDerivConnections, 3);
+    assert.equal(data.liveConnectedAccounts, 1);
+    analytics.connection('ACCOUNT-A', 'browser-1', false);
+    analytics.connection('ACCOUNT-A', 'browser-1', false);
+    analytics.connection('ACCOUNT-A', 'browser-reconnected', true);
+    data = await read();
+    assert.equal(data.liveDerivConnections, 3);
+    assert.equal(data.liveConnectedAccounts, 1);
+    analytics.connection('ACCOUNT-B', 'demo-recovery', true);
+    data = await read();
+    assert.equal(data.liveConnectedAccounts, 2);
+    for (const key of ['browser-2', 'server-runner', 'browser-reconnected'])
+        analytics.connection('ACCOUNT-A', key, false);
+    data = await read();
+    assert.equal(data.liveDerivConnections, 1);
+    assert.equal(data.liveConnectedAccounts, 1);
+    analytics.connection('ACCOUNT-B', 'demo-recovery', false);
+    data = await read();
+    assert.equal(data.liveConnectedAccounts, 0);
+    assert.equal(data.liveDerivConnections, 0);
+});
+
+test('period account totals count the same verified account once across repeat logins and multiple days', async t => {
+    let clock = Date.UTC(2026, 10, 10, 12);
+    const { analytics, request } = await fixture(t, { now: () => clock });
+    const account = { account_id: 'SAME-ACCOUNT', account_type: 'real', currency: 'USD', status: 'active' };
+    for (let i = 0; i < 5; i++) analytics.accounts([account, account]);
+    await analytics.flush();
+    clock += 86400000;
+    for (let i = 0; i < 5; i++) analytics.accounts([account]);
+    await analytics.flush();
+    const data = await (await request('/api/admin/overview?from=2026-11-10&to=2026-11-11', { owner: true })).json();
+    assert.equal(data.connectedAccounts, 1);
+    assert.equal(data.daily.length, 2);
+    assert.ok(data.daily.every(row => row.connections === 1));
 });
 test('confirmed trades deduplicate buy and settlement messages and keep demo separate from real money', async t => {
     const { analytics, request } = await fixture(t);
