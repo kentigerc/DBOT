@@ -8,8 +8,15 @@ export default function useStrategyDraft(
     own = true
 ) {
     const [draft, setDraft] = useState(initial);
+    const account = useRef(state.accountId);
     const synced = useRef<{ accountId: string; settings: Settings }>();
     useEffect(() => {
+        if (account.current !== state.accountId) {
+            account.current = state.accountId;
+            synced.current = undefined;
+            // Account-specific edits must not become another account's setup.
+            setDraft(own ? { ...state.settings } : initial());
+        }
         if (!state.accountId && !state.active && !state.pending && !state.trades.length) {
             synced.current = undefined;
             return;

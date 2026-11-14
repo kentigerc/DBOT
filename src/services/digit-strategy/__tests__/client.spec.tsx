@@ -73,15 +73,20 @@ it.each(['start', 'stop'] as const)('ignores a status poll overtaken by a comple
     expect(digitStrategyEngine.getSnapshot()).toMatchObject({ active: after.active, phase: 'Command completed' });
 });
 
-it('keeps Momentum STOP available while the server is still preparing its first run', async () => {
-    const settings = { ...DEFAULT_SETTINGS, strategy: 'momentum-70' as const, duration: 2, multiplier: 2.1 };
+it.each([
+    { name: 'Analysis Tool', strategy: undefined, Component: AnalysisTool, durationLabel: 'Contract duration' },
+    { name: 'HIT AND RUN', strategy: 'over2-under7' as const, Component: DigitCycle, durationLabel: 'Contract duration' },
+    { name: 'Even/Odd', strategy: 'even-odd' as const, Component: () => <DigitCycle parity />, durationLabel: 'Contract duration' },
+    { name: 'Momentum', strategy: 'momentum-70' as const, Component: Momentum, durationLabel: 'Duration' },
+])('keeps $name STOP available while the server is preparing its first run', async ({ strategy, Component, durationLabel }) => {
+    const settings = { ...DEFAULT_SETTINGS, strategy, duration: 2, multiplier: 2.1 };
     const starting = { ...empty(), accountId: account.account_id, starting: true, requestedSettings: settings };
     request.mockResolvedValue(starting);
-    render(<Momentum />);
+    render(<Component />);
     await act(async () => {});
     expect(screen.getByRole('button', { name: 'STOP' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'RUN MOMENTUM' })).toBeDisabled();
-    expect(screen.getByLabelText('Duration')).toHaveValue('2');
+    expect(screen.getByRole('button', { name: /RUN/ })).toBeDisabled();
+    expect(screen.getByLabelText(durationLabel)).toHaveValue('2');
     await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'STOP' }));
     });

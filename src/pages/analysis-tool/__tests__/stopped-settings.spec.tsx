@@ -113,3 +113,24 @@ it.each(tools)('$name keeps fields locked until its open contract settles', ({ C
     render(<Component />);
     screen.getAllByRole('spinbutton').forEach(input => expect(input).toBeDisabled());
 });
+
+it.each(tools)('$name discards another account\'s stopped edits on account change and logout', ({ Component, strategy }) => {
+    mockSnapshot.active = false;
+    mockSnapshot.settings = sharedRecoverySettings({ ...DEFAULT_SETTINGS, strategy, stake: 2, multiplier: 3 });
+    render(<Component />);
+    const stake = screen.getByLabelText('Starting stake (USD)');
+    expect(stake).toHaveValue(2);
+    fireEvent.change(stake, { target: { value: '3' } });
+    act(() => {
+        mockSnapshot = { ...empty(), accountId: 'DEMO2' };
+        mockListeners.forEach(fn => fn());
+    });
+    expect(stake).toHaveValue(DEFAULT_SETTINGS.stake);
+    expect(screen.getByLabelText('Martingale multiplier')).toHaveValue(DEFAULT_SETTINGS.multiplier);
+    fireEvent.change(stake, { target: { value: '4' } });
+    act(() => {
+        mockSnapshot = empty();
+        mockListeners.forEach(fn => fn());
+    });
+    expect(stake).toHaveValue(DEFAULT_SETTINGS.stake);
+});

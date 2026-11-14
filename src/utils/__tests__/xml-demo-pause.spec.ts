@@ -21,10 +21,10 @@ afterEach(() => {
     cycles = [];
     global.fetch = originalFetch;
 });
-function setup() {
+function setup(reportJournal?: (message: string) => void) {
     const cycle = new XmlScannerCycle();
     cycles.push(cycle);
-    cycle.start('REAL1', 100, jest.fn(), undefined, { stake: 0.35, stopLoss: 100, takeProfit: 10, multiplier: 2 });
+    cycle.start('REAL1', 100, jest.fn(), reportJournal, { stake: 0.35, stopLoss: 100, takeProfit: 10, multiplier: 2 });
     const generation = cycle.claim({
         symbol: 'R_100',
         side: 'over',
@@ -119,6 +119,18 @@ it('does not detour a demo-only session', async () => {
     for (let id = 1; id <= 3; id++) await lose(cycle, id, 0.35);
     expect(await cycle.runDemoPause(parameters, generation)).toBe(true);
     expect(global.fetch).not.toHaveBeenCalled();
+});
+
+it('does not discard a confirmed demo win when the journal renderer throws', async () => {
+    const { cycle, generation } = setup(message => {
+        if (message.startsWith('Demo win confirmed')) throw new Error('Journal renderer unavailable');
+    });
+    for (let id = 1; id <= 3; id++) await lose(cycle, id, 0.35);
+    jest.mocked(global.fetch).mockResolvedValue(response({ demoPause: completed }));
+    const before = cycle.getSnapshot();
+    expect(await cycle.runDemoPause(parameters, generation)).toBe(true);
+    expect(cycle.getSnapshot()).toMatchObject({ enabled: true, pnl: before.pnl, losses: before.losses });
+    expect(cycle.getSnapshot().demoPause).toMatchObject({ status: 'done', wins: 1 });
 });
 
 it('cannot resume after STOP even if the demo request responds late', async () => {

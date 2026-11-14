@@ -108,9 +108,13 @@ export class ManualTraderGate {
         // RUN is the user's entry decision. Do not re-apply scanner entry rules.
         return true;
     }
-    canPurchase(accountId: string) {
+    allowsPurchase(accountId: string) {
         if (!this.state.plan) return true;
-        const allowed = this.state.active && accountId === this.state.plan.accountId && this.bound() && !this.pending;
+        return this.state.active && accountId === this.state.plan.accountId && this.bound() && !this.pending;
+    }
+    canPurchase(accountId: string) {
+        const allowed = this.allowsPurchase(accountId);
+        if (!this.state.plan) return allowed;
         if (allowed) this.pending = true;
         return allowed;
     }

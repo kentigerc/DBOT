@@ -363,9 +363,13 @@ export class XmlScannerCycle {
                 demoPause: data.demoPause,
                 message: 'Demo win confirmed. Resuming the held real recovery stake.',
             });
-            this.reportJournal?.(
-                'Demo win confirmed. Demo outcomes did not change real P/L or the next recovery stake.'
-            );
+            try {
+                this.reportJournal?.(
+                    'Demo win confirmed. Demo outcomes did not change real P/L or the next recovery stake.'
+                );
+            } catch {
+                // A journal-rendering failure must not turn a confirmed demo win into a trading failure.
+            }
             return true;
         } catch (error) {
             if (!controller.signal.aborted)

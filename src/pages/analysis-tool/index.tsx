@@ -180,7 +180,7 @@ export default function AnalysisTool() {
                     <button
                         className='analysis-tool__stop'
                         onClick={() => digitStrategyEngine.stop().catch(reason => setError(reason.message))}
-                        disabled={!state.active || !state.wantsRun}
+                        disabled={!state.active}
                     >
                         STOP
                     </button>

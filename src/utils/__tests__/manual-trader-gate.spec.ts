@@ -95,3 +95,18 @@ it('requires fresh manual RUN after reload and releases unrelated personal works
     expect(restored.getSnapshot().plan).toBeUndefined();
     expect(await restored.beforePurchase('R_50', 'DIGITOVER')).toBe(true);
 });
+
+it('preflights without reserving a purchase until every account guard has accepted it', () => {
+    const { gate, workspace } = setup();
+    gate.begin(workspace, note);
+    expect(gate.allowsPurchase('OTHER')).toBe(false);
+    expect(gate.allowsPurchase('TEST')).toBe(true);
+    expect(gate.allowsPurchase('TEST')).toBe(true);
+    expect(gate.canPurchase('TEST')).toBe(true);
+    expect(gate.allowsPurchase('TEST')).toBe(false);
+    gate.purchased(101);
+    gate.contract({ contract_id: 101, is_sold: 1, profit: 0.12 });
+    expect(gate.allowsPurchase('TEST')).toBe(true);
+    gate.stop();
+    expect(gate.allowsPurchase('TEST')).toBe(false);
+});

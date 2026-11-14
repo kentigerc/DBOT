@@ -12,6 +12,8 @@ export const accountPurchaseGuard = accountId => ({
     purchase: () =>
         builderDemoPause.canPurchase(accountId) &&
         xmlScannerCycle.canPurchase(accountId) &&
+        // Preflight every rejecting gate before reserving any purchase state.
+        manualTraderGate.allowsPurchase(accountId) &&
         scannerExitGuard.purchase() &&
         xmlScannerCycle.purchase(accountId) &&
         manualTraderGate.canPurchase(accountId),
