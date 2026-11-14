@@ -276,11 +276,15 @@ function createDemoPause({
                         await save(real.account_id, state, progress);
                         throw error;
                     }
-                    if (stopped) {
+                    try {
+                        // Intent commits and shared protection may outlive logout,
+                        // expiry or lease loss. Recheck immediately before sending.
+                        await check();
+                    } catch (error) {
                         await locks.cancel(demoLease, state.pending.nonce);
                         state.pending = undefined;
                         await save(real.account_id, state, progress);
-                        await check();
+                        throw error;
                     }
                     let response;
                     try {

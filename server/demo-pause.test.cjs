@@ -86,7 +86,7 @@ function fixture(t, options = {}) {
             };
         },
     });
-    return { runner, orders, reports, urls, records, storage, locks };
+    return { runner, orders, reports, urls, records, storage, locks, auth };
 }
 test('stays on demo through losses and voids until its first win without touching a real account', async t => {
     const f = fixture(t, { profits: [-0.35, -0.35, 0, -0.35, 0.32] });
@@ -317,3 +317,48 @@ test('refreshes the durable journal revision after acquiring the real account le
     };
     assert.equal((await f.runner.run({}, real, spec)).completed, 2);
 });
+
+for (const checkpoint of ['flush', 'protect']) {
+    for (const change of ['session invalidation', 'parent lease loss', 'demo lease loss']) {
+        if (checkpoint === 'flush' && change === 'demo lease loss') continue; // protect already checks this case.
+        test(`refuses an unsent demo buy after ${change} during ${checkpoint}`, async t => {
+            const f = fixture(t);
+            let invalid = false,
+                announce,
+                release;
+            const started = new Promise(resolve => {
+                announce = resolve;
+            });
+            const gate = new Promise(resolve => {
+                release = resolve;
+            });
+            const parentLease = { lost: false };
+            f.auth.verifySession = async () => {
+                if (invalid) throw Object.assign(new Error('Session unavailable'), { status: 401 });
+            };
+            const target = checkpoint === 'flush' ? f.storage : f.locks;
+            const original = target[checkpoint];
+            target[checkpoint] = async (...args) => {
+                const result = await original(...args);
+                if ([...f.records.values()].some(value => JSON.parse(value).pending)) {
+                    if (change === 'demo lease loss') args[0].lost = true;
+                    announce();
+                    await gate;
+                }
+                return result;
+            };
+            const outcome = assert.rejects(f.runner.run({}, real, spec, { parentLease }));
+            await started;
+            if (change === 'parent lease loss') parentLease.lost = true;
+            if (change === 'session invalidation') invalid = true;
+            release();
+            await outcome;
+            assert.equal(f.orders.length, 0, 'Authorization changes must prevent the provider send');
+            assert.ok(
+                [...f.records.values()].every(value => !JSON.parse(value).pending),
+                'Unsent intent is cleared'
+            );
+            assert.equal((await f.locks.summary()).pending, 0, 'Unsent shared protection is cancelled');
+        });
+    }
+}
