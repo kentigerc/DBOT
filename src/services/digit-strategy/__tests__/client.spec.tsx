@@ -18,6 +18,7 @@ jest.mock('@/utils/deriv-session', () => ({
 }));
 const request = sessionRequest as jest.Mock;
 const account = { account_id: 'STOP-TEST', account_type: 'demo', currency: 'USD', status: 'active', balance: 1000 };
+
 beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
@@ -31,6 +32,74 @@ afterEach(async () => {
     await Promise.resolve();
     jest.clearAllTimers();
     jest.useRealTimers();
+});
+
+it.each(['start', 'stop'] as const)('ignores a status poll overtaken by a completed %s command', async action => {
+    const before = {
+        ...empty(),
+        accountId: account.account_id,
+        active: action === 'stop',
+        settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70' as const },
+    };
+    const after = { ...before, active: action === 'start', phase: 'Command completed' };
+    let finishCommand!: (value: unknown) => void;
+    let finishPoll!: (value: unknown) => void;
+    let reads = 0;
+    request.mockImplementation((_path, body) => {
+        if (body)
+            return new Promise(resolve => {
+                finishCommand = resolve;
+            });
+        if (++reads === 1) return Promise.resolve(before);
+        return new Promise(resolve => {
+            finishPoll = resolve;
+        });
+    });
+    digitStrategyEngine.selectAccount(account);
+    await act(async () => {});
+    const command = action === 'stop' ? digitStrategyEngine.stop() : digitStrategyEngine.start(before.settings);
+    await act(async () => {
+        await jest.advanceTimersByTimeAsync(1000);
+    });
+    expect(finishPoll).toBeDefined();
+    await act(async () => {
+        finishCommand(after);
+        await command;
+    });
+    expect(digitStrategyEngine.getSnapshot().active).toBe(after.active);
+    await act(async () => {
+        finishPoll(before);
+    });
+    expect(digitStrategyEngine.getSnapshot()).toMatchObject({ active: after.active, phase: 'Command completed' });
+});
+
+it('keeps Momentum STOP available while the server is still preparing its first run', async () => {
+    const settings = { ...DEFAULT_SETTINGS, strategy: 'momentum-70' as const, duration: 2, multiplier: 2.1 };
+    const starting = { ...empty(), accountId: account.account_id, starting: true, requestedSettings: settings };
+    request.mockResolvedValue(starting);
+    render(<Momentum />);
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'STOP' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'RUN MOMENTUM' })).toBeDisabled();
+    expect(screen.getByLabelText('Duration')).toHaveValue('2');
+    await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'STOP' }));
+    });
+    expect(request).toHaveBeenCalledWith(expect.any(String), { action: 'stop' });
+});
+
+it('shows a first Momentum startup failure even when its saved engine still belongs to the default tool', async () => {
+    request.mockResolvedValue({
+        ...empty(),
+        accountId: account.account_id,
+        commandError: 'Settle existing Deriv contracts before starting Analysis Tool.',
+        requestedSettings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70', duration: 2, multiplier: 2.1 },
+    });
+    render(<Momentum />);
+    await act(async () => {});
+    expect(screen.getByRole('alert')).toHaveTextContent('Settle existing Deriv contracts');
+    expect(screen.getByRole('button', { name: 'RUN MOMENTUM' })).toBeEnabled();
+    expect(screen.getByLabelText('Duration')).toHaveValue('2');
 });
 
 it.each([undefined, 'over2-under7', 'even-odd', 'momentum-70'] as const)(

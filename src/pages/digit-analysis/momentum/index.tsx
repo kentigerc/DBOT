@@ -86,7 +86,9 @@ export default function Momentum() {
         : [];
     const previews = markets.filter(m => m.ready);
     const focus =
-        state.recovery.recoveryLocked && recovering
+        own && state.pending
+            ? markets.find(m => m.symbol === state.pending!.signal.symbol)
+            : state.recovery.recoveryLocked && recovering
             ? markets.find(m => m.symbol === state.recovery.lockedSymbol)
             : previews.length
               ? previews[previewIndex % previews.length]
@@ -166,9 +168,11 @@ export default function Momentum() {
                     {own && state.error && <p role='alert'>{state.error}</p>}
                     {own && (
                         <p className='momentum__scan-status' role='status'>
-                            {recovering && state.recovery.recoveryLocked
-                                ? `Recovery locked · ${state.recovery.lockedSymbol}`
-                                : `Scanning all markets · ${markets.filter(m => m.ready).length}/${markets.length} live · Preview rotates every 2 seconds`}
+                            {state.pending
+                                ? `${state.pending.contractId ? 'Open trade' : 'Pending purchase'} · ${state.pending.signal.symbol} · Preview pinned`
+                                : recovering && state.recovery.recoveryLocked
+                                  ? `Recovery locked · ${state.recovery.lockedSymbol}`
+                                  : `Scanning all markets · ${markets.filter(m => m.ready).length}/${markets.length} live · Preview rotates every 2 seconds`}
                         </p>
                     )}
                     {own && (state.recovery.deficit || 0) > 0 && (
@@ -267,11 +271,15 @@ export default function Momentum() {
                         <h3>
                             {focus?.name || 'All supported Volatility markets'}{' '}
                             <small>
-                                {recovering
-                                    ? state.recovery.recoveryLocked
-                                        ? 'Locked recovery market'
-                                        : 'Scanning recovery markets'
-                                    : 'Live watchlist'}
+                                {own && state.pending
+                                    ? state.pending.contractId
+                                        ? 'Open trade market'
+                                        : 'Pending purchase market'
+                                    : recovering
+                                      ? state.recovery.recoveryLocked
+                                          ? 'Locked recovery market'
+                                          : 'Scanning recovery markets'
+                                      : 'Live watchlist'}
                             </small>
                         </h3>
                         <div className='momentum__table'>

@@ -143,3 +143,25 @@ it('passes a custom tick duration to the shared normal and recovery session sett
         expect(client.start).toHaveBeenCalledWith(expect.objectContaining({ duration: 4, multiplier: 2.1 }), undefined)
     );
 });
+
+it('pins the preview to the open normal trade instead of rotating to unrelated markets', () => {
+    jest.useFakeTimers();
+    try {
+        client.getSnapshot.mockReturnValue({
+            ...empty(),
+            active: true,
+            settings: { ...DEFAULT_SETTINGS, strategy: 'momentum-70' },
+            pending: { signal: { symbol: 'R_50' }, contractId: 123 },
+            markets: [
+                { symbol: 'R_10', name: 'Volatility 10 Index', ready: true },
+                { symbol: 'R_50', name: 'Volatility 50 Index', ready: true },
+            ],
+        });
+        render(<Momentum />);
+        expect(screen.getByRole('heading', { name: /Volatility 50 Index/ })).toBeTruthy();
+        act(() => jest.advanceTimersByTime(4000));
+        expect(screen.getByRole('heading', { name: /Volatility 50 Index/ })).toBeTruthy();
+    } finally {
+        jest.useRealTimers();
+    }
+});

@@ -19,12 +19,19 @@ class ServerStrategyClient {
         };
     };
     private accept(
-        data: Omit<Snapshot, 'markets'> & { markets?: Snapshot['markets']; starting?: boolean; commandError?: string },
+        data: Omit<Snapshot, 'markets'> & {
+            markets?: Snapshot['markets'];
+            starting?: boolean;
+            commandError?: string;
+            requestedSettings?: Settings;
+        },
         accountId: string
     ) {
         if (this.account?.account_id !== accountId) return;
         this.state = {
             ...data,
+            settings:
+                (data.starting || data.commandError) && data.requestedSettings ? data.requestedSettings : data.settings,
             // Persisted journals omit live previews; every mounted tool needs an array.
             markets: Array.isArray(data.markets) ? data.markets : [],
             active: data.active || !!data.starting,
@@ -78,7 +85,12 @@ class ServerStrategyClient {
         if (!accountId) throw new Error('Log in and select a Deriv account.');
         const sequence = ++this.sequence;
         const data = await sessionRequest(this.path(), body);
-        if (sequence === this.sequence) this.accept(data, accountId);
+        if (sequence === this.sequence) {
+            // A poll started during this command may still contain the pre-command
+            // state. Fence it out before accepting the authoritative command reply.
+            this.sequence++;
+            this.accept(data, accountId);
+        }
     }
     async start(settings: Settings, reconcileId?: number) {
         if (api_base.is_running) throw new Error('Stop Bot Builder before running Analysis Tool.');

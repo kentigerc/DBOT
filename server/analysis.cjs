@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { DigitStrategyEngine, empty } = require('../.server-build/engine');
-const { DEFAULT_SETTINGS, validateSettings, cents } = require('../.server-build/strategy');
+const { DEFAULT_SETTINGS, validateSettings, sharedRecoverySettings, cents } = require('../.server-build/strategy');
 const { createBroker } = require('./strategy-broker.cjs');
 const { createTradingStateStorage } = require('./trading-state.cjs');
 const { createAccountLocks, DEFINITIVE } = require('./account-locks.cjs');
@@ -299,6 +299,8 @@ function createAnalysisService(
                         state.active && state.liveUntil > Date.now() && holder.active && holder.mode === 'analysis';
                     return json(200, {
                         ...state,
+                        commandError: value.commandError || '',
+                        requestedSettings: value.commandError ? value.requestedSettings : undefined,
                         active: !!live,
                         wantsRun: !!live && state.wantsRun,
                         markets: [],
@@ -444,8 +446,14 @@ function createAnalysisService(
                         throw fail(409, 'This account already has an Analysis Tool running.');
                     if (locks.mode !== 'postgres' && (builderBuys.get(id)?.size || 0) > 0)
                         throw fail(409, 'A Builder purchase is open or unconfirmed. Settle it before starting.');
+                    validateSettings(body.settings);
+                    // Report the requested tool during asynchronous preparation,
+                    // without changing the saved engine settings or trade history.
+                    value.requestedSettings = sharedRecoverySettings({ ...body.settings });
+                    value.commandError = '';
                     value.starting = true;
                     value.cancelled = false;
+                    value.manuallyStopped = false;
                     value.account = account;
                     value.request = req;
                     value.runRequest = req;
@@ -485,7 +493,9 @@ function createAnalysisService(
                                 const restored = entry(account);
                                 Object.assign(restored, {
                                     starting: true,
+                                    requestedSettings: old.requestedSettings,
                                     cancelled: old.cancelled,
+                                    manuallyStopped: old.manuallyStopped,
                                     request: req,
                                     runRequest: req,
                                     lease: old.lease,
@@ -521,7 +531,9 @@ function createAnalysisService(
                             await value.engine.start(body.settings, body.reconcileId);
                             value.commandError = '';
                         } catch (error) {
-                            value.commandError = error.message || 'Unable to start server trading.';
+                            value.commandError = value.manuallyStopped
+                                ? ''
+                                : error.message || 'Unable to start server trading.';
                         } finally {
                             check?.disconnect();
                             value.starting = false;
@@ -531,6 +543,7 @@ function createAnalysisService(
                     })();
                 } else if (body.action === 'stop') {
                     demoPauses.stop(id);
+                    value.manuallyStopped = true;
                     value.cancelled = true;
                     if (value.engine.getSnapshot().active) value.engine.stop();
                     await locks.requestStop(id);
@@ -573,6 +586,7 @@ function createAnalysisService(
                 ...value.engine.getSnapshot(),
                 starting: value.starting,
                 commandError: value.commandError || '',
+                requestedSettings: value.starting || value.commandError ? value.requestedSettings : undefined,
                 serverExecution: true,
                 demoOnly: false,
             });

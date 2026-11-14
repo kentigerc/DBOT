@@ -301,6 +301,58 @@ test('STOP cancels a start while its portfolio check is in flight', async t => {
     assert.equal(ControlledEngine.starts, before);
     assert.equal((await request('phone')).data.active, false);
 });
+
+test('reports the requested Momentum tool during preparation so another device can stop its startup', async t => {
+    let release;
+    const { request, service } = await fixture(t, {
+        brokerFactory: async () => ({
+            send: () =>
+                new Promise(resolve => {
+                    release = resolve;
+                }),
+            disconnect() {},
+        }),
+    });
+    const settings = { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract', duration: 2 };
+    const before = ControlledEngine.starts;
+    const response = await request('phone', { action: 'start', settings });
+    assert.equal(response.status, 200);
+    assert.equal(response.data.starting, true);
+    assert.equal(response.data.requestedSettings.strategy, 'momentum-70');
+    const other = await request('laptop');
+    assert.equal(other.data.requestedSettings.strategy, 'momentum-70');
+    assert.equal(other.data.requestedSettings.duration, 2);
+    assert.equal(ControlledEngine.starts, before, 'The saved engine is not changed before preparation completes');
+    await request('laptop', { action: 'stop' });
+    release({ portfolio: { contracts: [] } });
+    await service.sessions.get('demo').task;
+    const stopped = await request('phone');
+    assert.equal(stopped.data.active, false);
+    assert.equal(stopped.data.commandError, '');
+    assert.equal(stopped.data.requestedSettings, undefined);
+    assert.equal(ControlledEngine.starts, before);
+});
+
+test('retains first-start error context when status is read from a persisted journal', async t => {
+    const records = new Map();
+    const storage = {
+        getItem: key => records.get(key) || null,
+        setItem: (key, value) => records.set(key, value),
+        peek: async key => records.get(key) || null,
+    };
+    const saved = { ...empty(), version: 1, accountId: 'demo' };
+    records.set('neto.digit-strategy.v1.demo', JSON.stringify(saved));
+    const { request, service } = await fixture(t, { storage, open: true });
+    const settings = { ...DEFAULT_SETTINGS, strategy: 'momentum-70', recoveryMode: 'same_contract', duration: 2 };
+    await request('phone', { action: 'start', settings });
+    await service.sessions.get('demo').task;
+    const status = await request('laptop');
+    assert.equal(status.data.active, false);
+    assert.match(status.data.commandError, /existing Deriv contracts/);
+    assert.equal(status.data.requestedSettings.strategy, 'momentum-70');
+    assert.equal(status.data.requestedSettings.duration, 2);
+    assert.deepEqual(JSON.parse(records.get('neto.digit-strategy.v1.demo')), saved);
+});
 test('file journal survives reconstruction and corruption fails closed', async t => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'neto-analysis-test-'));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
