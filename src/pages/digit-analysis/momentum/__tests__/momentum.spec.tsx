@@ -34,7 +34,7 @@ it('starts the distinct strategy with paired Over/Under recovery and editable ri
                 strategy: 'momentum-70',
                 recoveryMode: 'same_contract',
                 stake: 0.5,
-                multiplier: 2.5,
+                multiplier: 2.1,
                 duration: 1,
             }),
             undefined
@@ -140,6 +140,6 @@ it('passes a custom tick duration to the shared normal and recovery session sett
     fireEvent.change(screen.getByLabelText('Duration'), { target: { value: '4' } });
     fireEvent.click(screen.getByRole('button', { name: 'RUN MOMENTUM' }));
     await waitFor(() =>
-        expect(client.start).toHaveBeenCalledWith(expect.objectContaining({ duration: 4, multiplier: 2.5 }), undefined)
+        expect(client.start).toHaveBeenCalledWith(expect.objectContaining({ duration: 4, multiplier: 2.1 }), undefined)
     );
 });
