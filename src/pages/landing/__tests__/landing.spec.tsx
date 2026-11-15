@@ -42,6 +42,7 @@ it('provides a clear platform entry without starting trading or requiring authen
     expect(screen.getByRole('link', { name: /Launch trading platform/ }).getAttribute('href')).toBe(
         '/platform#bot_builder'
     );
+    expect(screen.getByRole('link', { name: /Open platform/ })).toHaveAttribute('href', '/platform#bot_builder');
     expect(screen.getByLabelText('Illustrative NetoAcademy workspace preview')).toBeTruthy();
     expect(startDerivLogin).not.toHaveBeenCalled();
 });

@@ -101,7 +101,7 @@ test('login uses the supplied app ID and fresh S256 PKCE; tokens are exchanged s
     assert.equal(auth.searchParams.get('code_challenge_method'), 'S256');
     const response = await app.request('/api/auth/callback', { code: 'test-code', state });
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).authenticated, true);
+    assert.deepEqual(await response.json(), { authenticated: true, returnTo: '/platform#bot_builder' });
     const body = new URLSearchParams(app.calls[0].body);
     assert.equal(body.get('client_id'), configuration.appId);
     assert.equal(body.get('code'), 'test-code');
@@ -123,6 +123,17 @@ test('wrong state and missing flow fail before contacting token endpoint', async
     assert.equal((await app.request('/api/auth/callback', { code: 'test-code', state: 'wrong' })).status, 400);
     assert.equal((await app.request('/api/auth/callback', { code: 'test-code', state: 'wrong' })).status, 400);
     assert.equal(app.calls.length, 0);
+});
+
+test('ordinary login returns to the platform and ignores arbitrary return destinations', async t => {
+    const app = await fixture(t);
+    for (const destination of ['platform', '/', 'https://example.invalid', '//example.invalid']) {
+        const login = await app.request('/api/auth/login?return=' + encodeURIComponent(destination));
+        const state = new URL(login.headers.get('location')).searchParams.get('state');
+        const callback = await app.request('/api/auth/callback', { code: 'test-code', state });
+        assert.equal(callback.status, 200);
+        assert.equal((await callback.json()).returnTo, '/platform#bot_builder');
+    }
 });
 
 test('foreign origins cannot exchange codes, issue connections or log out a user', async t => {

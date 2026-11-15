@@ -15,7 +15,9 @@ const CallbackPage = () => {
         }
         completion
             .then(value =>
-                window.location.replace((value as { returnTo?: string })?.returnTo === '/admin' ? '/admin' : '/')
+                window.location.replace(
+                    (value as { returnTo?: string })?.returnTo === '/admin' ? '/admin' : '/platform#bot_builder'
+                )
             )
             .catch(reason => setError(reason.message));
     }, []);

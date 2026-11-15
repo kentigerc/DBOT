@@ -363,7 +363,8 @@ function createAuthHandler({
                         state,
                         admin: adminLogin,
                         adminOwner,
-                        returnTo: adminLogin || url.searchParams.get('return') === 'admin' ? '/admin' : '/',
+                        returnTo:
+                            adminLogin || url.searchParams.get('return') === 'admin' ? '/admin' : '/platform#bot_builder',
                         expires: now() + 600000,
                     },
                     600
@@ -427,7 +428,7 @@ function createAuthHandler({
                 writeSession(res, accessSession(tokens, sid, seconds), refresh);
                 return json(res, 200, {
                     authenticated: true,
-                    returnTo: flow.admin || flow.returnTo === '/admin' ? '/admin' : '/',
+                    returnTo: flow.admin || flow.returnTo === '/admin' ? '/admin' : '/platform#bot_builder',
                 });
             }
             if (url.pathname === '/api/auth/terms' && req.method === 'POST') {
