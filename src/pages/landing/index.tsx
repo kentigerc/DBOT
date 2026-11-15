@@ -169,7 +169,10 @@ export default function Landing() {
                         </button>
                     )}
                     <a className='nl-nav__launch' href={PLATFORM}>
-                        Open platform <Arrow diagonal />
+                        Start Trading
+                        <span className='nl-nav__launch-icon' aria-hidden='true'>
+                            <Arrow diagonal />
+                        </span>
                     </a>
                 </div>
             </header>

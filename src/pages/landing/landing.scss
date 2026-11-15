@@ -89,16 +89,47 @@ body.neto-landing-page {
             font-size: 12px;
         }
         &__launch {
-            padding: 11px 18px;
-            border: 1px solid #ffffff35;
-            border-radius: 5px;
-            span {
-                margin-left: 14px;
-            }
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            gap: 10px;
+            min-height: 44px;
+            padding: 10px 18px;
+            border: 1px solid #f67779;
+            border-radius: 999px;
+            background: linear-gradient(120deg, #b91c43, #cf303c 65%, #b91c32);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            line-height: 1.2;
+            white-space: nowrap;
+            box-shadow: 0 6px 22px #cf303c40, inset 0 1px 0 #ffffff30;
+            transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
             &:hover {
-                background: #fff;
-                color: #111;
+                color: #fff;
+                filter: brightness(1.04);
+                transform: translateY(-2px);
+                box-shadow: 0 9px 28px #cf303c60, inset 0 1px 0 #ffffff40;
             }
+            &:active {
+                transform: translateY(0);
+            }
+            &:focus-visible {
+                outline: 2px solid var(--nl-ink);
+                outline-offset: 4px;
+            }
+        }
+        &__launch-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border: 1px solid #ffffff30;
+            border-radius: 50%;
+            background: #ffffff18;
         }
     }
     .nl-brand {
@@ -1130,10 +1161,7 @@ body.neto-landing-page {
             }
             &__launch {
                 padding: 10px 13px;
-                font-size: 10px;
-                span {
-                    margin-left: 8px;
-                }
+                font-size: 12px;
             }
         }
         .nl-brand {
@@ -1328,13 +1356,8 @@ body.neto-landing-page {
         .nl-nav nav a:hover {
             color: var(--nl-red);
         }
-        .nl-nav__launch,
         .nl-brand__mark {
             border-color: var(--nl-line);
-        }
-        .nl-nav__launch:hover {
-            background: var(--nl-ink);
-            color: #fff;
         }
         .nl-hero h1 em,
         .nl-final h2 em,
@@ -1413,7 +1436,7 @@ body.neto-landing-page {
             padding-right: 6px;
             font-size: 20px;
         }
-        .nl-nav__launch svg {
+        .nl-nav__launch-icon {
             display: none;
         }
     }
