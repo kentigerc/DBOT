@@ -536,3 +536,36 @@ it('reports an invalid XML entry barrier instead of waiting indefinitely', async
         message: expect.stringContaining('entry digit is invalid'),
     });
 });
+
+it.each([2.73, 2.74])('keeps the selected $%s session loss budget across XML batches', async stopLoss => {
+    jest.useFakeTimers();
+    const cycle = new XmlScannerCycle(),
+        stop = jest.fn();
+    const settings = { stake: 1, stopLoss, takeProfit: 10, multiplier: 2.1 };
+    cycle.start('TEST-DEMO', 100, stop, undefined, settings);
+    let token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 1000, stopLoss: Math.round(stopLoss * 100) });
+    cycle.runStarted();
+    for (let id = 1; id <= 3; id++) await settle(cycle, id, 0.12);
+    cycle.runnerStopped();
+    jest.advanceTimersByTime(5000);
+    token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 1000, stopLoss: Math.round(stopLoss * 100) });
+    cycle.runStarted();
+    await settle(cycle, 4, -1);
+    expect(cycle.getSnapshot().pnl).toBe(-64);
+    expect(cycle.getSnapshot().settings.stopLoss).toBe(stopLoss);
+    if (stopLoss === 2.73) {
+        expect(cycle.recoveryStake(1)).toBeUndefined();
+        expect(cycle.getSnapshot().enabled).toBe(false);
+    } else {
+        expect(cycle.recoveryStake(1)).toBe(2.1);
+        await settle(cycle, 5, -2.1);
+        jest.runAllTicks();
+        expect(cycle.getSnapshot()).toMatchObject({
+            enabled: false,
+            pnl: -274,
+            message: 'Session stop-loss reached: $-2.74.',
+        });
+    }
+});

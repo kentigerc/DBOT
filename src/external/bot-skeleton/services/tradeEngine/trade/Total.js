@@ -1,5 +1,6 @@
 import { getRoundedNumber } from '@/components/shared';
 import { builderDemoPause } from '@/utils/builder-demo-pause';
+import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { localize } from '@deriv-com/translations';
 import { LogTypes } from '../../../constants/messages';
 import { createError } from '../../../utils/error';
@@ -85,11 +86,15 @@ export default Engine =>
         }
 
         getTotalProfit(toString, currency) {
-            const accountStat = this.getAccountStat();
+            const automatic = xmlScannerCycle.getSnapshot();
+            // Hosted XML limits must share the scanner's session budget across batches,
+            // excluding account results earned before START XML AUTO.
+            const profit =
+                automatic.enabled && automatic.accountId === this.accountInfo.loginid
+                    ? automatic.pnl / 100
+                    : +this.getAccountStat().totalProfit;
 
-            return toString && accountStat.totalProfit !== 0
-                ? getRoundedNumber(+accountStat.totalProfit, currency)
-                : +accountStat.totalProfit;
+            return toString && profit !== 0 ? getRoundedNumber(profit, currency) : profit;
         }
 
         /* eslint-enable */
