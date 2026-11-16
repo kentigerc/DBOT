@@ -261,7 +261,6 @@ export default function MarketScanner({
                             min={min}
                             step={step}
                             inputMode='decimal'
-                            max={key === 'stake' ? 100 : undefined}
                             value={auto.enabled ? auto.settings[key] : draft[key]}
                             disabled={auto.enabled || preparing}
                             onChange={event => setDraft(value => ({ ...value, [key]: event.target.value }))}

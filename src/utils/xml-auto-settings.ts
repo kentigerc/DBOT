@@ -11,8 +11,8 @@ export function validateXmlAutoSettings(settings: XmlAutoSettings): XmlAutoSetti
         Number.isFinite(value) &&
         Number.isSafeInteger(Math.round(value * 100)) &&
         Math.abs(value * 100 - Math.round(value * 100)) < 1e-7;
-    if (!money(stake) || stake < 0.35 || stake > 100)
-        throw new Error('Stake must be between $0.35 and $100, with at most two decimal places.');
+    if (!money(stake) || stake < 0.35)
+        throw new Error('Stake must be at least $0.35, with at most two decimal places.');
     if (!money(stopLoss) || stopLoss < stake)
         throw new Error('Session stop loss must be at least the stake, with at most two decimal places.');
     if (!money(takeProfit) || takeProfit <= 0)

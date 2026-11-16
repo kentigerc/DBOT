@@ -569,3 +569,24 @@ it.each([2.73, 2.74])('keeps the selected $%s session loss budget across XML bat
         });
     }
 });
+
+it('allows the selected $50 recovery progression above $100 while enforcing the session loss budget', async () => {
+    const cycle = new XmlScannerCycle();
+    cycle.start('TEST-DEMO', 100, jest.fn(), undefined, {
+        stake: 50,
+        stopLoss: 9890,
+        takeProfit: 700,
+        multiplier: 2.1,
+    });
+    const token = cycle.claim(match)!;
+    cycle.loaded(token, { takeProfit: 70000, stopLoss: 989000 });
+    cycle.runStarted();
+    await settle(cycle, 1, -50);
+    expect(cycle.recoveryStake(50)).toBe(105);
+    expect(cycle.getSnapshot().enabled).toBe(true);
+    await settle(cycle, 2, -105);
+    expect(cycle.recoveryStake(105)).toBe(220.5);
+    // A larger next stake still cannot put more than the selected budget at risk.
+    expect(cycle.recoveryStake(5000)).toBeUndefined();
+    expect(cycle.getSnapshot().enabled).toBe(false);
+});

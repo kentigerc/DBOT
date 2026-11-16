@@ -234,7 +234,7 @@ it('replaces Over with Under as a subscribed market changes direction', async ()
     expect(api.send.mock.calls.filter(([request]) => request.ticks_history)).toHaveLength(1);
 });
 
-it('loads exactly one matched XML automatically only after the user enables Auto', async () => {
+it.each([0.75, 150])('starts XML Auto with the selected $%s stake and loads exactly one matched XML', async stake => {
     const { xmlScannerCycle } = require('@/utils/xml-scanner-cycle');
     const session = require('@/utils/deriv-session');
     const locks = require('@/utils/trading-lock');
@@ -256,8 +256,9 @@ it('loads exactly one matched XML automatically only after the user enables Auto
     );
     await screen.findAllByRole('button', { name: 'Load Bot' });
     expect(load).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('Stake ($)'), { target: { value: '0.75' } });
-    fireEvent.change(screen.getByLabelText('Session stop loss ($)'), { target: { value: '25' } });
+    expect(screen.getByLabelText('Stake ($)')).not.toHaveAttribute('max');
+    fireEvent.change(screen.getByLabelText('Stake ($)'), { target: { value: String(stake) } });
+    fireEvent.change(screen.getByLabelText('Session stop loss ($)'), { target: { value: '9890' } });
     fireEvent.change(screen.getByLabelText('Session take profit ($)'), { target: { value: '5' } });
     fireEvent.change(screen.getByLabelText('Martingale (×)'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'START XML AUTO' }));
@@ -265,7 +266,7 @@ it('loads exactly one matched XML automatically only after the user enables Auto
     await act(async () => {
         api.emit(0);
     });
-    expect(xmlScannerCycle.getSnapshot().settings).toEqual({ stake: 0.75, stopLoss: 25, takeProfit: 5, multiplier: 3 });
+    expect(xmlScannerCycle.getSnapshot().settings).toEqual({ stake, stopLoss: 9890, takeProfit: 5, multiplier: 3 });
     expect(screen.getByLabelText('Stake ($)')).toBeDisabled();
     // A fresh pass continues even while the Builder section is in front.
     rerender(<MarketScanner sampleSize={100} onSelect={jest.fn()} onLoad={load} onAutoStart={start} active={false} />);

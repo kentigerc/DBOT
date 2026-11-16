@@ -277,10 +277,9 @@ export class XmlScannerCycle {
             cents <= 0 ||
             !Number.isSafeInteger(stake) ||
             stake <= 0 ||
-            stake > 10000 ||
             this.state.pnl - stake < -this.stopLoss
         ) {
-            this.stop('Recovery stake exceeds the stake or session loss limit.');
+            this.stop('Recovery stake is invalid or would exceed the session stop loss.');
             return;
         }
         return stake / 100;
