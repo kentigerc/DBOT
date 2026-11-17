@@ -11,7 +11,7 @@ const defaults = (): Settings => ({
     hitRecovery: 'same_contract',
     recoveryMode: 'same_contract',
     multiplier: 2.1,
-    duration: 2,
+    duration: 1,
 });
 const money = (amount: number) => `$${(amount / 100).toFixed(2)}`;
 export default function Momentum() {
@@ -181,6 +181,11 @@ export default function Momentum() {
                             recovery win on the locked market and contract.
                         </p>
                     )}
+                    <p className='momentum__scan-status'>
+                        Recovery: fastest rising share over 10 seconds, at least 52%. Over 4 waits for two digits
+                        5–9, then one 0–4. Under 5 waits for two digits 0–4, then one 5–9. The first purchase locks the
+                        market and contract until a recovery win; retries do not wait for another pattern.
+                    </p>
                     <div className='momentum__steps'>
                         <span>
                             <b>01</b> Live market scan

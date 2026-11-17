@@ -35,7 +35,7 @@ it('starts the distinct strategy with paired Over/Under recovery and editable ri
                 recoveryMode: 'same_contract',
                 stake: 0.5,
                 multiplier: 2.1,
-                duration: 2,
+                duration: 1,
             }),
             undefined
         )
@@ -103,7 +103,7 @@ it('shows the actual recovery contract in the journal and indicates the locked r
     expect(screen.getByRole('meter', { name: 'Over 4 cumulative percentage' })).toHaveAttribute('aria-valuenow', '53');
     expect(screen.getByRole('meter', { name: 'Under 5 cumulative percentage' })).toHaveAttribute('aria-valuenow', '55');
     expect(screen.getAllByText('Locked recovery')).toHaveLength(2);
-    expect(screen.queryByText(/fastest rising share over 10 seconds/)).toBeNull();
+    expect(screen.getByText(/fastest rising share over 10 seconds/)).toBeTruthy();
 });
 
 it('rotates the preview across live markets during the recovery search rather than appearing locked', () => {
