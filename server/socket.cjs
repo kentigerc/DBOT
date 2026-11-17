@@ -108,7 +108,7 @@ function attachSockets(
                             client.isAlive = false;
                             client.ping();
                         }, 30000);
-                        const allowMessage = security?.messageLimiter() || (() => true);
+                        const allowMessage = security?.messageLimiter(req) || (() => true);
                         client.isAlive = true;
                         client.on('pong', () => {
                             client.isAlive = true;

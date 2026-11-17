@@ -804,3 +804,38 @@ for (const operation of ['authorizeAccount', 'requireAdmin', 'demoAccount', 'con
         await result;
     });
 }
+
+test('an OTP rate limit also pauses account discovery until that credential cooldown expires', async t => {
+    let clock = Date.now(),
+        accountCalls = 0,
+        otpCalls = 0;
+    const notices = [];
+    const app = await fixture(t, {
+        handler: { now: () => clock, onRateLimit: notice => notices.push(notice) },
+        upstream: async url => {
+            if (url.endsWith('/oauth2/token'))
+                return Response.json({ access_token: 'credential-cooldown-test', expires_in: 3600 });
+            if (url.endsWith('/otp')) {
+                otpCalls++;
+                return Response.json({}, { status: 429, headers: { 'Retry-After': '301' } });
+            }
+            accountCalls++;
+            return Response.json({
+                data: [{ account_id: 'DOT100', account_type: 'demo', currency: 'USD', status: 'active' }],
+            });
+        },
+    });
+    await app.authenticated();
+    assert.equal((await app.connection('DOT100')).status, 429);
+    assert.equal(accountCalls, 1);
+    clock += 31000; // Ownership cache expired, but the provider cooldown has not.
+    const blocked = await app.request('/api/session');
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.headers.get('retry-after'), '270');
+    assert.equal(accountCalls, 1);
+    assert.equal(otpCalls, 1);
+    assert.deepEqual(notices, [{ endpoint: '/trading/v1/options/accounts/:account/otp', retryAfter: 301 }]);
+    clock += 270000;
+    assert.equal((await app.request('/api/session')).status, 200);
+    assert.equal(accountCalls, 2);
+});

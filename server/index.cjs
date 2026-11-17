@@ -23,6 +23,7 @@ const handleAuth = createAuthHandler({
     origin,
     secret,
     onAccounts: values => admin?.accounts(values),
+    onRateLimit: details => console.warn(JSON.stringify({ event: 'deriv_rate_limited', ...details })),
     revocations,
     fetchImpl: (url, options) => proxyFetch(url, { ...options, ...(dispatcher ? { dispatcher } : {}) }),
 });
@@ -101,6 +102,14 @@ const server = http.createServer(
         return serveStatic(req, res, { root, origin, authorizeAdmin: handleAuth.requireAdmin });
     }
 );
+
+// Bound sockets that have not yet completed HTTP headers as well as active requests.
+const maxHttpConnections = Number(process.env.NETO_MAX_HTTP_CONNECTIONS || 512);
+if (!Number.isInteger(maxHttpConnections) || maxHttpConnections < 16 || maxHttpConnections > 10000)
+    throw new Error('NETO_MAX_HTTP_CONNECTIONS must be an integer from 16 to 10000.');
+server.maxConnections = maxHttpConnections;
+server.maxRequestsPerSocket = 1000;
+server.keepAliveTimeout = 5000;
 
 attachSockets(server, handleAuth, dispatcher, {
     analysis,

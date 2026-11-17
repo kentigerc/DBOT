@@ -53,6 +53,8 @@ function createSecurity({
     socketsPerIp = 64,
     socketsPerSession = 16,
     maxBuckets = 10000,
+    httpRate = 40,
+    httpBurst = 400,
     apiRate = 20,
     apiBurst = 240,
     authRate = 0.5,
@@ -118,9 +120,10 @@ function createSecurity({
                 return false;
             }
             const pathname = url.pathname;
-            if (!pathname.startsWith('/api/')) return true;
-            res.setHeader('Cache-Control', 'no-store');
+            const api = pathname.startsWith('/api/');
+            if (api) res.setHeader('Cache-Control', 'no-store');
             const reject = (status, error) => {
+                res.setHeader('Cache-Control', 'no-store');
                 log(`http_rejected_${status}`, req);
                 if (status === 429) res.setHeader('Retry-After', '2');
                 res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -128,21 +131,26 @@ function createSecurity({
                 req.resume();
                 return false;
             };
-            if ([...url.searchParams.keys()].some(key => url.searchParams.getAll(key).length > 1))
-                return reject(400, 'Duplicate query parameters are not allowed.');
-            if (req.headers['sec-fetch-site'] === 'cross-site')
-                return reject(403, 'Use NetoAcademy to access this API.');
-            if (Number(req.headers['content-length']) > 8192) return reject(413, 'Request too large.');
-            if (pathname === '/api/health') return true;
             const ip = clientAddress(req, trustedProxyHops);
-            const sid = sessionIdentity(req);
-            if (!take(`api:${ip}`, apiRate, apiBurst) || (sid && !take(`session:${sid}`, 4, 40)))
+            if (!take(`http:${ip}`, httpRate, httpBurst))
                 return reject(429, 'Too many requests. Please try again shortly.');
-            if (
-                (pathname.startsWith('/api/auth/') || pathname === '/api/connection') &&
-                !take(`auth:${ip}`, authRate, authBurst)
-            )
-                return reject(429, 'Too many login requests. Please try again shortly.');
+            if (api) {
+                if ([...url.searchParams.keys()].some(key => url.searchParams.getAll(key).length > 1))
+                    return reject(400, 'Duplicate query parameters are not allowed.');
+                if (req.headers['sec-fetch-site'] === 'cross-site')
+                    return reject(403, 'Use NetoAcademy to access this API.');
+                if (Number(req.headers['content-length']) > 8192) return reject(413, 'Request too large.');
+                if (pathname !== '/api/health') {
+                    const sid = sessionIdentity(req);
+                    if (!take(`api:${ip}`, apiRate, apiBurst) || (sid && !take(`session:${sid}`, 4, 40)))
+                        return reject(429, 'Too many requests. Please try again shortly.');
+                    if (
+                        (pathname.startsWith('/api/auth/') || pathname === '/api/connection') &&
+                        !take(`auth:${ip}`, authRate, authBurst)
+                    )
+                        return reject(429, 'Too many login requests. Please try again shortly.');
+                }
+            }
             if (activeRequests >= 128) return reject(503, 'The service is busy. Please try again shortly.');
             activeRequests++;
             let released = false;
@@ -159,7 +167,11 @@ function createSecurity({
         reserveSocket(req) {
             const ip = clientAddress(req, trustedProxyHops),
                 sid = sessionIdentity(req);
-            if (!take(`upgrade:${ip}`, 1, 40) || activeSockets >= maxSockets) {
+            if (
+                !take(`upgrade:${ip}`, 1, 40) ||
+                (sid && !take(`upgrade-session:${sid}`, 1, 16)) ||
+                activeSockets >= maxSockets
+            ) {
                 log('socket_limit', req);
                 return;
             }
@@ -184,7 +196,15 @@ function createSecurity({
                 }
             };
         },
-        messageLimiter: () => tokenBucket(50, 100, now),
+        messageLimiter(req) {
+            const connection = tokenBucket(50, 100, now);
+            const ip = req && clientAddress(req, trustedProxyHops);
+            const sid = req && sessionIdentity(req);
+            return () =>
+                connection() &&
+                (!ip || take(`messages:${ip}`, 400, 1200)) &&
+                (!sid || take(`session-messages:${sid}`, 200, 600));
+        },
     };
 }
 

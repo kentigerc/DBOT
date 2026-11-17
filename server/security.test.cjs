@@ -112,3 +112,80 @@ test('the Node HTTP parser rejects conflicting transfer framing before the reque
     assert.match(reply, /^HTTP\/1\.1 400/);
     assert.equal(app.calls(), 0);
 });
+
+function localExchange(path = '/', ip = '127.0.0.1') {
+    const { EventEmitter } = require('node:events');
+    const response = new EventEmitter();
+    response.setHeader = () => {};
+    response.writeHead = status => {
+        response.status = status;
+    };
+    response.end = () => response.emit('finish');
+    return { request: { ...req(ip), url: path, resume() {} }, response };
+}
+
+test('static pages and health checks cannot bypass the HTTP flood budget', () => {
+    let clock = 0;
+    const security = createSecurity({ httpRate: 1, httpBurst: 2, now: () => clock, audit: () => {} });
+    for (const path of ['/', '/static/js/main.js']) {
+        const { request, response } = localExchange(path);
+        assert.equal(security.handle(request, response), true);
+        response.end();
+    }
+    const blocked = localExchange('/api/health');
+    assert.equal(security.handle(blocked.request, blocked.response), false);
+    assert.equal(blocked.response.status, 429);
+    clock = 1000;
+    const restored = localExchange('/');
+    assert.equal(security.handle(restored.request, restored.response), true);
+    restored.response.end();
+});
+
+test('static requests share the bounded HTTP concurrency budget and release only once', () => {
+    const security = createSecurity({ audit: () => {} });
+    const held = Array.from({ length: 128 }, () => localExchange('/'));
+    for (const exchange of held) assert.equal(security.handle(exchange.request, exchange.response), true);
+    const blocked = localExchange('/api/health');
+    assert.equal(security.handle(blocked.request, blocked.response), false);
+    assert.equal(blocked.response.status, 503);
+    held[0].response.emit('finish');
+    held[0].response.emit('close');
+    const available = localExchange('/');
+    assert.equal(security.handle(available.request, available.response), true);
+    const stillFull = localExchange('/');
+    assert.equal(security.handle(stillFull.request, stillFull.response), false);
+});
+
+test('parallel WebSockets share session and IP message budgets rather than multiplying the allowance', () => {
+    let clock = 0;
+    const security = createSecurity({ sessionIdentity: () => 'verified', now: () => clock, audit: () => {} });
+    for (let socket = 0; socket < 6; socket++) {
+        const allow = security.messageLimiter(req(`10.0.0.${socket + 1}`));
+        for (let message = 0; message < 100; message++) assert.equal(allow(), true);
+    }
+    const limited = security.messageLimiter(req('10.0.0.7'));
+    assert.equal(limited(), false);
+    clock = 5;
+    assert.equal(limited(), true);
+    const publicSecurity = createSecurity({ now: () => 0, audit: () => {} });
+    for (let socket = 0; socket < 12; socket++) {
+        const allow = publicSecurity.messageLimiter(req());
+        for (let message = 0; message < 100; message++) assert.equal(allow(), true);
+    }
+    assert.equal(publicSecurity.messageLimiter(req())(), false);
+});
+
+test('session handshake attempts remain limited across changing client addresses and released sockets', () => {
+    let clock = 0;
+    const security = createSecurity({ sessionIdentity: () => 'verified', now: () => clock, audit: () => {} });
+    for (let attempt = 0; attempt < 16; attempt++) {
+        const release = security.reserveSocket(req(`10.0.0.${attempt + 1}`));
+        assert.equal(typeof release, 'function');
+        release();
+    }
+    assert.equal(security.reserveSocket(req('10.0.0.17')), undefined);
+    clock = 1000;
+    const release = security.reserveSocket(req('10.0.0.17'));
+    assert.equal(typeof release, 'function');
+    release();
+});

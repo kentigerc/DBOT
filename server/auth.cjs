@@ -25,6 +25,7 @@ function createAuthHandler({
     fetchImpl = fetch,
     now = () => Date.now(),
     onAccounts = () => {},
+    onRateLimit = () => {},
     revocations = { isRevoked: async () => false, revoke: async () => {} },
     adminAccountIds = (process.env.NETO_ADMIN_ACCOUNT_IDS || '')
         .split(',')
@@ -43,6 +44,7 @@ function createAuthHandler({
     const renewed = new Map();
     const renewing = new Map();
     const providerCooldowns = new Map();
+    let lastRateNotice = -Infinity;
     const redirectUri = publicOrigin + configuration.callbackPath;
     // One-time flow consumption is shared across instances using an encrypted cookie
     // cleared before exchange. Deriv also enforces single-use authorization codes.
@@ -102,7 +104,9 @@ function createAuthHandler({
         // Credential-scoped cooldowns prevent focus events, reconnects and reloads
         // from immediately repeating a request that Deriv has rate-limited.
         const scope =
-            url +
+            // Bearer API limits can cover multiple endpoints. An OTP cooldown must
+            // also pause account discovery and reporting for that same credential.
+            (options.headers?.Authorization ? new URL(url).origin : url) +
             ':' +
             createHash('sha256')
                 .update(options.headers?.Authorization || options.body || '')
@@ -146,6 +150,20 @@ function createAuthHandler({
                 for (const [key, until] of providerCooldowns) if (until <= now()) providerCooldowns.delete(key);
                 if (providerCooldowns.size >= 1000) providerCooldowns.delete(providerCooldowns.keys().next().value);
                 providerCooldowns.set(scope, now() + seconds * 1000);
+                if (now() - lastRateNotice >= 1000) {
+                    lastRateNotice = now();
+                    try {
+                        onRateLimit({
+                            endpoint: new URL(url).pathname.replace(
+                                /\/accounts\/[^/]+\/otp$/,
+                                '/accounts/:account/otp'
+                            ),
+                            retryAfter: seconds,
+                        });
+                    } catch {
+                        // Diagnostics cannot interfere with the cooldown.
+                    }
+                }
                 throw rateLimited(seconds);
             }
             if ([502, 503, 504].includes(response.status))
@@ -364,7 +382,9 @@ function createAuthHandler({
                         admin: adminLogin,
                         adminOwner,
                         returnTo:
-                            adminLogin || url.searchParams.get('return') === 'admin' ? '/admin' : '/platform#bot_builder',
+                            adminLogin || url.searchParams.get('return') === 'admin'
+                                ? '/admin'
+                                : '/platform#bot_builder',
                         expires: now() + 600000,
                     },
                     600

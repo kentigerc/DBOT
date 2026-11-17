@@ -45,3 +45,22 @@ it('preserves 429 cooldown details and prevents focus refreshes from repeating t
         jest.useRealTimers();
     }
 });
+
+it('honors a cooldown received by another tab or restored after a reload', async () => {
+    jest.useFakeTimers();
+    global.fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({ authenticated: false, accounts: [] }) });
+    localStorage.setItem('neto.session_retry_until', String(Date.now() + 301000));
+    try {
+        const { refreshDerivSession } = await import('../deriv-session');
+        await expect(refreshDerivSession()).rejects.toMatchObject({ status: 429, retryAfter: 301 });
+        expect(global.fetch).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(301000);
+        await expect(refreshDerivSession()).resolves.toMatchObject({ authenticated: false });
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    } finally {
+        localStorage.removeItem('neto.session_retry_until');
+        jest.useRealTimers();
+    }
+});

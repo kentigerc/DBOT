@@ -16,6 +16,17 @@ export type DerivSession = {
 let current: DerivSession = { authenticated: false, accounts: [] };
 let pending: Promise<DerivSession> | undefined;
 let sessionRetryUntil = 0;
+const cooldownKey = 'neto.session_retry_until';
+function storedCooldown() {
+    try {
+        const until = Number(localStorage.getItem(cooldownKey));
+        if (Number.isFinite(until) && until > Date.now() && until <= Date.now() + 86400000) return until;
+        localStorage.removeItem(cooldownKey);
+    } catch {
+        // In-memory protection still works when browser storage is unavailable.
+    }
+    return 0;
+}
 class SessionRequestError extends Error {
     constructor(
         message: string,
@@ -70,6 +81,7 @@ export async function sessionRequest(path: string, body?: unknown) {
     return result;
 }
 export function refreshDerivSession() {
+    sessionRetryUntil = Math.max(sessionRetryUntil, storedCooldown());
     if (sessionRetryUntil > Date.now()) {
         const seconds = Math.max(1, Math.ceil((sessionRetryUntil - Date.now()) / 1000));
         return Promise.reject(
@@ -95,8 +107,14 @@ export function refreshDerivSession() {
                 return data;
             })
             .catch(reason => {
-                if (reason instanceof SessionRequestError && reason.status === 429)
-                    sessionRetryUntil = Date.now() + reason.retryAfter * 1000;
+                if (reason instanceof SessionRequestError && reason.status === 429) {
+                    sessionRetryUntil = Math.max(storedCooldown(), Date.now() + reason.retryAfter * 1000);
+                    try {
+                        localStorage.setItem(cooldownKey, String(sessionRetryUntil));
+                    } catch {
+                        // Do not hide the provider error when storage is unavailable.
+                    }
+                }
                 throw reason;
             })
             .finally(() => {
@@ -108,6 +126,8 @@ export async function logoutDerivSession() {
     await sessionRequest('/api/auth/logout', {});
     current = { authenticated: false, accounts: [] };
     localStorage.removeItem('neto.account_id');
+    localStorage.removeItem(cooldownKey);
+    sessionRetryUntil = 0;
     for (const name of ['authToken', 'accountsList', 'clientAccounts', 'callback_token', 'active_loginid'])
         localStorage.removeItem(name);
     window.location.assign('/');

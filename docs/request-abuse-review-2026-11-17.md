@@ -1,0 +1,33 @@
+# Deriv rate limiting and request-abuse review — 17 November 2026
+
+## Evidence and changes
+
+The quoted 301-second message comes from Deriv HTTP 429 or a retained cooldown, not a maintenance status check. The delay follows Retry-After; missing/invalid headers use 30 seconds. No production access logs, Render deployment logs or authenticated live Deriv requests were available, so the original triggering endpoint, quota scope and request volume remain unconfirmed.
+
+Reviewed OAuth exchange/refresh, account discovery, HTTP session refresh callers, Analysis polling, OTP issuance, socket upgrades/reconnects, public feeds, API protection and static routing.
+
+Existing protections retained: concurrent account reads share a task; successful ownership reads expire after 30 seconds; ownership and logout are rechecked after asynchronous authorization; only discovery GETs retry transient 502/503/504 responses; OTPs, orders and authorization-code exchanges are not replayed; provider response bodies are not exposed. Public market sockets do not issue authenticated OTPs. The header refreshes at 60 seconds and on focus/visibility/online events; Analysis polling shares the server account cache.
+
+Verified gaps patched:
+
+- Browser session cooldowns were memory-only. Store only their expiration time in localStorage, honor it across tabs/reloads, tolerate unavailable storage, and clear it on logout. Session data and credentials remain out of storage.
+- Server cooldowns were endpoint-specific. Bearer REST calls now share cooldowns for the same provider origin and credential hash. This deliberately pauses discovery after an OTP 429 instead of continuing different requests on that credential. Other credentials have separate keys; token exchanges retain their request-specific scope.
+- Add at most one safe provider-rate diagnostic per second per process: `deriv_rate_limited`, endpoint with the OTP account ID masked, and Retry-After seconds. No token, URL query, body or account identifier is logged.
+- Static routes bypassed HTTP rate/concurrency protection. All routes, including health, now share a 40/sec, burst-400 IP bucket and the existing 128-request active budget. API/session/auth-specific restrictions still apply.
+- Socket message budgets could be multiplied by connection count. Retain 50/sec burst-100 per connection and add 400/sec burst-1200 per IP and 200/sec burst-600 per authenticated session. Upgrade attempts share a 1/sec burst-16 session budget across IPs, alongside existing IP/global/socket-count limits.
+
+The HTTP server additionally caps total TCP connections at 512 by default (NETO_MAX_HTTP_CONNECTIONS, validated 16–10000), limits each keep-alive connection to 1000 HTTP requests and uses a five-second keep-alive timeout. This bounds pending-header connections as well as routed requests.
+
+Existing request protections include 8 KiB API JSON limits, 16 KiB HTTP headers, 15-second header/upgrade deadlines, 30-second request deadline, strict origins, verified session identities, bounded token-bucket maps, rate-limited hashed-IP rejection logs, 64 KiB WebSocket frames, no WebSocket compression, bounded queues/backpressure and session-expiry enforcement. IP quotas do not trust arbitrary leading forwarded addresses.
+
+## Deployment requirements and limits
+
+These limits and cooldowns are process-local. Deployments restart them; multiple replicas multiply them unless a shared limiter is added. The current single-instance deployment remains the supported configuration.
+
+On Render, verify RENDER=true and the actual forwarded-address chain before changing NETO_TRUST_PROXY_HOPS (default 1 on Render, otherwise 0). Incorrect proxy trust can group all users under the proxy or let clients evade limits. NETO_MAX_SOCKETS defaults to 256; size it to instance capacity and leave headroom below NETO_MAX_HTTP_CONNECTIONS for ordinary HTTP traffic. Check the new diagnostic against Render request/deploy logs when the 301-second error recurs. Request Deriv's applicable REST quota and scope (credential, app ID or egress IP); a shared Render egress IP or other app traffic cannot be diagnosed from the message alone.
+
+Application limits cannot prevent a network-volume DDoS before it reaches Render. Use provider/edge DDoS protection and WAF/rate rules, preserve WebSocket upgrades, avoid challenges on API/socket routes, and avoid caching private APIs. If adding a proxy such as Cloudflare, verify the entire trusted-hop chain and prevent direct-origin bypass using supported origin controls. Do not blindly increase proxy trust or lower quotas until normal multi-tool traffic is measured. No Render, DNS or WAF settings were changed from this workspace.
+
+## Regression coverage
+
+Tests cover persistent/cross-tab browser cooldowns, the OTP-to-discovery 301-second cooldown with exact expiry and redacted diagnostics, static floods and health, global concurrency release, aggregate public/private socket message budgets, session upgrade churn across IPs, and existing authentication/security behavior. Full CI includes PostgreSQL-backed server tests, frontend tests, dependency audit and production build.
