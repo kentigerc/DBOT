@@ -12,6 +12,7 @@ const types = {
     '.jpg': 'image/jpeg',
     '.woff2': 'font/woff2',
     '.xml': 'application/xml',
+    '.txt': 'text/plain; charset=utf-8',
     '.wasm': 'application/wasm',
 };
 function privatePath(pathname) {

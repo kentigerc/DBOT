@@ -12,6 +12,8 @@ test('static delivery refuses dotfiles, backups, maps, source paths, traversal a
     await fs.mkdir(root);
     await fs.writeFile(path.join(root, 'index.html'), '<h1>NetoAcademy</h1>');
     await fs.writeFile(path.join(root, 'app.js'), '/* public asset */');
+    for (const file of ['robots.txt', 'sitemap.xml'])
+        await fs.copyFile(path.join(__dirname, '../public', file), path.join(root, file));
     await fs.writeFile(path.join(directory, 'secret'), 'private-file-marker');
     await fs.symlink(path.join(directory, 'secret'), path.join(root, 'escape.txt'));
     const server = http.createServer((req, res) => serveStatic(req, res, { root, origin: 'http://localhost' }));
@@ -48,6 +50,14 @@ test('static delivery refuses dotfiles, backups, maps, source paths, traversal a
     for (const method of ['POST', 'PUT', 'DELETE', 'OPTIONS'])
         assert.equal((await fetch(base + '/app.js', { method })).status, 405, method);
     assert.equal((await fetch(base + '/BOTS/protected.xml')).status, 403);
+    const sitemap = await fetch(base + '/sitemap.xml');
+    assert.equal(sitemap.status, 200);
+    assert.match(sitemap.headers.get('content-type'), /application\/xml/);
+    assert.match(await sitemap.text(), /<loc>https:\/\/www\.netoacademy\.com\/<\/loc>/);
+    const robots = await fetch(base + '/robots.txt');
+    assert.equal(robots.status, 200);
+    assert.match(robots.headers.get('content-type'), /text\/plain/);
+    assert.match(await robots.text(), /Sitemap: https:\/\/www\.netoacademy\.com\/sitemap\.xml/);
     const asset = await fetch(base + '/app.js');
     assert.equal(asset.status, 200);
     assert.match(asset.headers.get('content-type'), /javascript/);
