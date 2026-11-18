@@ -115,8 +115,7 @@ const FreeBots = observer(() => {
 
             {error && <p role='alert'>{error}</p>}
             <p className='free-bots__protection-note'>
-                Hosted digit bots run here with strategy downloads disabled. Higher/Lower XML opens its own paired-order
-                runner.
+                NetoAcademy bots are available to run here. Strategy downloads and exports are disabled.
             </p>
             <div className='free-bots__search'>
                 <label htmlFor='free-bots-search'>Find a bot</label>

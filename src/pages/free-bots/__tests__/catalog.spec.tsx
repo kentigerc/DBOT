@@ -12,6 +12,7 @@ it('lists one Higher Lower Hedging XML bot and loads it into the existing Bot Bu
     render(<FreeBots />);
     const cards = screen.getAllByRole('heading', { name: 'Higher Lower Hedging' });
     expect(cards).toHaveLength(1);
+    expect(screen.queryByText(/paired-order runner/)).toBeNull();
     fireEvent.click(
         within(cards[0].closest('.free-bots__card') as HTMLElement).getByRole('button', { name: 'Load Bot' })
     );
