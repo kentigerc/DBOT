@@ -65,7 +65,8 @@ function createSecurity({
     if (!Number.isInteger(maxSockets) || maxSockets < 1 || maxSockets > 10000)
         throw new Error('NETO_MAX_SOCKETS must be an integer from 1 to 10000.');
     const buckets = new Map(),
-        sockets = new Map();
+        sockets = new Map(),
+        requestsByPrincipal = new Map();
     const logBudget = tokenBucket(1, 30, now);
     const log = (event, req) => {
         if (!logBudget()) return;
@@ -132,7 +133,21 @@ function createSecurity({
                 return false;
             };
             const ip = clientAddress(req, trustedProxyHops);
-            if (!take(`http:${ip}`, httpRate, httpBurst))
+            const sid = sessionIdentity(req);
+            const lane = sid ? 'authenticated' : 'public';
+            const principal = sid ? `session:${sid}` : `public:${ip}`;
+            // Reject an individual flood before it spends shared IP capacity.
+            if (
+                sid &&
+                (pathname.startsWith('/api/auth/') || pathname === '/api/connection') &&
+                !take(`auth-session:${sid}`, 0.1, 8)
+            )
+                return reject(429, 'Too many login requests for this login. Please try again shortly.');
+            if (sid && !take(`http-session:${sid}`, api ? 4 : httpRate, api ? 40 : httpBurst))
+                return reject(429, 'Too many requests for this login. Please try again shortly.');
+            if ((requestsByPrincipal.get(principal) || 0) >= 16)
+                return reject(429, 'Too many concurrent requests. Please try again shortly.');
+            if (!take(`http:${lane}:${ip}`, httpRate, httpBurst))
                 return reject(429, 'Too many requests. Please try again shortly.');
             if (api) {
                 if ([...url.searchParams.keys()].some(key => url.searchParams.getAll(key).length > 1))
@@ -141,23 +156,26 @@ function createSecurity({
                     return reject(403, 'Use NetoAcademy to access this API.');
                 if (Number(req.headers['content-length']) > 8192) return reject(413, 'Request too large.');
                 if (pathname !== '/api/health') {
-                    const sid = sessionIdentity(req);
-                    if (!take(`api:${ip}`, apiRate, apiBurst) || (sid && !take(`session:${sid}`, 4, 40)))
+                    if (!take(`api:${lane}:${ip}`, apiRate, apiBurst))
                         return reject(429, 'Too many requests. Please try again shortly.');
                     if (
                         (pathname.startsWith('/api/auth/') || pathname === '/api/connection') &&
-                        !take(`auth:${ip}`, authRate, authBurst)
+                        !take(`auth:${lane}:${ip}`, authRate, authBurst)
                     )
                         return reject(429, 'Too many login requests. Please try again shortly.');
                 }
             }
             if (activeRequests >= 128) return reject(503, 'The service is busy. Please try again shortly.');
             activeRequests++;
+            requestsByPrincipal.set(principal, (requestsByPrincipal.get(principal) || 0) + 1);
             let released = false;
             const release = () => {
                 if (!released) {
                     released = true;
                     activeRequests--;
+                    const count = requestsByPrincipal.get(principal) - 1;
+                    if (count) requestsByPrincipal.set(principal, count);
+                    else requestsByPrincipal.delete(principal);
                 }
             };
             res.once('finish', release);
@@ -167,15 +185,17 @@ function createSecurity({
         reserveSocket(req) {
             const ip = clientAddress(req, trustedProxyHops),
                 sid = sessionIdentity(req);
+            const lane = sid ? 'authenticated' : 'public';
             if (
-                !take(`upgrade:${ip}`, 1, 40) ||
                 (sid && !take(`upgrade-session:${sid}`, 1, 16)) ||
+                (sid && (sockets.get(`sid:${sid}`) || 0) >= socketsPerSession) ||
+                !take(`upgrade:${lane}:${ip}`, 1, 40) ||
                 activeSockets >= maxSockets
             ) {
                 log('socket_limit', req);
                 return;
             }
-            const keys = [`ip:${ip}`, ...(sid ? [`sid:${sid}`] : [])];
+            const keys = [`ip:${lane}:${ip}`, ...(sid ? [`sid:${sid}`] : [])];
             if (
                 keys.some(key => (sockets.get(key) || 0) >= (key.startsWith('ip:') ? socketsPerIp : socketsPerSession))
             ) {
@@ -200,10 +220,11 @@ function createSecurity({
             const connection = tokenBucket(50, 100, now);
             const ip = req && clientAddress(req, trustedProxyHops);
             const sid = req && sessionIdentity(req);
+            const lane = sid ? 'authenticated' : 'public';
             return () =>
                 connection() &&
-                (!ip || take(`messages:${ip}`, 400, 1200)) &&
-                (!sid || take(`session-messages:${sid}`, 200, 600));
+                (!sid || take(`session-messages:${sid}`, 200, 600)) &&
+                (!ip || take(`messages:${lane}:${ip}`, 400, 1200));
         },
     };
 }

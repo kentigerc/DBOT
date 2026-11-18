@@ -44,6 +44,30 @@ function createAuthHandler({
     const renewed = new Map();
     const renewing = new Map();
     const providerCooldowns = new Map();
+    const connectionBudgets = new Map();
+    function admitConnection(saved, accountId) {
+        for (const [key, value] of connectionBudgets) if (now() - value.at > 600000) connectionBudgets.delete(key);
+        for (const key of [`session:${saved.sid}`, `account:${accountId}`]) {
+            let value = connectionBudgets.get(key);
+            if (!value) {
+                if (connectionBudgets.size >= 10000)
+                    throw new HttpError(503, 'Connection verification is busy. Please try again shortly.');
+                value = { tokens: 8, at: now() };
+                connectionBudgets.set(key, value);
+            }
+            value.tokens = Math.min(8, value.tokens + Math.max(0, now() - value.at) / 10000);
+            value.at = now();
+            if (value.tokens < 1) {
+                const error = new HttpError(
+                    429,
+                    'Too many trading connection attempts for this login or account. Please wait before reconnecting.'
+                );
+                error.retryAfter = Math.max(1, Math.ceil((1 - value.tokens) * 10));
+                throw error;
+            }
+            value.tokens--;
+        }
+    }
     let lastRateNotice = -Infinity;
     const redirectUri = publicOrigin + configuration.callbackPath;
     // One-time flow consumption is shared across instances using an encrypted cookie
@@ -329,6 +353,7 @@ function createAuthHandler({
         if (!accounts.some(account => account.account_id === account_id && account.status === 'active')) {
             throw new HttpError(403, 'This trading account is not available in your Deriv session.');
         }
+        admitConnection(saved, account_id);
         const result = await requestJson(
             `${API_ORIGIN}/trading/v1/options/accounts/${encodeURIComponent(account_id)}/otp`,
             {

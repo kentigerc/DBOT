@@ -4,7 +4,17 @@ const { Readable } = require('node:stream');
 const { createAuthHandler } = require('./auth.cjs');
 const terms = require('../config/terms.json');
 function fixture() {
-    const state = { now: Date.now(), calls: 0, limited: false, removed: false, revoked: false, tokens: 0 };
+    const state = {
+        now: Date.now(),
+        calls: 0,
+        limited: false,
+        removed: false,
+        revoked: false,
+        tokens: 0,
+        accountId: 'DOT100',
+        blockedToken: null,
+        otpCalls: 0,
+    };
     const auth = createAuthHandler({
         origin: 'https://neto.example',
         secret: 'test-only-account-cache-secret-at-least-32-bytes',
@@ -15,19 +25,31 @@ function fixture() {
                 state.revoked = true;
             },
         },
-        fetchImpl: async url => {
+        fetchImpl: async (url, init) => {
             if (url.endsWith('/oauth2/token'))
                 return Response.json({ access_token: `cache-test-${++state.tokens}`, expires_in: 3600 });
-            if (url.endsWith('/otp'))
+            if (url.endsWith('/otp')) {
+                state.otpCalls++;
+                if (init.headers.Authorization === state.blockedToken)
+                    return Response.json({}, { status: 429, headers: { 'Retry-After': '427' } });
                 return Response.json({
                     data: { url: 'wss://api.derivws.com/trading/v1/options/ws/demo?otp=test-only' },
                 });
+            }
             state.calls++;
             if (state.limited) return Response.json({}, { status: 429, headers: { 'Retry-After': '427' } });
             return Response.json({
                 data: state.removed
                     ? []
-                    : [{ account_id: 'DOT100', account_type: 'demo', status: 'active', currency: 'USD', balance: 100 }],
+                    : [
+                          {
+                              account_id: state.accountId,
+                              account_type: 'demo',
+                              status: 'active',
+                              currency: 'USD',
+                              balance: 100,
+                          },
+                      ],
             });
         },
     });
@@ -139,4 +161,40 @@ test('revocation and logout cannot reuse a display snapshot', async () => {
     await f.request('/api/session');
     assert.equal((await f.request('/api/auth/logout', {})).status, 200);
     assert.deepEqual((await f.request('/api/session')).json(), { authenticated: false, accounts: [] });
+});
+
+test('a provider cooldown for one credential does not block another user in the same process', async () => {
+    const f = fixture();
+    await f.login();
+    const first = f.req();
+    await f.auth.authorizeAccount(first, 'DOT100');
+    f.state.accountId = 'DOT200';
+    await f.login();
+    const second = f.req();
+    await f.auth.authorizeAccount(second, 'DOT200');
+    f.state.blockedToken = 'Bearer cache-test-1';
+    await assert.rejects(f.auth.connectionUrl(first, 'DOT100'), { status: 429, retryAfter: 427 });
+    await assert.rejects(f.auth.connectionUrl(first, 'DOT100'), { status: 429, retryAfter: 427 });
+    assert.equal(f.state.otpCalls, 1);
+    assert.match(await f.auth.connectionUrl(second, 'DOT200'), /^wss:/);
+    assert.equal(f.state.otpCalls, 2);
+    const session = await f.request('/api/session');
+    assert.equal(session.status, 200);
+    assert.equal(session.json().accountRefreshRetryAfter, undefined);
+});
+test('connection churn is stopped locally for its session and account before further OTP calls', async () => {
+    const f = fixture();
+    await f.login();
+    const first = f.req();
+    for (let i = 0; i < 8; i++) await f.auth.connectionUrl(first, 'DOT100');
+    for (let i = 0; i < 50; i++)
+        await assert.rejects(f.auth.connectionUrl(first, 'DOT100'), { status: 429, retryAfter: 10 });
+    assert.equal(f.state.otpCalls, 8);
+    f.state.accountId = 'DOT200';
+    await f.login();
+    await f.auth.connectionUrl(f.req(), 'DOT200');
+    assert.equal(f.state.otpCalls, 9);
+    f.state.now += 10000;
+    await f.auth.connectionUrl(first, 'DOT100');
+    assert.equal(f.state.otpCalls, 10);
 });
