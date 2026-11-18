@@ -66,7 +66,9 @@ it('loads the paired block into Blockly and generates purchases from the normal 
         expect(pairedWorkspace(workspace)).toBe(true);
         const code = javascriptGenerator.blockToCode(pair);
         expect(code).toContain('Bot.runHigherLowerPair(');
-        expect(code).toContain('"R_100"');
+        expect(code).toContain(', undefined);');
+        pair.setFieldValue('SELECTED', 'MARKET_SEARCH');
+        expect(javascriptGenerator.blockToCode(pair)).toContain('"R_100"');
         const trade = workspace.getAllBlocks().find((b: any) => b.type === 'trade_definition_tradeoptions');
         trade.getInputTargetBlock('AMOUNT').unplug();
         const stake = workspace.newBlock('math_number');

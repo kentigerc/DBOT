@@ -142,6 +142,7 @@
   <block type="before_purchase" id="hl-before" x="650" y="0">
     <statement name="BEFOREPURCHASE_STACK">
       <block type="neto_higher_lower_pair" id="hl-paired-purchase">
+        <field name="MARKET_SEARCH">AUTO</field>
         <value name="STOP_LOSS">
           <block type="variables_get">
             <field name="VAR" id="hl-STOP_LOSS">Stop Loss</field>
