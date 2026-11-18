@@ -143,7 +143,10 @@ function createSecurity({
                 !take(`auth-session:${sid}`, 0.1, 8)
             )
                 return reject(429, 'Too many login requests for this login. Please try again shortly.');
-            if (sid && !take(`http-session:${sid}`, api ? 4 : httpRate, api ? 40 : httpBurst))
+            if (
+                sid &&
+                ((api && !take(`api-session:${sid}`, 4, 40)) || !take(`http-session:${sid}`, httpRate, httpBurst))
+            )
                 return reject(429, 'Too many requests for this login. Please try again shortly.');
             if ((requestsByPrincipal.get(principal) || 0) >= 16)
                 return reject(429, 'Too many concurrent requests. Please try again shortly.');

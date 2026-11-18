@@ -267,3 +267,17 @@ test('anonymous traffic cannot spend signed-in users HTTP and socket budgets on 
     assert.equal(typeof release, 'function');
     release();
 });
+test('loading a static file first cannot inflate the session API allowance', () => {
+    const security = createSecurity({ now: () => 0, sessionIdentity: () => 'verified', audit: () => {} });
+    const asset = localExchange('/static/main.js');
+    assert.equal(security.handle(asset.request, asset.response), true);
+    asset.response.end();
+    for (let i = 0; i < 40; i++) {
+        const x = localExchange('/api/session');
+        assert.equal(security.handle(x.request, x.response), true);
+        x.response.end();
+    }
+    const denied = localExchange('/api/session');
+    assert.equal(security.handle(denied.request, denied.response), false);
+    assert.equal(denied.response.status, 429);
+});
