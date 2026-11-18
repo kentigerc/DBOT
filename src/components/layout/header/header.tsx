@@ -61,7 +61,13 @@ const AppHeader = observer(() => {
         const refresh = () => {
             if (!navigator.onLine) return;
             refreshDerivSession()
-                .then(() => setError(''))
+                .then(data =>
+                    setError(
+                        data?.accountRefreshRetryAfter
+                            ? `Deriv account refresh is temporarily limited. Showing previously verified account details; balances may be out of date. Retry in ${data?.accountRefreshRetryAfter} seconds. Trading still requires account verification.`
+                            : ''
+                    )
+                )
                 .catch(reason => setError(reason.message));
         };
         const resume = () => {

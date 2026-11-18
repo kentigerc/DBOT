@@ -144,3 +144,10 @@ it('updates the link when login identifies the owner and removes it on logout', 
     act(() => window.dispatchEvent(new Event('neto-session')));
     expect(screen.queryByRole('link', { name: 'Analytics' })).toBeNull();
 });
+it('marks cached account details during provider throttling without hiding the platform navigation', async () => {
+    const data = session({ accountRefreshRetryAfter: 427 });
+    (refreshDerivSession as jest.Mock).mockResolvedValue(data);
+    show(data);
+    expect(await screen.findByText(/Showing previously verified account details/)).toHaveTextContent('427 seconds');
+    expect(screen.getByRole('link', { name: 'Bot Builder' })).toBeTruthy();
+});

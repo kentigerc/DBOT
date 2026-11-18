@@ -12,6 +12,7 @@ export type DerivSession = {
     termsVersion?: string;
     isAdmin?: boolean;
     adminAccounts?: string[];
+    accountRefreshRetryAfter?: number;
 };
 let current: DerivSession = { authenticated: false, accounts: [] };
 let pending: Promise<DerivSession> | undefined;
