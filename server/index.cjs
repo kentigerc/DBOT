@@ -18,6 +18,7 @@ const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
 const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
 let admin;
 let analysis;
+let higherLower;
 let operations;
 const handleAuth = createAuthHandler({
     origin,
@@ -54,7 +55,8 @@ admin = createAdminAnalytics({
     secret,
     operations: { get: () => operations.get() },
     activeBots: () =>
-        [...(analysis?.sessions.values() || [])].filter(value => value.engine.getSnapshot().active).length,
+        [...(analysis?.sessions.values() || [])].filter(value => value.engine.getSnapshot().active).length +
+        [...(higherLower?.entries.values() || [])].filter(value => value.state.active).length,
 });
 analysis = createAnalysisService(handleAuth, {
     dispatcher,
@@ -73,6 +75,17 @@ analysis = createAnalysisService(handleAuth, {
                         : 'analysis_tool'),
             packet
         ),
+});
+const { createHigherLowerService } = require('./higher-lower.cjs');
+higherLower = createHigherLowerService(handleAuth, {
+    dispatcher,
+    locks: analysis.accountLocks,
+    storage: require('./trading-state.cjs').createTradingStateStorage({
+        legacyStorage: require('./analysis.cjs').fileStorage(path.resolve(__dirname, '../.higher-lower-state')),
+    }),
+    onConnection: (account, key, open) => admin.connection(account, key, open),
+    onTrade: (account, packet, source) =>
+        admin.trade(account, source === 'xml' ? 'higher_lower_xml' : 'higher_lower', packet),
 });
 operations = require('./operations.cjs').createOperations({
     origin,
@@ -93,6 +106,7 @@ const server = http.createServer(
         if (req.url.split('?')[0].startsWith('/api/admin/') || req.url.split('?')[0] === '/api/analytics/pulse')
             return admin.handle(req, res);
         if (req.url.split('?')[0] === '/api/bots/load') return loadBot(req, res);
+        if (req.url.split('?')[0] === '/api/higher-lower') return higherLower.handle(req, res);
         if (req.url.split('?')[0] === '/api/analysis') return analysis.handle(req, res);
         if (req.url.split('?')[0].startsWith('/api/')) return handleAuth(req, res);
         if (development) {
@@ -123,7 +137,7 @@ process.once('SIGTERM', () => {
     // Stop accepting commands immediately, then drain journal commits before
     // exiting. A pending trade stays recorded for explicit reconciliation.
     analysis.stopAll();
-    void Promise.allSettled([analysis.close(), admin.close(), revocations.close()]);
+    void higherLower.close().finally(() => Promise.allSettled([analysis.close(), admin.close(), revocations.close()]));
     server.close();
     setTimeout(() => process.exit(0), 10000).unref();
 });

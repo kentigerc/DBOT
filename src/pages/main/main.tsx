@@ -36,6 +36,7 @@ const ManualTrader = lazy(() => import('../manual-trader'));
 const DerivCharts = lazy(() => import('../deriv-charts'));
 const FreeBots = lazy(() => import('../free-bots'));
 const AnalysisTool = lazy(() => import('../analysis-tool'));
+const HigherLower = lazy(() => import('../higher-lower'));
 const RiskCalculator = lazy(() => import('../risk-calculator'));
 
 const AppWrapper = observer(() => {
@@ -77,6 +78,8 @@ const AppWrapper = observer(() => {
         'free_bots',
         'analysis_tool',
         'risk_calculator',
+        'higher_lower',
+        'higher_lower_xml',
     ];
     const { isDesktop } = useDevice();
     const location = useLocation();
@@ -252,6 +255,8 @@ const AppWrapper = observer(() => {
                         DBOT_TABS.FREE_BOTS,
                         DBOT_TABS.ANALYSIS_TOOL,
                         DBOT_TABS.RISK_CALCULATOR,
+                        DBOT_TABS.HIGHER_LOWER,
+                        DBOT_TABS.HIGHER_LOWER_XML,
                     ].includes(active_tab),
                 })}
             >
@@ -269,6 +274,8 @@ const AppWrapper = observer(() => {
                                 DBOT_TABS.DIGIT_ANALYSIS,
                                 DBOT_TABS.MANUAL_TRADER,
                                 DBOT_TABS.RISK_CALCULATOR,
+                                DBOT_TABS.HIGHER_LOWER,
+                                DBOT_TABS.HIGHER_LOWER_XML,
                             ]}
                             active_index={active_tab}
                             className='main__tabs'
@@ -429,6 +436,16 @@ const AppWrapper = observer(() => {
                             >
                                 <Suspense fallback={<ChunkLoader message={localize('Loading risk calculator...')} />}>
                                     <RiskCalculator active={active_tab === DBOT_TABS.RISK_CALCULATOR} />
+                                </Suspense>
+                            </div>
+                            <div label='Higher / Lower Analysis' id='id-higher-lower'>
+                                <Suspense fallback={<ChunkLoader message='Loading Higher / Lower...' />}>
+                                    <HigherLower active={active_tab === DBOT_TABS.HIGHER_LOWER} />
+                                </Suspense>
+                            </div>
+                            <div label='Higher / Lower XML' id='id-higher-lower-xml'>
+                                <Suspense fallback={<ChunkLoader message='Loading XML runner...' />}>
+                                    <HigherLower source='xml' active={active_tab === DBOT_TABS.HIGHER_LOWER_XML} />
                                 </Suspense>
                             </div>
                         </Tabs>

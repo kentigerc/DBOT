@@ -179,7 +179,10 @@ function createAnalysisService(
                 // request for later revocation checks after startup completes.
                 const request = value.request;
                 const lease = value.lease;
-                const broker = await connectBroker(await auth.connectionUrl(request, account.account_id), account.account_id);
+                const broker = await connectBroker(
+                    await auth.connectionUrl(request, account.account_id),
+                    account.account_id
+                );
                 broker.connection?.addEventListener(
                     'close',
                     () => {
@@ -736,6 +739,7 @@ function createAnalysisService(
             };
         },
         sessions,
+        accountLocks: locks,
     };
 }
 module.exports = { createAnalysisService, fileStorage };

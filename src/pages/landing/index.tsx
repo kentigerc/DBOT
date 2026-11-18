@@ -93,6 +93,8 @@ export default function Landing() {
         'free_bots',
         'analysis_tool',
         'risk_calculator',
+        'higher_lower',
+        'higher_lower_xml',
     ];
     if (legacy.includes(location.hash.slice(1))) return <Navigate replace to={`/platform${location.hash}`} />;
     return (

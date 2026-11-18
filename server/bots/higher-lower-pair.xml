@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml xmlns="https://developers.google.com/blockly/xml" neto_runtime="paired-orders-v1" neto_protected="true">
+    <block type="neto_higher_lower_pair" id="higher-lower-pair" x="24" y="24">
+        <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+        <field name="STAKE">0.35</field>
+        <field name="DURATION">5</field>
+        <field name="STOP_LOSS">10</field>
+        <field name="TAKE_PROFIT">5</field>
+        <field name="MAX_PAIRS">10</field>
+    </block>
+</xml>

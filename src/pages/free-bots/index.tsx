@@ -19,6 +19,14 @@ interface Bot {
 
 const BOTS: Bot[] = [
     {
+        id: '16',
+        name: 'Higher / Lower Pair',
+        description: 'Pairs Higher +1 and Lower −1 contracts on compatible Volatility markets. USD demo accounts only.',
+        fileName: 'higher-lower-pair.xml',
+        category: 'Higher/Lower',
+        icon: '↕',
+    },
+    {
         id: '12',
         name: 'Over Punisher',
         description: 'Trades Digit Over 0, Over 1 and Over 2 contracts on Volatility indices.',
@@ -49,6 +57,14 @@ const BOTS: Bot[] = [
         fileName: 'under-8-under-9.xml',
         category: 'Over/Under',
         icon: '📉',
+    },
+    {
+        id: '16',
+        name: 'Higher / Lower Pair',
+        description: 'Trades paired Higher +1 and Lower −1 contracts on supported Volatility markets. Demo only.',
+        fileName: 'higher-lower-pair.xml',
+        category: 'Higher/Lower',
+        icon: '↕',
     },
 ];
 
@@ -84,6 +100,16 @@ const FreeBots = observer(() => {
             setLoadingBotId(bot.id);
 
             setError('');
+            if (bot.fileName === 'higher-lower-pair.xml') {
+                dashboard.setActiveTab(DBOT_TABS.HIGHER_LOWER_XML);
+                navigate('/platform#higher_lower_xml');
+                return;
+            }
+            if (bot.fileName === 'higher-lower-pair.xml') {
+                dashboard.setActiveTab(DBOT_TABS.HIGHER_LOWER_XML);
+                navigate('/platform#higher_lower_xml');
+                return;
+            }
             // Load after the builder mounts and initializes its workspace.
             sessionStorage.setItem('neto.pendingBot', JSON.stringify({ fileName: bot.fileName, name: bot.name }));
             window.dispatchEvent(new Event('neto-pending-bot'));
@@ -101,13 +127,14 @@ const FreeBots = observer(() => {
             <div className='free-bots__header'>
                 <h1 className='free-bots__title'>NetoAcademy Trading Bots</h1>
                 <p className='free-bots__subtitle'>
-                    Explore our collection of pre-built trading bots. Click on any bot to load it into the Bot Builder.
+                    Explore our pre-built trading bots. Load a bot to open its trading workspace.
                 </p>
             </div>
 
             {error && <p role='alert'>{error}</p>}
             <p className='free-bots__protection-note'>
-                NetoAcademy bots are available to run here. Strategy downloads and exports are disabled.
+                Hosted digit bots run here with strategy downloads disabled. Higher/Lower XML opens its own paired-order
+                runner.
             </p>
             <div className='free-bots__search'>
                 <label htmlFor='free-bots-search'>Find a bot</label>

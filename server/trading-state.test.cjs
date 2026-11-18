@@ -99,3 +99,31 @@ test('slow storage coalesces heartbeats while each checkpoint waits for its own 
     await store.close();
     await store.close();
 });
+
+test('paired XML and analysis journals use separate validated namespaces', async () => {
+    const commits = [];
+    const store = createTradingStateStorage({
+        pool: {
+            query: async (sql, values) => {
+                if (sql.startsWith('INSERT') || sql.startsWith('UPDATE')) {
+                    commits.push(values);
+                    return { rows: [{ revision: '1' }] };
+                }
+                return { rows: [] };
+            },
+        },
+    });
+    const analysis = 'neto.higher-lower.v1.TEST',
+        xml = 'neto.higher-lower-xml.v1.TEST';
+    await store.load(analysis);
+    await store.load(xml);
+    store.setItem(analysis, JSON.stringify({ version: 1, accountId: 'TEST', pnl: 1 }));
+    store.setItem(xml, JSON.stringify({ version: 1, accountId: 'TEST', pnl: 2 }));
+    await store.flush(analysis);
+    await store.flush(xml);
+    assert.equal(JSON.parse(store.getItem(analysis)).pnl, 1);
+    assert.equal(JSON.parse(store.getItem(xml)).pnl, 2);
+    assert.notEqual(commits[0][0], commits[1][0]);
+    assert.throws(() => store.setItem(xml, JSON.stringify({ version: 1, accountId: 'OTHER' })));
+    await store.close();
+});

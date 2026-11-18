@@ -29,13 +29,18 @@ function createTradingStateStorage({ databaseUrl = process.env.DATABASE_URL, leg
     const hash = key => createHash('sha256').update(key).digest('hex');
     const validate = (key, value) => {
         if (
-            !/^neto\.digit-strategy\.v1\.[A-Za-z0-9_-]{1,128}$/.test(key) ||
+            !/^neto\.(?:digit-strategy|higher-lower|higher-lower-xml)\.v1\.[A-Za-z0-9_-]{1,128}$/.test(key) ||
             typeof value !== 'string' ||
             Buffer.byteLength(value) > MAX_STATE_BYTES
         )
             throw storageError();
         const data = JSON.parse(value);
-        if (!data || Array.isArray(data) || data.version !== 1 || `neto.digit-strategy.v1.${data.accountId}` !== key)
+        if (
+            !data ||
+            Array.isArray(data) ||
+            data.version !== 1 ||
+            key.slice(key.lastIndexOf('.') + 1) !== data.accountId
+        )
             throw storageError();
         return data;
     };
@@ -133,7 +138,8 @@ function createTradingStateStorage({ databaseUrl = process.env.DATABASE_URL, leg
             if (loading.has(key)) return loading.get(key);
             const task = (async () => {
                 await ensureReady();
-                if (!/^neto\.digit-strategy\.v1\.[A-Za-z0-9_-]{1,128}$/.test(key)) throw storageError();
+                if (!/^neto\.(?:digit-strategy|higher-lower|higher-lower-xml)\.v1\.[A-Za-z0-9_-]{1,128}$/.test(key))
+                    throw storageError();
                 let result = await pool.query('SELECT data, revision FROM neto_trading_state WHERE state_key=$1', [
                     hash(key),
                 ]);

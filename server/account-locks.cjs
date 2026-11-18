@@ -274,6 +274,36 @@ function createAccountLocks({
                 }
             });
         },
+        // Only the paired runner calls this after re-reading every known contract
+        // and durably recording both terminal outcomes. Unknown legs cannot clear it.
+        settledGroup(account, nonce) {
+            return serial(account, async accountKey => {
+                if (pool) {
+                    const result = await pool.query(
+                        `UPDATE neto_account_locks SET pending=pending-$2
+                        WHERE account_key=$1 AND pending->$2->>'source' IN ('higher_lower', 'higher_lower_xml')
+                        AND (owner=$3 OR lease_until<=NOW()) RETURNING account_key`,
+                        [accountKey, nonce, owner]
+                    );
+                    if (!result.rows.length) {
+                        const current = await pool.query(
+                            'SELECT pending FROM neto_account_locks WHERE account_key=$1',
+                            [accountKey]
+                        );
+                        if (current.rows[0]?.pending?.[nonce]) throw conflict();
+                    }
+                } else {
+                    const row = local.get(accountKey);
+                    if (!row?.pending[nonce]) return;
+                    if (
+                        !['higher_lower', 'higher_lower_xml'].includes(row.pending[nonce].source) ||
+                        (row.owner !== owner && row.until > now())
+                    )
+                        throw conflict();
+                    delete row.pending[nonce];
+                }
+            });
+        },
         async release(handle) {
             if (!handle) return;
             handle.held = false;
