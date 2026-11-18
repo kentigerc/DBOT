@@ -739,7 +739,6 @@ function createAnalysisService(
             };
         },
         sessions,
-        accountLocks: locks,
     };
 }
 module.exports = { createAnalysisService, fileStorage };

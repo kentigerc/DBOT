@@ -13,8 +13,6 @@ const TOOLS = new Set([
     'hit_and_run',
     'even_odd',
     'momentum_70',
-    'higher_lower',
-    'higher_lower_xml',
 ]);
 const day = at => new Date(at).toISOString().slice(0, 10);
 function reportRange(url) {

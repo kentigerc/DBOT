@@ -1,4 +1,3 @@
-import { pairedWorkspace, PAIR_BLOCK } from '@/utils/higher-lower-builder';
 import { config } from '../../constants/config';
 import { error_message_map } from '../../utils/error-config';
 import { observer as globalObserver } from '../../utils/observer';
@@ -16,18 +15,7 @@ const disabled = block => block.disabled || block.isEnabled?.() === false;
 export const isAllRequiredBlocksEnabled = workspace => {
     if (!workspace) return false;
     const blocks = workspace.getAllBlocks();
-    let paired;
-    try {
-        paired = pairedWorkspace(workspace);
-        if (!paired && blocks.some(block => block.type === PAIR_BLOCK))
-            throw new Error('The paired-purchase block must be enabled inside Purchase conditions.');
-    } catch (error) {
-        globalObserver.emit('ui.log.error', error.message);
-        return false;
-    }
-    const required = [getSelectedTradeType(workspace), ...config().mandatoryMainBlocks].map(type =>
-        paired && type === 'purchase' ? PAIR_BLOCK : type
-    );
+    const required = [getSelectedTradeType(workspace), ...config().mandatoryMainBlocks];
     const missing = required.filter(type => !blocks.some(block => block.type === type));
     const inactive = blocks.filter(block => required.includes(block.type) && disabled(block));
     const messages = error_message_map();

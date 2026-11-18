@@ -50,14 +50,6 @@ const BOTS: Bot[] = [
         category: 'Over/Under',
         icon: '📉',
     },
-    {
-        id: '16',
-        name: 'Higher Lower Hedging',
-        description: 'Trades paired Higher +1 and Lower −1 contracts on supported Volatility markets. Demo only.',
-        fileName: 'higher-lower-pair.xml',
-        category: 'Higher/Lower',
-        icon: '↕',
-    },
 ];
 
 const FreeBots = observer(() => {

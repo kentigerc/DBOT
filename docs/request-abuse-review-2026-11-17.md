@@ -34,7 +34,7 @@ Tests cover persistent/cross-tab browser cooldowns, the OTP-to-discovery 301-sec
 
 ## Follow-up — 18 November 2026
 
-A reported 427-second cooldown occurred on refreshing the platform. This proves a provider limit or retained countdown reached the session gate; without the production `deriv_rate_limited` log it does not identify the original endpoint, quota scope or triggering workload. Public live inspection was unavailable from this workspace. The new hedging bot starts only on Run and does not dispatch trades on page load.
+A reported 427-second cooldown occurred on refreshing the platform. This proves a provider limit or retained countdown reached the session gate; without the production `deriv_rate_limited` log it does not identify the original endpoint, quota scope or triggering workload. Public live inspection was unavailable from this workspace.
 
 Previously, page/session display refreshed the same account-discovery cache used for ownership checks every 30 seconds, and a discovery 429 blocked entry to the workspace even when this server recently verified those accounts. Separate display freshness (five minutes) from trading/owner authorization freshness (30 seconds). A credential-scoped display snapshot may be shown for up to fifteen minutes during a 429, with an explicit warning and provider retry duration. It never authorizes an account, trading connection or owner-only API. Changed account ownership is still fetched by trading operations after 30 seconds and updates the display cache. Recheck session revocation after all account reads, including fallback; terms acceptance remains required. No snapshot from another credential, expired snapshot or arbitrary browser account data is accepted.
 

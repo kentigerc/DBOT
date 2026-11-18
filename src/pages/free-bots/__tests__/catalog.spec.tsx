@@ -8,18 +8,18 @@ jest.mock('@/hooks/useStore', () => ({
     useStore: () => ({ dashboard: { setActiveTab: mockSetActiveTab }, run_panel: { is_running: false } }),
 }));
 jest.mock('@/utils/deriv-session', () => ({ getDerivSession: () => ({ authenticated: true }) }));
-it('lists one Higher Lower Hedging XML bot and loads it into the existing Bot Builder', () => {
+it('lists the existing XML bots and loads the selected bot into the existing Bot Builder', () => {
     render(<FreeBots />);
-    const cards = screen.getAllByRole('heading', { name: 'Higher Lower Hedging' });
+    expect(document.querySelectorAll('.free-bots__card')).toHaveLength(4);
+    const cards = screen.getAllByRole('heading', { name: 'Over Switcher' });
     expect(cards).toHaveLength(1);
-    expect(screen.queryByText(/paired-order runner/)).toBeNull();
     fireEvent.click(
         within(cards[0].closest('.free-bots__card') as HTMLElement).getByRole('button', { name: 'Load Bot' })
     );
     expect(mockNavigate).toHaveBeenCalledWith('/platform#bot_builder');
     expect(mockSetActiveTab).toHaveBeenCalledWith(1);
     expect(JSON.parse(sessionStorage.getItem('neto.pendingBot') || '{}')).toEqual({
-        fileName: 'higher-lower-pair.xml',
-        name: 'Higher Lower Hedging',
+        fileName: 'over-1-over-0.xml',
+        name: 'Over Switcher',
     });
 });

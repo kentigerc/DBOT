@@ -1,5 +1,3 @@
-import { higherLowerBuilder } from '@/utils/higher-lower-builder';
-import { higherLowerTransactions } from '@/utils/higher-lower-transactions';
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { formatDate, isEnded } from '@/components/shared';
 import { LogTypes } from '@/external/bot-skeleton';
@@ -107,7 +105,7 @@ export default class TransactionsStore {
         this.pushTransaction(data);
     }
 
-    pushTransaction(data: TContractInfo, pairedRunId?: string) {
+    pushTransaction(data: TContractInfo) {
         const is_completed = isEnded(data as ProposalOpenContract);
         const { run_id } = this.root_store.run_panel;
         const current_account = this.core?.client?.loginid as string;
@@ -115,7 +113,7 @@ export default class TransactionsStore {
         const contract: TContractInfo = {
             ...data,
             is_completed,
-            run_id: pairedRunId || run_id,
+            run_id,
             date_start: data.date_start && formatDate(data.date_start, 'YYYY-M-D HH:mm:ss [GMT]'),
             entry_tick: data.entry_tick_display_value,
             entry_tick_time: data.entry_tick_time && formatDate(data.entry_tick_time, 'YYYY-M-D HH:mm:ss [GMT]'),
@@ -189,30 +187,6 @@ export default class TransactionsStore {
 
     registerReactions() {
         const { client } = this.core;
-        const pairedVersions = new Map<string, string>();
-        const syncPaired = () => {
-            const state = higherLowerBuilder.getSnapshot();
-            for (const contract of higherLowerTransactions(state, client?.loginid)) {
-                const key = `${state.accountId}:${contract.contract_id}`;
-                const version = JSON.stringify(contract);
-                if (pairedVersions.get(key) === version) continue;
-                this.pushTransaction(contract, contract.run_id);
-                pairedVersions.set(key, version);
-                if (pairedVersions.size > 5000) pairedVersions.delete(pairedVersions.keys().next().value!);
-            }
-        };
-        const disposePaired = higherLowerBuilder.subscribe(syncPaired);
-        const restorePaired = () => {
-            void higherLowerBuilder.restore?.(client?.loginid).catch(() => {});
-        };
-        const disposePairedAccount = reaction(
-            () => client?.loginid,
-            () => {
-                syncPaired();
-                restorePaired();
-            }
-        );
-
         // Write transactions to session storage on each change in transaction elements.
         const disposeTransactionElementsListener = reaction(
             () => this.elements[client?.loginid as string]?.slice(),
@@ -231,11 +205,7 @@ export default class TransactionsStore {
             () => this.recoverPendingContracts()
         );
 
-        syncPaired();
-        restorePaired();
         return () => {
-            disposePaired();
-            disposePairedAccount();
             disposeTransactionElementsListener();
             disposeRecoverContracts();
         };

@@ -1,4 +1,3 @@
-import HigherLowerTransactionsControl from '@/components/higher-lower-builder-status/transactions-control';
 import React from 'react';
 import classnames from 'classnames';
 import { observer } from 'mobx-react-lite';
@@ -103,7 +102,6 @@ const Transactions = observer(({ is_drawer_open }: TTransactions) => {
                 'run-panel-tab__content--mobile': !isDesktop && is_drawer_open,
             })}
         >
-            <HigherLowerTransactionsControl />
             <div className='download__container transaction-details__button-container'>
                 <Download tab='transactions' />
                 <Button

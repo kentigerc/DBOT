@@ -1,4 +1,3 @@
-import { pairedWorkspace, higherLowerBuilder } from '@/utils/higher-lower-builder';
 import { getProtectedBotMemory, installBotProtection, isProtectedBotWorkspace } from '@/utils/bot-protection';
 import { BotRunLifecycle } from '@/utils/bot-run-lifecycle';
 import { save_types } from '../constants';
@@ -275,22 +274,16 @@ class DBot {
 
         try {
             api_base.is_stopping = false;
-            const paired = pairedWorkspace(this.workspace);
             const code = this.generateCode();
             if (!this.interpreter.bot.tradeEngine.checkTicksPromiseExists()) this.interpreter = Interpreter();
 
             this.is_bot_running = true;
 
             api_base.setIsRunning(true);
-            this.interpreter
-                .run(code)
-                .then(() => {
-                    if (paired && this.is_bot_running) globalObserver.emit('bot.click_stop');
-                })
-                .catch(error => {
-                    globalObserver.emit('Error', error);
-                    this.stopBot();
-                });
+            this.interpreter.run(code).catch(error => {
+                globalObserver.emit('Error', error);
+                this.stopBot();
+            });
             return { started: true };
         } catch (error) {
             globalObserver.emit('Error', error);
@@ -307,7 +300,6 @@ class DBot {
      * @param {Object} limitations Optional limitations (legacy argument)
      */
     generateCode(limitations = {}) {
-        const paired = pairedWorkspace(this.workspace);
         return `
             var BinaryBotPrivateInit;
             var BinaryBotPrivateStart;
@@ -354,10 +346,7 @@ class DBot {
             var BinaryBotPrivateLimitations = ${JSON.stringify(limitations)};
             ${window.Blockly.JavaScript.javascriptGenerator.workspaceToCode(this.workspace)}
             BinaryBotPrivateRun(BinaryBotPrivateInit);
-            ${
-                paired
-                    ? 'BinaryBotPrivateRun(BinaryBotPrivateBeforePurchase); BinaryBotPrivateRun(BinaryBotPrivateAfterPurchase);'
-                    : `while (true) {
+            while (true) {
                 BinaryBotPrivateTickAnalysis();
                 BinaryBotPrivateRun(BinaryBotPrivateStart);
                 if (!BinaryBotPrivateHasCalledTradeOptions) {
@@ -376,7 +365,6 @@ class DBot {
                 if (!BinaryBotPrivateRun(BinaryBotPrivateAfterPurchase)) {
                     break;
                 }
-            }`
             }
             
             `;
@@ -388,7 +376,6 @@ class DBot {
      */
     stopBot() {
         return this.runLifecycle.stop(async () => {
-            await higherLowerBuilder.stop();
             if (api_base.is_stopping) return;
             api_base.setIsRunning(false);
             await this.interpreter.stop();
@@ -409,7 +396,6 @@ class DBot {
      * Immediately instructs the interpreter to terminate the WS connection and bot.
      */
     async terminateBot() {
-        await higherLowerBuilder.stop();
         if (this.interpreter) {
             await this.interpreter.terminateSession();
             this.interpreter = null;

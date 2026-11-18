@@ -147,22 +147,3 @@ pgTest('reacquiring an idle account on the same server rotates the fencing token
     await server.protect(current, 'current-request');
     await server.cancel(current, 'current-request');
 });
-
-pgTest('paired group reconciliation cannot clear Builder intents or another live process lease', async t => {
-    const f = await fixture(t),
-        a = f.create(),
-        b = f.create();
-    const lease = await a.claim(f.account, { mode: 'higher_lower_xml' });
-    a.hold(lease);
-    await a.protect(lease, 'pair-group');
-    await assert.rejects(b.claim(f.account, { mode: 'higher_lower' }));
-    await assert.rejects(b.settledGroup(f.account, 'pair-group'));
-    await f.expire();
-    await b.settledGroup(f.account, 'pair-group');
-    await b.settledGroup(f.account, 'pair-group'); // Idempotent across a delayed journal commit.
-    const builder = await b.claim(f.account, { mode: 'builder' });
-    await b.protect(builder, 'builder-order');
-    await assert.rejects(b.settledGroup(f.account, 'builder-order'));
-    await b.cancel(builder, 'builder-order');
-    await b.release(builder);
-});

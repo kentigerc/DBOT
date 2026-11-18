@@ -68,8 +68,6 @@ const labels: Record<string, string> = {
     hit_and_run: 'HIT AND RUN',
     even_odd: 'Even / Odd',
     momentum_70: 'Momentum 70',
-    higher_lower: 'Higher Lower Hedging (Legacy)',
-    higher_lower_xml: 'Higher Lower Hedging',
 };
 async function get<T>(path: string): Promise<T> {
     const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store' });

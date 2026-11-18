@@ -1,6 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import Transactions from '../transactions';
-import { higherLowerTransactions } from '@/utils/higher-lower-transactions';
 import { downloadFile } from '@/utils/download';
 const mockKeys: string[][] = [];
 const mockStore: any = {
@@ -63,29 +62,36 @@ jest.mock('@/components/shared_ui/data-list', () => ({
 }));
 beforeEach(() => {
     mockKeys.length = 0;
-    mockStore.transactions.transactions = higherLowerTransactions(
+    mockStore.transactions.transactions = [
         {
-            accountId: 'DOT_TEST',
-            running: false,
-            message: '',
-            pnl: 20,
-            pairs: 1,
-            history: [
-                {
-                    symbol: 'R_100',
-                    at: 1,
-                    profit: 20,
-                    legs: [
-                        { id: 101, type: 'HIGHER', status: 'settled', profit: 55, buyPrice: 35, payout: 90 },
-                        { id: 102, type: 'LOWER', status: 'settled', profit: -35, buyPrice: 35, payout: 0 },
-                    ],
-                },
-            ],
+            type: 'contract',
+            data: {
+                contract_id: 101,
+                contract_type: 'DIGITOVER',
+                underlying: 'R_100',
+                currency: 'USD',
+                status: 'won',
+                is_completed: true,
+                profit: 0.55,
+                buy_price: 0.35,
+            },
         },
-        'DOT_TEST'
-    ).map(data => ({ type: 'contract', data }));
+        {
+            type: 'contract',
+            data: {
+                contract_id: 102,
+                contract_type: 'DIGITUNDER',
+                underlying: 'R_10',
+                currency: 'USD',
+                status: 'lost',
+                is_completed: true,
+                profit: -0.35,
+                buy_price: 0.35,
+            },
+        },
+    ];
 });
-it('opens Transactions with real hedging rows lacking optional broker references and shortcodes', () => {
+it('opens Transactions with confirmed contracts lacking optional broker references and shortcodes', () => {
     render(<Transactions is_drawer_open={false} />);
     expect(screen.getAllByTestId('dt_transactions_item')).toHaveLength(2);
     expect(mockKeys.at(-1)).toEqual(['contract:101', 'contract:102']);

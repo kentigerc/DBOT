@@ -7,13 +7,12 @@ type Block = {
 // Inspect simple literals/initial assignments only; never evaluate user Blockly code to check funds.
 export function xmlStartingStake(workspace?: { getAllBlocks: () => Block[] }) {
     const blocks = workspace?.getAllBlocks() || [];
-    const factor = blocks.some(b => b.type === 'neto_higher_lower_pair' && b.isEnabled?.() !== false) ? 2 : 1;
     const options = blocks.find(block => block.type === 'trade_definition_tradeoptions');
     const amount = options?.getInputTargetBlock?.('AMOUNT');
     const numeric = (block?: Block | null) => {
         if (block?.type !== 'math_number') return undefined;
         const value = Number(block.getFieldValue('NUM'));
-        return Number.isFinite(value) && value > 0 ? value * factor : undefined;
+        return Number.isFinite(value) && value > 0 ? value : undefined;
     };
     if (amount?.type === 'math_number') return numeric(amount);
     if (amount?.type === 'variables_get') {

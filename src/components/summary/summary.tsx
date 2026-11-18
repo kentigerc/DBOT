@@ -1,4 +1,3 @@
-import HigherLowerBuilderStatus from '@/components/higher-lower-builder-status';
 import classnames from 'classnames';
 import { useSyncExternalStore } from 'react';
 import DemoPauseStatus from '@/components/demo-pause-status';
@@ -15,7 +14,7 @@ type TSummary = {
 
 const Summary = observer(({ is_drawer_open }: TSummary) => {
     const builderDemo = useSyncExternalStore(builderDemoPause.subscribe, builderDemoPause.getSnapshot);
-    const { dashboard, summary_card, blockly_store } = useStore();
+    const { dashboard, summary_card } = useStore();
     const { is_contract_loading, contract_info, is_bot_running } = summary_card;
     const { active_tour } = dashboard;
     const { isDesktop } = useDevice();
@@ -37,13 +36,11 @@ const Summary = observer(({ is_drawer_open }: TSummary) => {
                 })}
             >
                 <DemoPauseStatus state={builderDemo.demoPause} />
-                <HigherLowerBuilderStatus ready={!blockly_store?.is_loading}>
-                    <SummaryCard
-                        is_contract_loading={is_contract_loading}
-                        contract_info={contract_info}
-                        is_bot_running={is_bot_running}
-                    />
-                </HigherLowerBuilderStatus>
+                <SummaryCard
+                    is_contract_loading={is_contract_loading}
+                    contract_info={contract_info}
+                    is_bot_running={is_bot_running}
+                />
             </ThemedScrollbars>
         </div>
     );
