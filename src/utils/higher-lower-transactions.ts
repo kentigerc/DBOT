@@ -15,6 +15,7 @@ export function higherLowerTransactions(state: Snapshot, accountId?: string): TC
                 ...leg.contract,
                 contract_id: leg.id,
                 contract_type: ['HIGHER', 'CALL'].includes(leg.type) ? 'CALL' : 'PUT',
+                trade_type: 'higherlower',
                 underlying: pair.symbol,
                 currency: 'USD',
                 status: settled ? (leg.profit! > 0 ? 'won' : leg.profit! < 0 ? 'lost' : 'sold') : 'open',

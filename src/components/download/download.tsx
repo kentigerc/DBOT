@@ -35,11 +35,11 @@ const Download = observer(({ tab }: TDownloadProps) => {
             ],
         ];
         transaction_list.forEach(({ data }: { data: TTransaction }) => {
-            if (typeof data === 'string') return;
+            if (!data || typeof data !== 'object') return;
             items.push([
                 data.display_name,
-                data.transaction_ids.buy,
-                data.transaction_ids.sell,
+                data.transaction_ids?.buy,
+                data.transaction_ids?.sell,
                 data.barrier,
                 data.date_start,
                 data.entry_tick,

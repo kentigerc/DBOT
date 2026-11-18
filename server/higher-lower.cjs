@@ -82,6 +82,7 @@ function contractDisplay(previous, packet) {
     for (const key of [
         'contract_id',
         'contract_type',
+        'shortcode',
         'underlying',
         'currency',
         'buy_price',

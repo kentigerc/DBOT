@@ -455,6 +455,7 @@ test('publishes bounded real contract details and deduplicated tick progress thr
             contract_id: 101,
             is_sold: 0,
             contract_type: 'CALL',
+            shortcode: 'CALL_R_100_123',
             entry_tick_display_value: '100.123',
             entry_tick_time: 100,
             date_start: 99,
@@ -464,6 +465,7 @@ test('publishes bounded real contract details and deduplicated tick progress thr
         },
     });
     assert.equal(f.state().pending.legs[0].currentTick, 2);
+    assert.equal(f.state().pending.legs[0].contract.shortcode, 'CALL_R_100_123');
     assert.equal(f.state().pending.legs[0].tickCount, 5);
     assert.equal(f.state().pending.legs[0].contract.entry_tick_display_value, '100.123');
     assert.doesNotMatch(JSON.stringify(f.state()), /must-not-be-published/);
