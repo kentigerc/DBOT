@@ -1,11 +1,171 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<xml xmlns="https://developers.google.com/blockly/xml" neto_runtime="paired-orders-v1" neto_protected="true">
-    <block type="neto_higher_lower_pair" id="higher-lower-pair" x="24" y="24">
+<xml xmlns="https://developers.google.com/blockly/xml" is_dbot="true" collection="false" neto_protected="true">
+  <variables>
+    <variable id="hl-STAKE">Stake</variable>
+    <variable id="hl-DURATION">Duration</variable>
+    <variable id="hl-STOP_LOSS">Stop Loss</variable>
+    <variable id="hl-TAKE_PROFIT">Expected Profit</variable>
+    <variable id="hl-MAX_PAIRS">Maximum Pairs</variable>
+  </variables>
+  <block type="trade_definition" id="#O/uyxjmwe,c}wO.N$h9" deletable="false" x="0" y="0">
+    <statement name="TRADE_OPTIONS">
+      <block type="trade_definition_market" id="F?XoVelBFe_#X`5$@_Sn" deletable="false" movable="false">
+        <field name="MARKET_LIST">synthetic_index</field>
+        <field name="SUBMARKET_LIST">random_index</field>
+        <field name="SYMBOL_LIST">R_100</field>
+        <next>
+          <block type="trade_definition_tradetype" id="(|dF7_3K!#DhgL4J7}#|" deletable="false" movable="false">
+            <field name="TRADETYPECAT_LIST">callput</field>
+            <field name="TRADETYPE_LIST">higherlower</field>
+            <next>
+              <block type="trade_definition_contracttype" id="mK(r2jWU8_#k.GPUIXJm" deletable="false" movable="false">
+                <field name="TYPE_LIST">both</field>
+                <next>
+                  <block type="trade_definition_candleinterval" id="Xy3wKmdHPj^d!A;-O3w?" deletable="false" movable="false">
+                    <field name="CANDLEINTERVAL_LIST">60</field>
+                    <next>
+                      <block type="trade_definition_restartbuysell" id="~)5uavEI!,;b)W,Y`|jp" deletable="false" movable="false">
+                        <field name="TIME_MACHINE_ENABLED">FALSE</field>
+                        <next>
+                          <block type="trade_definition_restartonerror" id="p%-pABOPBP4-40;rAjj5" deletable="false" movable="false">
+                            <field name="RESTARTONERROR">FALSE</field>
+                            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+                          </block>
+                        </next>
+                        <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+                      </block>
+                    </next>
+                    <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+                  </block>
+                </next>
+                <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+              </block>
+            </next>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </next>
         <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
-        <field name="STAKE">0.35</field>
-        <field name="DURATION">5</field>
-        <field name="STOP_LOSS">10</field>
-        <field name="TAKE_PROFIT">5</field>
-        <field name="MAX_PAIRS">10</field>
-    </block>
+      </block>
+    </statement>
+    <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+    <statement name="INITIALIZATION">
+      <block type="variables_set">
+        <field name="VAR" id="hl-STAKE">Stake</field>
+        <value name="VALUE">
+          <block type="math_number">
+            <field name="NUM">0.35</field>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </value>
+        <next>
+          <block type="variables_set">
+            <field name="VAR" id="hl-DURATION">Duration</field>
+            <value name="VALUE">
+              <block type="math_number">
+                <field name="NUM">5</field>
+                <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+              </block>
+            </value>
+            <next>
+              <block type="variables_set">
+                <field name="VAR" id="hl-STOP_LOSS">Stop Loss</field>
+                <value name="VALUE">
+                  <block type="math_number">
+                    <field name="NUM">10</field>
+                    <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+                  </block>
+                </value>
+                <next>
+                  <block type="variables_set">
+                    <field name="VAR" id="hl-TAKE_PROFIT">Expected Profit</field>
+                    <value name="VALUE">
+                      <block type="math_number">
+                        <field name="NUM">5</field>
+                        <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+                      </block>
+                    </value>
+                    <next>
+                      <block type="variables_set">
+                        <field name="VAR" id="hl-MAX_PAIRS">Maximum Pairs</field>
+                        <value name="VALUE">
+                          <block type="math_number">
+                            <field name="NUM">10</field>
+                            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+                          </block>
+                        </value>
+                        <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+                      </block>
+                    </next>
+                    <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+                  </block>
+                </next>
+                <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+              </block>
+            </next>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </next>
+        <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+      </block>
+    </statement>
+    <statement name="SUBMARKET">
+      <block type="trade_definition_tradeoptions">
+        <mutation has_first_barrier="true" has_second_barrier="false" has_prediction="false" />
+        <field name="BARRIEROFFSETTYPE_LIST">+</field>
+        <field name="CURRENCY_LIST">USD</field>
+        <field name="DURATIONTYPE_LIST">t</field>
+        <mutation has_first_barrier="true" has_second_barrier="false" has_prediction="false" />
+        <field name="DURATIONTYPE_LIST">t</field>
+        <field name="CURRENCY_LIST">USD</field>
+        <field name="BARRIEROFFSETTYPE_LIST">+</field>
+        <value name="DURATION">
+          <block type="variables_get">
+            <field name="VAR" id="hl-DURATION">Duration</field>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </value>
+        <value name="AMOUNT">
+          <block type="variables_get">
+            <field name="VAR" id="hl-STAKE">Stake</field>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </value>
+        <value name="BARRIEROFFSET">
+          <block type="math_number">
+            <field name="NUM">1</field>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </value>
+        <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+      </block>
+    </statement>
+  </block>
+  <block type="before_purchase" id="hl-before" x="650" y="0">
+    <statement name="BEFOREPURCHASE_STACK">
+      <block type="neto_higher_lower_pair" id="hl-paired-purchase">
+        <value name="STOP_LOSS">
+          <block type="variables_get">
+            <field name="VAR" id="hl-STOP_LOSS">Stop Loss</field>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </value>
+        <value name="TAKE_PROFIT">
+          <block type="variables_get">
+            <field name="VAR" id="hl-TAKE_PROFIT">Expected Profit</field>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </value>
+        <value name="MAX_PAIRS">
+          <block type="variables_get">
+            <field name="VAR" id="hl-MAX_PAIRS">Maximum Pairs</field>
+            <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+          </block>
+        </value>
+        <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+      </block>
+    </statement>
+    <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+  </block>
+  <block type="after_purchase" id="hl-after" x="650" y="520">
+    <data>netoacademy:hosted-bot:higher-lower-pair.xml</data>
+  </block>
 </xml>

@@ -25,11 +25,11 @@ async function fixture(t, options = {}) {
     const connection = new EventTarget();
     const auth = {
         publicOrigin: 'https://neto.example',
-        authorizeAccount: async () => ({
-            account_id: 'DOT_TEST',
-            account_type: options.real ? 'real' : 'demo',
-            currency: 'USD',
-        }),
+        sessionIdentity: () => options.sid,
+        authorizeAccount: async () => {
+            if (options.blockAccountRead) throw Object.assign(new Error('Provider cooldown'), { status: 429 });
+            return { account_id: 'DOT_TEST', account_type: options.real ? 'real' : 'demo', currency: 'USD' };
+        },
         verifySession: async () => {
             if (options.verify) await options.verify();
             if (options.revoked) throw Object.assign(new Error('Logged out'), { status: 401 });
@@ -133,9 +133,12 @@ async function fixture(t, options = {}) {
         command,
         source = 'analysis',
         method = command ? 'POST' : 'GET',
-        requestOrigin = auth.publicOrigin
+        requestOrigin = auth.publicOrigin,
+        attempt
     ) {
-        const req = Readable.from(command ? [JSON.stringify({ command, settings: DEFAULTS })] : []);
+        const req = Readable.from(
+            command ? [JSON.stringify({ command, settings: DEFAULTS, ...(attempt ? { attempt } : {}) })] : []
+        );
         req.url = `/api/higher-lower?account_id=DOT_TEST&source=${source}`;
         req.method = method;
         req.headers = { origin: requestOrigin };
@@ -370,4 +373,75 @@ test('STOP during an awaited authorization check cannot reactivate startup', asy
     await f.service.entries.get('DOT_TEST:analysis').startTask;
     assert.equal(f.state().active, false);
     assert.equal(f.requests.filter(r => r.buy).length, 0);
+});
+
+test('a cancelled XML attempt cannot start later or stop a newer XML session', async t => {
+    const f = await fixture(t);
+    await f.request('stop', 'xml', 'POST', f.auth.publicOrigin, 'cancelled');
+    assert.equal((await f.request('start', 'xml', 'POST', f.auth.publicOrigin, 'cancelled')).status, 409);
+    await f.request('start', 'xml', 'POST', f.auth.publicOrigin, 'current');
+    await f.service.entries.get('DOT_TEST:xml').startTask;
+    assert.equal(f.state('xml').active, true);
+    await f.request('stop', 'xml', 'POST', f.auth.publicOrigin, 'cancelled');
+    assert.equal(f.state('xml').active, true);
+    await f.request('stop', 'xml', 'POST', f.auth.publicOrigin, 'current');
+    assert.equal(f.state('xml').active, false);
+});
+test('the verified owner session can STOP during provider throttling without bypassing revocations', async t => {
+    const options = { sid: 'owner' };
+    const f = await fixture(t, options);
+    await f.start();
+    options.blockAccountRead = true;
+    assert.equal((await f.request('stop')).status, 200);
+    assert.equal(f.state().active, false);
+    options.revoked = true;
+    assert.equal((await f.request('stop')).status, 401);
+    options.revoked = false;
+    options.sid = 'other-session';
+    assert.equal((await f.request('stop')).status, 429);
+});
+test('checks the first ready feed before slower subscriptions and discovers contract types only on demand', async t => {
+    let release;
+    const slow = new Promise(resolve => {
+        release = resolve;
+    });
+    const f = await fixture(t, {
+        intercept: async body => {
+            if (body.active_symbols)
+                return { active_symbols: ['R_100', 'R_50'].map(symbol => ({ symbol, exchange_is_open: 1 })) };
+            if (body.ticks_history === 'R_50') await slow;
+        },
+    });
+    await f.request('start');
+    await spin(() => f.state()?.marketCount === 1);
+    assert.equal(f.requests.filter(r => r.contracts_for).length, 0);
+    await f.scan();
+    assert.equal(f.requests.filter(r => r.buy).length, 2);
+    assert.deepEqual(
+        f.requests.filter(r => r.contracts_for).map(r => r.contracts_for),
+        ['R_100']
+    );
+    release();
+    await f.service.entries.get('DOT_TEST:analysis').startTask;
+    assert.equal(f.state().marketCount, 2);
+    await f.scan();
+    assert.equal(f.requests.filter(r => r.buy).length, 2, 'warmup completion must not bypass a pending pair');
+});
+test('retains actual purchase prices, returns and both winning leg outcomes', async t => {
+    const f = await fixture(t);
+    await f.start();
+    await f.scan();
+    for (const contract_id of [101, 102])
+        await f.emit({
+            proposal_open_contract: { contract_id, is_sold: 1, profit: 0.55, sell_price: 0.9, buy_price: 0.35 },
+        });
+    const history = f.state().history[0];
+    assert.equal(history.profit, 110);
+    assert.deepEqual(
+        history.legs.map(l => [l.id, l.profit, l.buyPrice, l.payout]),
+        [
+            [101, 55, 35, 90],
+            [102, 55, 35, 90],
+        ]
+    );
 });

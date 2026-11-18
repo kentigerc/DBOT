@@ -30,6 +30,11 @@ function validateSettings(value = {}) {
             ),
             { status: 400 }
         );
+    if (value.symbol !== undefined) {
+        if (typeof value.symbol !== 'string' || !/^(R_\d+|1HZ\d+V)$/.test(value.symbol))
+            throw Object.assign(new Error('Invalid paired XML market.'), { status: 400 });
+        s.symbol = value.symbol;
+    }
     return s;
 }
 function signal(prices, duration = 5) {
@@ -71,6 +76,27 @@ function quotePair(responses, settings, now = Date.now()) {
     if (quotes.some(q => Math.round(Number(q.payout) * 100) <= cost))
         throw invalid('A single winning payout would not cover both stakes. No pair purchased.');
     return { quotes, cost, minimumWinningNet: Math.min(...quotes.map(q => Math.round(Number(q.payout) * 100))) - cost };
+}
+function pairedContractTypes(available, duration) {
+    const supports = c => {
+        if (c.barriers !== undefined && Number(c.barriers) !== 1) return false;
+        if (
+            c.min_contract_duration &&
+            (!/^\d+t$/.test(c.min_contract_duration) || Number(c.min_contract_duration.slice(0, -1)) > duration)
+        )
+            return false;
+        if (
+            c.max_contract_duration &&
+            /^\d+t$/.test(c.max_contract_duration) &&
+            Number(c.max_contract_duration.slice(0, -1)) < duration
+        )
+            return false;
+        return true;
+    };
+    return [
+        ['HIGHER', 'CALL'],
+        ['LOWER', 'PUT'],
+    ].map(codes => codes.find(type => available.some(c => c.contract_type === type && supports(c))));
 }
 function createHigherLowerService(
     auth,
@@ -177,7 +203,14 @@ function createHigherLowerService(
                     symbol: p.symbol,
                     at: p.at,
                     profit,
-                    legs: p.legs.map(l => ({ type: l.type, id: l.id, status: l.status, profit: l.profit })),
+                    legs: p.legs.map(l => ({
+                        type: l.type,
+                        id: l.id,
+                        status: l.status,
+                        profit: l.profit,
+                        buyPrice: l.buyPrice,
+                        payout: l.payout,
+                    })),
                 },
                 ...e.state.history,
             ].slice(0, 100);
@@ -210,6 +243,29 @@ function createHigherLowerService(
         }
         leg.status = 'settled';
         leg.profit = Math.round(Number(c.profit) * 100);
+        if (
+            leg.buyPrice === undefined &&
+            c.buy_price !== undefined &&
+            c.buy_price !== null &&
+            Number.isFinite(Number(c.buy_price)) &&
+            Number.isSafeInteger(Math.round(Number(c.buy_price) * 100)) &&
+            Number(c.buy_price) >= 0
+        )
+            leg.buyPrice = Math.round(Number(c.buy_price) * 100);
+        if (
+            c.sell_price !== undefined &&
+            c.sell_price !== null &&
+            Number.isFinite(Number(c.sell_price)) &&
+            Number.isSafeInteger(Math.round(Number(c.sell_price) * 100)) &&
+            Number(c.sell_price) >= 0
+        )
+            leg.payout = Math.round(Number(c.sell_price) * 100);
+        else if (
+            leg.buyPrice !== undefined &&
+            Number.isSafeInteger(leg.buyPrice + leg.profit) &&
+            leg.buyPrice + leg.profit >= 0
+        )
+            leg.payout = leg.buyPrice + leg.profit;
         await save(e);
         notify(e, c);
         await finish(e);
@@ -235,6 +291,14 @@ function createHigherLowerService(
             }
             leg.id = id;
             leg.status = 'open';
+            const paid = Number(data.buy.buy_price);
+            if (
+                data.buy.buy_price !== undefined &&
+                Number.isFinite(paid) &&
+                paid >= 0 &&
+                Number.isSafeInteger(Math.round(paid * 100))
+            )
+                leg.buyPrice = Math.round(paid * 100);
             await save(e);
             notify(e, data.buy);
             monitor = e.broker;
@@ -293,7 +357,27 @@ function createHigherLowerService(
         try {
             const s = e.state.settings,
                 b = e.broker;
-            const types = market.types || ['CALL', 'PUT'];
+            let types = e.feeds.get(market.symbol)?.types;
+            if (!types) {
+                const discovered = await b.send({ contracts_for: market.symbol });
+                types = pairedContractTypes(discovered.contracts_for?.available || [], s.duration);
+                const feed = e.feeds.get(market.symbol);
+                if (types.some(type => !type)) {
+                    if (feed) feed.supported = false;
+                    if (s.symbol)
+                        halt(
+                            e,
+                            'The selected market does not support these paired contracts and duration. Choose another market.'
+                        );
+                    else
+                        e.state.message = `Skipped ${market.symbol}: this duration is unavailable. Checking other live markets.`;
+                    return;
+                }
+                if (feed) {
+                    feed.types = types;
+                    feed.supported = true;
+                }
+            }
             const quoted = await Promise.allSettled(
                 types.map((type, i) =>
                     b
@@ -431,7 +515,9 @@ function createHigherLowerService(
             throw Object.assign(new Error('Stop and settle the existing session first.'), { status: 409 });
         const s = validateSettings(settings);
         e.busy = true;
+        e.bootBusy = true;
         e.cancelled = false;
+        e.ownerSid = auth.sessionIdentity?.(req);
         e.state.starting = true;
         try {
             e.lease = await locks.claim(e.state.accountId, {
@@ -465,61 +551,27 @@ function createHigherLowerService(
             );
             const discovery = await b.send({ active_symbols: 'brief' });
             const markets = (discovery.active_symbols || [])
-                .filter(m => /^(R_\d+|1HZ\d+V)$/.test(m.symbol) && m.exchange_is_open && !m.is_trading_suspended)
+                .filter(
+                    m =>
+                        /^(R_\d+|1HZ\d+V)$/.test(m.symbol) &&
+                        m.exchange_is_open &&
+                        !m.is_trading_suspended &&
+                        (!s.symbol || s.symbol === m.symbol)
+                )
                 .slice(0, 50);
             e.feeds.clear();
-            for (const m of markets) {
-                if (!e.state.active) break;
-                await sleep(200);
-                const supported = await b.send({ contracts_for: m.symbol });
-                const available = supported.contracts_for?.available || [];
-                const supports = c => {
-                    if (c.barriers !== undefined && Number(c.barriers) !== 1) return false;
-                    if (
-                        c.min_contract_duration &&
-                        (!/^\d+t$/.test(c.min_contract_duration) ||
-                            Number(c.min_contract_duration.slice(0, -1)) > s.duration)
-                    )
-                        return false;
-                    if (
-                        c.max_contract_duration &&
-                        /^\d+t$/.test(c.max_contract_duration) &&
-                        Number(c.max_contract_duration.slice(0, -1)) < s.duration
-                    )
-                        return false;
-                    return true;
-                };
-                const types = [
-                    ['HIGHER', 'CALL'],
-                    ['LOWER', 'PUT'],
-                ].map(codes => codes.find(type => available.some(c => c.contract_type === type && supports(c))));
-                if (types.some(type => !type)) continue;
-                const r = await b.send({
-                    ticks_history: m.symbol,
-                    count: 101,
-                    end: 'latest',
-                    style: 'ticks',
-                    subscribe: 1,
-                });
-                if (Array.isArray(r.history?.prices))
-                    e.feeds.set(m.symbol, {
-                        symbol: m.symbol,
-                        types,
-                        prices: r.history.prices.map(Number).slice(-101),
-                        epoch: Number(r.history.times?.at(-1)),
-                    });
-            }
-            if (!e.state.active) return;
-            if (!e.feeds.size) throw new Error('No compatible Volatility feeds are available.');
             e.lastEntries = new Map();
-            e.state.marketCount = e.feeds.size;
-            e.state.message =
-                'Waiting for a fresh volatility expansion. Pair quotes must each cover the combined cost.';
-            e.timer = schedule(() => {
+            e.state.marketCount = 0;
+            e.state.scanTotal = markets.length;
+            clearInterval(e.timer);
+            e.timer = undefined;
+            let scanStarted = false;
+            const scan = () => {
                 if (!e.state.active || e.busy || e.state.pending) return;
                 const ranked = [...e.feeds.values()]
                     .filter(
                         f =>
+                            f.supported !== false &&
                             (!e.lastEntries.has(f.symbol) || f.epoch > e.lastEntries.get(f.symbol)) &&
                             (!f.retryAt || f.retryAt <= now()) &&
                             f.epoch <= now() / 1000 + 2 &&
@@ -529,13 +581,62 @@ function createHigherLowerService(
                     .filter(f => f.score > 0)
                     .sort((a, b) => b.score - a.score);
                 if (ranked[0]) e.task = pair(e, req, ranked[0]).catch(() => halt(e, 'Pair stopped. Check Reports.'));
-            }, 1000);
-            e.timer.unref?.();
+            };
+            let index = 0,
+                nextSlot = now();
+            const worker = async () => {
+                while (index < markets.length && e.state.active) {
+                    const market = markets[index++];
+                    const pause = Math.max(0, nextSlot - now());
+                    nextSlot = Math.max(nextSlot, now()) + 125;
+                    if (pause) await sleep(pause);
+                    if (!e.state.active) return;
+                    let response;
+                    try {
+                        response = await b.send({
+                            ticks_history: market.symbol,
+                            count: 101,
+                            end: 'latest',
+                            style: 'ticks',
+                            subscribe: 1,
+                        });
+                    } catch (error) {
+                        if (['MarketIsClosed', 'TradingSuspended', 'InvalidSymbol'].includes(error.error?.code))
+                            continue;
+                        throw error;
+                    }
+                    if (!e.state.active || !Array.isArray(response.history?.prices)) continue;
+                    e.feeds.set(market.symbol, {
+                        symbol: market.symbol,
+                        prices: response.history.prices.map(Number).slice(-101),
+                        epoch: Number(response.history.times?.at(-1)),
+                    });
+                    e.state.marketCount = e.feeds.size;
+                    if (!scanStarted) {
+                        scanStarted = true;
+                        if (e.bootBusy) {
+                            e.bootBusy = false;
+                            e.busy = false;
+                        }
+                        e.timer = schedule(scan, 250);
+                        e.timer.unref?.();
+                    }
+                    if (!e.state.pending && !e.busy)
+                        e.state.message = `Watching live price expansion · ${e.feeds.size}/${markets.length} feeds ready. Quotes are checked only for qualifying candidates.`;
+                }
+            };
+            await Promise.all(Array.from({ length: Math.min(4, markets.length) }, worker));
+            if (!e.state.active) return;
+            if (!e.feeds.size) throw new Error('No compatible Volatility feeds are available.');
+            await save(e);
         } catch (error) {
             halt(e, error.message || 'Startup failed.');
             throw error;
         } finally {
-            e.busy = false;
+            if (e.bootBusy) {
+                e.bootBusy = false;
+                e.busy = false;
+            }
             if (!e.state.active && !e.state.pending) await cleanup(e);
         }
     }
@@ -555,34 +656,58 @@ function createHigherLowerService(
                 throw Object.assign(new Error('Invalid runner.'), { status: 400 });
             if (!id || !/^[A-Za-z0-9_-]{1,128}$/.test(id))
                 throw Object.assign(new Error('Select an account.'), { status: 400 });
-            const account = await auth.authorizeAccount(req, id);
-            if (account.account_type !== 'demo' || account.currency !== 'USD')
-                return json(403, { error: 'Higher/Lower is available only on USD demo accounts.' });
-            const e = await entry(id, source);
+            let body;
+            if (req.method === 'POST') {
+                let raw = '';
+                for await (const chunk of req) {
+                    raw += chunk;
+                    if (Buffer.byteLength(raw) > 8192)
+                        throw Object.assign(new Error('Request too large.'), { status: 413 });
+                }
+                try {
+                    body = JSON.parse(raw);
+                } catch {
+                    throw Object.assign(new Error('Invalid JSON.'), { status: 400 });
+                }
+                if (!body || typeof body !== 'object' || Array.isArray(body))
+                    throw Object.assign(new Error('Invalid command.'), { status: 400 });
+            }
+            const existing = entries.get(id + ':' + source);
+            let e;
+            if (body?.command === 'stop' && existing?.ownerSid && auth.sessionIdentity?.(req) === existing.ownerSid) {
+                // Stop remains available during provider REST cooldowns; signed
+                // ownership plus a fresh revocation check is still mandatory.
+                await auth.verifySession(req);
+                e = existing;
+            } else {
+                const account = await auth.authorizeAccount(req, id);
+                if (account.account_type !== 'demo' || account.currency !== 'USD')
+                    return json(403, { error: 'Higher/Lower is available only on USD demo accounts.' });
+                e = await entry(id, source);
+            }
             await e.ready;
             if (req.method === 'GET') return json(200, { ...e.state, busy: e.busy });
-            auth.requireTerms(req);
-            let raw = '';
-            for await (const chunk of req) {
-                raw += chunk;
-                if (Buffer.byteLength(raw) > 8192)
-                    throw Object.assign(new Error('Request too large.'), { status: 413 });
-            }
-            let body;
-            try {
-                body = JSON.parse(raw);
-            } catch {
-                throw Object.assign(new Error('Invalid JSON.'), { status: 400 });
-            }
+            if (body.command !== 'stop') auth.requireTerms(req);
             // STOP is immediate even when startup or quoting is awaiting the provider.
             if (body.command === 'stop') {
+                if (typeof body.attempt === 'string' && body.attempt.length <= 100) {
+                    e.cancelledAttempts ||= new Set();
+                    e.cancelledAttempts.add(body.attempt);
+                    if (e.cancelledAttempts.size > 20)
+                        e.cancelledAttempts.delete(e.cancelledAttempts.values().next().value);
+                }
+                if (body.attempt && (e.state.active || e.state.starting || e.busy) && e.activeAttempt !== body.attempt)
+                    return json(200, { ...e.state, busy: e.busy });
                 halt(e, 'Stopped. Existing contracts remain monitored.');
                 return json(200, { ...e.state, busy: e.busy });
             }
             if (body.command === 'start') {
+                if (body.attempt && e.cancelledAttempts?.has(body.attempt))
+                    throw Object.assign(new Error('XML startup was cancelled.'), { status: 409 });
                 if (e.busy || e.state.active || e.state.pending)
                     throw Object.assign(new Error('Stop and settle the existing session first.'), { status: 409 });
                 const settings = validateSettings(body.settings);
+                e.activeAttempt = typeof body.attempt === 'string' ? body.attempt : undefined;
                 e.startTask = start(e, req, settings).catch(() => {});
                 return json(200, { ...e.state, busy: e.busy });
             }

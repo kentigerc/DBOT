@@ -136,6 +136,11 @@ const Interpreter = () => {
             'sellAtMarket',
             createAsync(js_interpreter, bot_interface.sellAtMarket)
         );
+        js_interpreter.setProperty(
+            pseudo_bot_interface,
+            'runHigherLowerPair',
+            createAsync(js_interpreter, bot_interface.runHigherLowerPair)
+        );
         js_interpreter.setProperty(scope, 'Bot', pseudo_bot_interface);
         js_interpreter.setProperty(
             scope,

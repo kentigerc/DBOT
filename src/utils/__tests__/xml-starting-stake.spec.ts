@@ -41,3 +41,18 @@ it('leaves dynamic expressions for the exact pre-purchase balance check', () => 
         })
     ).toBeUndefined();
 });
+
+it('checks the combined two-leg stake before starting a paired XML bot', () => {
+    expect(
+        xmlStartingStake({
+            getAllBlocks: () => [
+                { type: 'neto_higher_lower_pair', getFieldValue: () => null },
+                {
+                    type: 'trade_definition_tradeoptions',
+                    getFieldValue: () => null,
+                    getInputTargetBlock: () => number('1.25'),
+                },
+            ],
+        })
+    ).toBe(2.5);
+});

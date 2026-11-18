@@ -1,3 +1,4 @@
+import { higherLowerBuilder } from '@/utils/higher-lower-builder';
 import { observer as globalObserver } from '../../../utils/observer';
 import { createDetails } from '../utils/helpers';
 
@@ -5,6 +6,22 @@ const getBotInterface = tradeEngine => {
     const getDetail = i => createDetails(tradeEngine.data.contract)[i];
 
     return {
+        runHigherLowerPair: (...args) => {
+            let lastMessage = '';
+            const unsubscribe = higherLowerBuilder.subscribe(() => {
+                const state = higherLowerBuilder.getSnapshot();
+                if (state.message && state.message !== lastMessage) {
+                    lastMessage = state.message;
+                    globalObserver.emit('ui.log.notify', {
+                        message: `Higher Lower Hedging: ${state.message}`,
+                        message_type: 'notify',
+                        className: 'journal__text--info',
+                        sound: 'silent',
+                    });
+                }
+            });
+            return higherLowerBuilder.run(...args).finally(unsubscribe);
+        },
         init: (...args) => tradeEngine.init(...args),
         start: (...args) => tradeEngine.start(...args),
         stop: (...args) => tradeEngine.stop(...args),

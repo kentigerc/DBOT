@@ -1,3 +1,4 @@
+import { higherLowerBuilder } from '@/utils/higher-lower-builder';
 import { checkTradingBalance } from '@/services/digit-strategy/balance';
 import { xmlStartingStake } from '@/utils/xml-starting-stake';
 import { api_base } from '@/external/bot-skeleton';
@@ -461,6 +462,16 @@ export default class RunPanelStore {
     };
 
     stopBot = () => {
+        void higherLowerBuilder
+            .stop()
+            .catch((error: Error) =>
+                this.root_store.journal.onNotify({
+                    message: error.message,
+                    message_type: MessageTypes.NOTIFY,
+                    className: 'journal__text--warn',
+                    sound: 'silent',
+                })
+            );
         builderDemoPause.stop();
         manualTraderGate.stop();
         const { ui } = this.core;
