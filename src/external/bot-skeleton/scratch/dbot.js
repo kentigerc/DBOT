@@ -1,4 +1,4 @@
-import { pairedWorkspace } from '@/utils/higher-lower-builder';
+import { pairedWorkspace, higherLowerBuilder } from '@/utils/higher-lower-builder';
 import { getProtectedBotMemory, installBotProtection, isProtectedBotWorkspace } from '@/utils/bot-protection';
 import { BotRunLifecycle } from '@/utils/bot-run-lifecycle';
 import { save_types } from '../constants';
@@ -388,6 +388,7 @@ class DBot {
      */
     stopBot() {
         return this.runLifecycle.stop(async () => {
+            await higherLowerBuilder.stop();
             if (api_base.is_stopping) return;
             api_base.setIsRunning(false);
             await this.interpreter.stop();
@@ -408,6 +409,7 @@ class DBot {
      * Immediately instructs the interpreter to terminate the WS connection and bot.
      */
     async terminateBot() {
+        await higherLowerBuilder.stop();
         if (this.interpreter) {
             await this.interpreter.terminateSession();
             this.interpreter = null;
