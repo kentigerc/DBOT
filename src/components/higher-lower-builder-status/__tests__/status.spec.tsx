@@ -2,6 +2,10 @@ import { render, screen } from '@testing-library/react';
 import Status from '..';
 import { higherLowerBuilder } from '@/utils/higher-lower-builder';
 import { getDerivAccount } from '@/utils/deriv-session';
+jest.mock('@/components/shared', () => ({
+    getCardLabels: () => ({ TICK: 'Tick' }),
+    isEmptyObject: (value: object) => !value || !Object.keys(value).length,
+}));
 jest.mock('@/utils/deriv-session', () => ({ getDerivAccount: jest.fn() }));
 jest.mock('@/utils/higher-lower-builder', () => ({
     PAIR_BLOCK: 'neto_higher_lower_pair',
@@ -21,33 +25,26 @@ it('leaves the ordinary Summary untouched without a paired session', () => {
     expect(screen.getByText('Normal summary')).toBeTruthy();
     expect(screen.queryByRole('region')).toBeNull();
 });
-it('shows actual contract IDs, paid amounts and separate outcomes in the existing Summary', () => {
+it('shows only the existing tick progress display for each paired leg', () => {
     snapshot.mockReturnValue({
         accountId: 'DOT_TEST',
-        message: 'Session running',
+        message: 'Running',
         running: true,
         pnl: 20,
         pairs: 1,
-        history: [
-            {
-                symbol: 'R_100',
-                at: 1,
-                profit: 20,
-                legs: [
-                    { type: 'HIGHER', status: 'settled', id: 101, buyPrice: 35, payout: 90, profit: 55 },
-                    { type: 'LOWER', status: 'settled', id: 102, buyPrice: 35, payout: 0, profit: -35 },
-                ],
-            },
-        ],
+        pending: {
+            symbol: 'R_100',
+            legs: [
+                { type: 'HIGHER', status: 'open', id: 101, currentTick: 2, tickCount: 5 },
+                { type: 'LOWER', status: 'open', id: 102, currentTick: 1, tickCount: 5 },
+            ],
+        },
     });
     render(<Status />);
-    expect(screen.getByText(/One won \/ one lost/)).toBeTruthy();
-    expect(screen.getByText(/Higher \+1 · Won · Contract 101/)).toHaveTextContent(
-        'Paid $0.35 · Returned $0.90 · P/L $0.55'
-    );
-    expect(screen.getByText(/Lower −1 · Lost · Contract 102/)).toHaveTextContent(
-        'Paid $0.35 · Returned $0.00 · P/L $-0.35'
-    );
+    expect(screen.getByText('Tick 2')).toBeTruthy();
+    expect(screen.getByText('Tick 1')).toBeTruthy();
+    expect(document.querySelectorAll('.dc-progress-slider__ticks-step')).toHaveLength(10);
+    expect(screen.queryByText(/Contract|Paid|Returned|P.L|Pairs|Running|R_100/)).toBeNull();
 });
 it('hides another account’s paired history after switching accounts', () => {
     snapshot.mockReturnValue({ accountId: 'DOT_OTHER', message: 'Private', running: true });

@@ -65,3 +65,108 @@ it('keeps ordinary XML unchanged and rejects mixed or misplaced paired purchase 
         'Purchase conditions'
     );
 });
+it('keeps reading known open contracts after entries stop without issuing another trade command', async () => {
+    jest.useFakeTimers();
+    const pending = { symbol: 'R_100', legs: [{ type: 'CALL', status: 'open', id: 101 }] };
+    const request = jest
+        .fn()
+        .mockResolvedValueOnce({ active: false, busy: false, pending })
+        .mockResolvedValueOnce({ active: false, busy: false, pending })
+        .mockResolvedValue({ active: false, busy: false, pending: undefined, pairs: 1, pnl: 20 });
+    const builder = new HigherLowerBuilder(
+        request,
+        async () => {},
+        () => 'read-only'
+    );
+    try {
+        await builder.run(0.35, 5, 10, 5, 1);
+        expect(builder.getSnapshot().running).toBe(false);
+        await jest.advanceTimersByTimeAsync(2000);
+        expect(builder.getSnapshot()).toMatchObject({ pairs: 1, pnl: 20, pending: undefined });
+        expect(request.mock.calls.filter(c => c[1])).toHaveLength(1);
+        expect(request.mock.calls.filter(c => c[1])[0][1].command).toBe('start');
+    } finally {
+        jest.clearAllTimers();
+        jest.useRealTimers();
+    }
+});
+it('ignores a delayed status reply after switching accounts', async () => {
+    let release!: (value: any) => void;
+    const request = jest
+        .fn()
+        .mockResolvedValueOnce({ active: false, busy: false })
+        .mockResolvedValueOnce({ active: false, busy: false, pnl: 0 })
+        .mockImplementationOnce(
+            () =>
+                new Promise(resolve => {
+                    release = resolve;
+                })
+        );
+    const builder = new HigherLowerBuilder(
+        request,
+        async () => {},
+        () => 'status-fence'
+    );
+    await builder.run(0.35, 5, 10, 5, 1);
+    const reading = builder.readStatus();
+    (getDerivAccount as jest.Mock).mockReturnValue({ account_id: 'DOT_OTHER', account_type: 'demo', currency: 'USD' });
+    release({ pnl: 999, history: [{ symbol: 'R_100', legs: [] }] });
+    await reading;
+    expect(builder.getSnapshot().pnl).toBe(0);
+});
+it('restores server history read-only after reload and never starts orders', async () => {
+    const request = jest.fn(async () => ({
+        accountId: 'DOT_TEST',
+        active: false,
+        history: [{ symbol: 'R_100', at: 1, profit: 20, legs: [] }],
+        pnl: 20,
+        pairs: 1,
+    }));
+    const builder = new HigherLowerBuilder(request);
+    await builder.restore('DOT_TEST');
+    expect(builder.getSnapshot()).toMatchObject({ running: false, pairs: 1, pnl: 20 });
+    expect(request).toHaveBeenCalledWith(expect.stringContaining('source=xml'));
+    expect(request.mock.calls.every(call => call.length === 1)).toBe(true);
+});
+it('restored active sessions can be explicitly stopped without starting a new run', async () => {
+    jest.useFakeTimers();
+    const request = jest.fn(async (_url: string, body?: any) =>
+        body?.command === 'stop' ? { active: false } : { active: true }
+    );
+    const builder = new HigherLowerBuilder(request);
+    try {
+        await builder.restore('DOT_TEST');
+        expect(builder.getSnapshot().running).toBe(false);
+        await builder.stopRestored();
+        expect(request.mock.calls.filter(c => c[1]).map(c => c[1])).toEqual([{ command: 'stop' }]);
+        expect(builder.getSnapshot().active).toBe(false);
+    } finally {
+        jest.clearAllTimers();
+        jest.useRealTimers();
+    }
+});
+it('passive contract reads honor provider cooldowns and never dispatch purchases', async () => {
+    jest.useFakeTimers();
+    const request = jest
+        .fn()
+        .mockResolvedValueOnce({
+            active: false,
+            pending: { symbol: 'R_100', legs: [{ id: 101, type: 'CALL', status: 'open' }] },
+        })
+        .mockRejectedValueOnce(Object.assign(new Error('cooldown'), { retryAfter: 30 }))
+        .mockResolvedValue({ active: false, pending: undefined });
+    const builder = new HigherLowerBuilder(request);
+    try {
+        await builder.restore('DOT_TEST');
+        await jest.advanceTimersByTimeAsync(2000);
+        expect(request).toHaveBeenCalledTimes(2);
+        await jest.advanceTimersByTimeAsync(29999);
+        expect(request).toHaveBeenCalledTimes(2);
+        await jest.advanceTimersByTimeAsync(1);
+        expect(request).toHaveBeenCalledTimes(3);
+        expect(request.mock.calls.every(c => c.length === 1)).toBe(true);
+    } finally {
+        jest.clearAllTimers();
+        jest.useRealTimers();
+    }
+});

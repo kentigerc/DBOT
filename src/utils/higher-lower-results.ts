@@ -1,3 +1,4 @@
+import type { ProposalOpenContract } from '@deriv/api-types';
 export type HedgingLeg = {
     type: string;
     id?: number;
@@ -5,6 +6,9 @@ export type HedgingLeg = {
     profit?: number;
     buyPrice?: number;
     payout?: number;
+    contract?: Partial<ProposalOpenContract>;
+    tickCount?: number;
+    currentTick?: number;
 };
 export function legResult(leg: HedgingLeg) {
     if (leg.status === 'rejected') return 'Not purchased';

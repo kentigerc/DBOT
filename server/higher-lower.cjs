@@ -77,6 +77,37 @@ function quotePair(responses, settings, now = Date.now()) {
         throw invalid('A single winning payout would not cover both stakes. No pair purchased.');
     return { quotes, cost, minimumWinningNet: Math.min(...quotes.map(q => Math.round(Number(q.payout) * 100))) - cost };
 }
+function contractDisplay(previous, packet) {
+    const view = { ...(previous || {}) };
+    for (const key of [
+        'contract_id',
+        'contract_type',
+        'underlying',
+        'currency',
+        'buy_price',
+        'sell_price',
+        'date_start',
+        'date_expiry',
+        'entry_tick_display_value',
+        'entry_tick_time',
+        'exit_tick_display_value',
+        'exit_tick_time',
+        'barrier',
+        'high_barrier',
+        'low_barrier',
+        'tick_count',
+    ]) {
+        const value = packet[key];
+        if (typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))) view[key] = value;
+    }
+    if (packet.transaction_ids && typeof packet.transaction_ids === 'object') {
+        view.transaction_ids = { ...view.transaction_ids };
+        for (const key of ['buy', 'sell'])
+            if (Number.isSafeInteger(packet.transaction_ids[key]) && packet.transaction_ids[key] > 0)
+                view.transaction_ids[key] = packet.transaction_ids[key];
+    }
+    return view;
+}
 function pairedContractTypes(available, duration) {
     const supports = c => {
         if (c.barriers !== undefined && Number(c.barriers) !== 1) return false;
@@ -210,6 +241,9 @@ function createHigherLowerService(
                         profit: l.profit,
                         buyPrice: l.buyPrice,
                         payout: l.payout,
+                        contract: l.contract,
+                        tickCount: l.tickCount,
+                        currentTick: l.currentTick,
                     })),
                 },
                 ...e.state.history,
@@ -236,7 +270,23 @@ function createHigherLowerService(
         if (!p || p.complete) return;
         const c = packet.proposal_open_contract;
         const leg = c && p.legs.find(l => l.id === Number(c.contract_id));
-        if (!leg || leg.status === 'settled' || ![true, 1].includes(c.is_sold)) return;
+        if (!leg || leg.status === 'settled') return;
+        const before = JSON.stringify(leg);
+        leg.contract = contractDisplay(leg.contract, c);
+        if (Array.isArray(c.tick_stream)) {
+            const epochs = new Set(
+                c.tick_stream
+                    .slice(-20)
+                    .map(t => Number(t.epoch))
+                    .filter(Number.isFinite)
+            );
+            const tick = Math.max(0, epochs.size - 1);
+            leg.currentTick = Math.min(leg.tickCount || 10, Math.max(leg.currentTick || 0, tick));
+        }
+        if (![true, 1].includes(c.is_sold)) {
+            if (JSON.stringify(leg) !== before) await save(e);
+            return;
+        }
         if (c.profit === undefined || c.profit === null || c.profit === '' || !Number.isFinite(Number(c.profit))) {
             halt(e, 'Settlement is unconfirmed. Refresh contract status in Reports.');
             return;
@@ -291,6 +341,12 @@ function createHigherLowerService(
             }
             leg.id = id;
             leg.status = 'open';
+            leg.contract = contractDisplay(leg.contract, {
+                contract_id: id,
+                buy_price: data.buy.buy_price,
+                date_start: data.buy.start_time,
+                transaction_ids: { buy: data.buy.transaction_id },
+            });
             const paid = Number(data.buy.buy_price);
             if (
                 data.buy.buy_price !== undefined &&
@@ -439,7 +495,7 @@ function createHigherLowerService(
                 at: now(),
                 cost: quotes.cost,
                 minimumWinningNet: quotes.minimumWinningNet,
-                legs: types.map(type => ({ type, status: 'intent' })),
+                legs: types.map(type => ({ type, status: 'intent', tickCount: s.duration })),
             };
             await save(e);
             await locks.heartbeat();

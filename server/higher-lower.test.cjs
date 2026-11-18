@@ -445,3 +445,39 @@ test('retains actual purchase prices, returns and both winning leg outcomes', as
         ]
     );
 });
+test('publishes bounded real contract details and deduplicated tick progress through settlement history', async t => {
+    const f = await fixture(t);
+    await f.start();
+    await f.scan();
+    const ticks = [1, 1, 2, 3].map(epoch => ({ epoch, tick: 100 + epoch }));
+    await f.emit({
+        proposal_open_contract: {
+            contract_id: 101,
+            is_sold: 0,
+            contract_type: 'CALL',
+            entry_tick_display_value: '100.123',
+            entry_tick_time: 100,
+            date_start: 99,
+            transaction_ids: { buy: 9001 },
+            tick_stream: ticks,
+            secret: 'must-not-be-published',
+        },
+    });
+    assert.equal(f.state().pending.legs[0].currentTick, 2);
+    assert.equal(f.state().pending.legs[0].tickCount, 5);
+    assert.equal(f.state().pending.legs[0].contract.entry_tick_display_value, '100.123');
+    assert.doesNotMatch(JSON.stringify(f.state()), /must-not-be-published/);
+    for (const contract_id of [101, 102])
+        await f.emit({
+            proposal_open_contract: {
+                contract_id,
+                is_sold: 1,
+                profit: contract_id === 101 ? 0.55 : -0.35,
+                sell_price: contract_id === 101 ? 0.9 : 0,
+                exit_tick_display_value: '102.456',
+            },
+        });
+    assert.equal(f.state().history[0].legs[0].contract.transaction_ids.buy, 9001);
+    assert.equal(f.state().history[0].legs[0].contract.exit_tick_display_value, '102.456');
+    assert.equal(f.state().history[0].legs[0].currentTick, 2);
+});
