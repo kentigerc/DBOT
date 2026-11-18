@@ -334,6 +334,7 @@ function createHigherLowerService(
             }
             if (!e.state.active || closing) return;
             await auth.verifySession(req);
+            if (!e.state.active || closing || e.cancelled) return;
             auth.requireTerms(req);
             const qualifies = () => {
                 const feed = e.feeds.get(market.symbol);
@@ -446,6 +447,7 @@ function createHigherLowerService(
                 throw new Error('Settle existing account contracts before starting a pair.');
             if (closing || e.cancelled || e.lease.lost) throw new Error('Startup cancelled.');
             await auth.verifySession(req);
+            if (closing || e.cancelled || e.lease.lost) throw new Error('Startup cancelled.');
             e.state = {
                 ...e.state,
                 settings: s,

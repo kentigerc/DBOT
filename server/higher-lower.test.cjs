@@ -31,6 +31,7 @@ async function fixture(t, options = {}) {
             currency: 'USD',
         }),
         verifySession: async () => {
+            if (options.verify) await options.verify();
             if (options.revoked) throw Object.assign(new Error('Logged out'), { status: 401 });
         },
         requireTerms() {},
@@ -348,4 +349,25 @@ test('uses the new Higher/Lower codes and streaming proposal IDs when advertised
         ['HIGHER', 'LOWER']
     );
     assert.equal(f.requests.filter(r => r.forget).length, 2);
+});
+
+test('STOP during an awaited authorization check cannot reactivate startup', async t => {
+    let release,
+        entered = false;
+    const held = new Promise(r => {
+        release = r;
+    });
+    const f = await fixture(t, {
+        verify: async () => {
+            entered = true;
+            await held;
+        },
+    });
+    await f.request('start');
+    await spin(() => entered);
+    await f.request('stop');
+    release();
+    await f.service.entries.get('DOT_TEST:analysis').startTask;
+    assert.equal(f.state().active, false);
+    assert.equal(f.requests.filter(r => r.buy).length, 0);
 });
