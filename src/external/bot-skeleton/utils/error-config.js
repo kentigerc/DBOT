@@ -24,6 +24,7 @@ export const error_message_map = () => ({
     before_purchase: generateErrorMessage('Purchase conditions'),
     purchase_conditions: generateErrorMessage('Purchase conditions'),
     purchase: generateErrorMessage('Purchase', 'purchase conditions'),
+    neto_higher_lower_pair: generateErrorMessage('Paired Higher / Lower purchase', 'purchase conditions'),
     trade_definition_tradeoptions: generateErrorMessage('Trade options', 'trade parameters'),
     trade_definition_multiplier: generateErrorMessage('Trade options multipliers', 'trade parameters'),
     trade_definition_accumulator: generateErrorMessage('Trade options accumulators', 'trade parameters'),

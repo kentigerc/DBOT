@@ -27,3 +27,7 @@ The XML source uses its own journal namespace and analytics label. Legacy analys
 ## Validation boundary
 
 Regression tests use mocked provider discovery, quotes, purchases and settlements. CI validates server behavior with PostgreSQL, frontend tests and a production build. No authenticated broker session or sample order was placed during implementation; broker acceptance and actual demo results still need owner-controlled demo verification.
+
+## Builder purchase validation
+
+The paired-purchase block satisfies the Builder's mandatory purchase requirement for this bot. Do not add an ordinary Purchase block alongside it: mixed execution paths are rejected. Ordinary bots still require their standard Purchase block. Disabled or misplaced paired blocks, missing Trade parameters/options or Purchase conditions, and disabled mandatory blocks prevent Run. Regression tests load the hosted XML into Blockly and exercise the same required-block validator used by the Builder.

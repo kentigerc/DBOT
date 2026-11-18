@@ -1,14 +1,14 @@
 import type { HedgingLeg } from './higher-lower-results';
 import { getDerivAccount, sessionRequest } from './deriv-session';
 export const PAIR_BLOCK = 'neto_higher_lower_pair';
-type Block = { type: string; isEnabled?: () => boolean; getParent?: () => Block | null };
+type Block = { type: string; disabled?: boolean; isEnabled?: () => boolean; getParent?: () => Block | null };
 export function pairedWorkspace(workspace?: { getAllBlocks?: (...args: never[]) => Block[] }) {
     const blocks = workspace?.getAllBlocks?.() || [];
-    const paired = blocks.filter(b => b.type === PAIR_BLOCK && b.isEnabled?.() !== false);
+    const paired = blocks.filter(b => b.type === PAIR_BLOCK && !b.disabled && b.isEnabled?.() !== false);
     if (!paired.length) return false;
     if (
         paired.length !== 1 ||
-        blocks.some(b => ['purchase', 'trade_again'].includes(b.type) && b.isEnabled?.() !== false)
+        blocks.some(b => ['purchase', 'trade_again'].includes(b.type) && !b.disabled && b.isEnabled?.() !== false)
     )
         throw new Error(
             'Use exactly one paired-purchase block without ordinary Purchase or Trade again blocks. The paired block controls the session.'
