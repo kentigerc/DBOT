@@ -189,7 +189,12 @@ export default class ContractsFor {
         if (contract.barrier_category) return contract.barrier_category === category;
         // New API removed barrier_category. Classify using returned contract metadata.
         if (contract.contract_category === 'callput') {
-            return category === (Number(contract.barriers) === 0 ? 'euro_atm' : 'euro_non_atm');
+            const hasBarrier =
+                contract.barriers == null
+                    ? Boolean(contract.barrier || contract.high_barrier || contract.low_barrier) ||
+                      ['HIGHER', 'LOWER'].includes(contract.contract_type)
+                    : Number(contract.barriers) > 0;
+            return category === (hasBarrier ? 'euro_non_atm' : 'euro_atm');
         }
         const categories = { digits: 'non_financial', asian: 'asian', accumulator: 'accumulator',
             reset: 'reset', lookback: 'lookback', callputspread: 'euro_non_atm' };
@@ -223,7 +228,12 @@ export default class ContractsFor {
             } = response;
 
             // We don't offer forward-starting contracts in bot.
-            const filtered_contracts = contracts.filter(c => c.start_type !== 'forward');
+            const filtered_contracts = contracts.filter(c => c.start_type !== 'forward').map(contract => {
+                if (!contract.contract_category && ['CALL', 'PUT', 'CALLE', 'PUTE', 'HIGHER', 'LOWER'].includes(contract.contract_type)) {
+                    return { ...contract, contract_category: 'callput' };
+                }
+                return contract;
+            });
 
             this.contracts_for[symbol] = {
                 contracts: filtered_contracts,
