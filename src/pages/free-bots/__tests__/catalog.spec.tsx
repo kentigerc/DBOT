@@ -27,12 +27,12 @@ it('lists the existing XML bots and loads the selected bot into the existing Bot
 it('loads the Rise/Fall bot through the standard Bot Builder route', () => {
     render(<FreeBots />);
     const card = screen
-        .getByRole('heading', { name: 'NETO Rise/Fall Alternating Recovery' })
+        .getByRole('heading', { name: 'Rise and fall Auto V1' })
         .closest('.free-bots__card') as HTMLElement;
     fireEvent.click(within(card).getByRole('button', { name: 'Load Bot' }));
     expect(mockNavigate).toHaveBeenCalledWith('/platform#bot_builder');
     expect(JSON.parse(sessionStorage.getItem('neto.pendingBot') || '{}')).toEqual({
         fileName: 'neto-risefall-alternating-recovery.xml',
-        name: 'NETO Rise/Fall Alternating Recovery',
+        name: 'Rise and fall Auto V1',
     });
 });
