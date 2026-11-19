@@ -10,7 +10,7 @@ jest.mock('@/hooks/useStore', () => ({
 jest.mock('@/utils/deriv-session', () => ({ getDerivSession: () => ({ authenticated: true }) }));
 it('lists the existing XML bots and loads the selected bot into the existing Bot Builder', () => {
     render(<FreeBots />);
-    expect(document.querySelectorAll('.free-bots__card')).toHaveLength(4);
+    expect(document.querySelectorAll('.free-bots__card')).toHaveLength(5);
     const cards = screen.getAllByRole('heading', { name: 'Over Switcher' });
     expect(cards).toHaveLength(1);
     fireEvent.click(
@@ -21,5 +21,18 @@ it('lists the existing XML bots and loads the selected bot into the existing Bot
     expect(JSON.parse(sessionStorage.getItem('neto.pendingBot') || '{}')).toEqual({
         fileName: 'over-1-over-0.xml',
         name: 'Over Switcher',
+    });
+});
+
+it('loads the Rise/Fall bot through the standard Bot Builder route', () => {
+    render(<FreeBots />);
+    const card = screen
+        .getByRole('heading', { name: 'NETO Rise/Fall Alternating Recovery' })
+        .closest('.free-bots__card') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Load Bot' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/platform#bot_builder');
+    expect(JSON.parse(sessionStorage.getItem('neto.pendingBot') || '{}')).toEqual({
+        fileName: 'neto-risefall-alternating-recovery.xml',
+        name: 'NETO Rise/Fall Alternating Recovery',
     });
 });
