@@ -1,4 +1,4 @@
-const { createHmac, randomBytes, timingSafeEqual } = require('node:crypto');
+const { createHash, createHmac, randomBytes, timingSafeEqual } = require('node:crypto');
 const configuration = require('../config/netoacademy.json');
 const TOOLS = new Set([
     'dashboard',
@@ -358,13 +358,31 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
                 });
                 return json(res, 200, { ok: true });
             }
-            await auth.requireAdmin(req);
+            const healthRequest = url.pathname === '/api/admin/health';
+            const owner = await auth.requireAdmin(req, { includeAccounts: healthRequest });
             if (req.method !== 'GET') throw Object.assign(new Error('Method not allowed.'), { status: 405 });
             if (url.pathname === '/api/admin/access') return json(res, 200, { admin: true });
             if (url.pathname === '/api/admin/health') {
                 if (!operations)
                     throw Object.assign(new Error('Operational monitoring is unavailable.'), { status: 503 });
-                return json(res, 200, await operations.get());
+                const health = await operations.get();
+                const accountsByKey = new Map(
+                    (owner?.accounts || []).map(account => [
+                        createHash('sha256').update(account.account_id).digest('hex'),
+                        account,
+                    ])
+                );
+                const unresolvedPurchases =
+                    health.unresolvedPurchases?.map(({ accountKey, source, contractId, leaseExpiredAt }) => {
+                        const account = accountsByKey.get(accountKey);
+                        return {
+                            source,
+                            contractId,
+                            leaseExpiredAt,
+                            sessionAccount: account ? { id: account.account_id, type: account.account_type } : null,
+                        };
+                    }) ?? null;
+                return json(res, 200, { ...health, unresolvedPurchases });
             }
             const range = reportRange(url);
             if (url.pathname === '/api/admin/commission') {

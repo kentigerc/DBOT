@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -13,9 +14,10 @@ async function fixture(t, options = {}) {
     const auth = {
         publicOrigin: 'http://localhost:5000',
         sessionIdentity: req => (req.headers.cookie?.includes('login=yes') ? 'session' : null),
-        requireAdmin: async req => {
+        requireAdmin: async (req, { includeAccounts } = {}) => {
             if (!req.headers.cookie?.includes('owner=yes'))
                 throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (includeAccounts) return { accounts: options.accounts || [] };
         },
         markupStatistics: async () => ({
             data: {
@@ -405,11 +407,22 @@ test('verified account links join transitively without matching unrelated users'
 
 test('operational health requires verified admin access before running private probes', async t => {
     let probes = 0;
+    const accountKey = createHash('sha256').update('DOT100').digest('hex');
+    const purchase = { source: 'builder', contractId: null, leaseExpiredAt: '2026-11-20T10:00:00.000Z' };
     const { request } = await fixture(t, {
+        accounts: [{ account_id: 'DOT100', account_type: 'demo' }],
         operations: {
             get: async () => {
                 probes++;
-                return { status: 'ok', checks: [], alerts: [] };
+                return {
+                    status: 'ok',
+                    checks: [],
+                    alerts: [],
+                    unresolvedPurchases: [
+                        { ...purchase, accountKey },
+                        { ...purchase, accountKey: 'private-other' },
+                    ],
+                };
             },
         },
     });
@@ -417,7 +430,12 @@ test('operational health requires verified admin access before running private p
     assert.equal(probes, 0);
     const response = await request('/api/admin/health', { owner: true });
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).status, 'ok');
+    const health = await response.json();
+    assert.equal(health.status, 'ok');
+    assert.deepEqual(health.unresolvedPurchases, [
+        { ...purchase, sessionAccount: { id: 'DOT100', type: 'demo' } },
+        { ...purchase, sessionAccount: null },
+    ]);
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.equal(probes, 1);
 });

@@ -8,7 +8,14 @@ type Health = {
     protectedAccounts: number | null;
     pendingPurchases: number | null;
     unresolvedPurchaseCount: number | null;
-    unresolvedPurchases: { source: string; contractId: string | null; leaseExpiredAt: string }[] | null;
+    unresolvedPurchases:
+        | {
+              source: string;
+              contractId: string | null;
+              leaseExpiredAt: string;
+              sessionAccount?: { id: string; type: string } | null;
+          }[]
+        | null;
     connectionDrops: number;
     scope: string;
 };
@@ -99,8 +106,12 @@ export default function Operations() {
                                     <ul className='neto-admin__health-alerts'>
                                         {data.unresolvedPurchases.map((purchase, index) => (
                                             <li key={index}>
-                                                {purchase.source} · Contract ID {purchase.contractId ?? 'not recorded'}{' '}
-                                                · Lease expired {new Date(purchase.leaseExpiredAt).toLocaleString()}
+                                                {purchase.sessionAccount
+                                                    ? `Your ${purchase.sessionAccount.type} account ${purchase.sessionAccount.id}`
+                                                    : 'Outside your signed-in accounts'}{' '}
+                                                · {purchase.source} · Contract ID{' '}
+                                                {purchase.contractId ?? 'not recorded'} · Lease expired{' '}
+                                                {new Date(purchase.leaseExpiredAt).toLocaleString()}
                                             </li>
                                         ))}
                                     </ul>

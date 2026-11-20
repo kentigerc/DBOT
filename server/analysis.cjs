@@ -732,7 +732,9 @@ function createAnalysisService(
                 locks.probe(),
             ]);
             const summary = await locks.summary();
-            const unresolvedPurchases = summary.unresolved ? await locks.unresolvedPurchases().catch(() => null) : [];
+            const unresolvedPurchases = summary.unresolved
+                ? await locks.unresolvedPurchases({ includeAccountKey: true }).catch(() => null)
+                : [];
             return {
                 journal,
                 protection,

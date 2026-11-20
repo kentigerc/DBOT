@@ -362,23 +362,24 @@ function createAccountLocks({
                 return { mode: row?.mode, active: !!row && row.until > now() };
             });
         },
-        async unresolvedPurchases() {
+        async unresolvedPurchases({ includeAccountKey = false } = {}) {
             await ensure();
             const rows = pool
                 ? (
                       await pool.query(`SELECT p.value->>'source' AS source,
-                        p.value->>'contractId' AS contract_id, l.lease_until
+                        p.value->>'contractId' AS contract_id, l.lease_until, l.account_key
                     FROM neto_account_locks l
                     CROSS JOIN LATERAL jsonb_each(l.pending) p
                     WHERE l.lease_until <= NOW()
                     ORDER BY l.lease_until DESC, l.account_key, p.key
                     LIMIT 50`)
                   ).rows
-                : [...local.values()]
-                      .filter(row => row.until <= now())
-                      .sort((a, b) => b.until - a.until)
-                      .flatMap(row =>
+                : [...local.entries()]
+                      .filter(([, row]) => row.until <= now())
+                      .sort(([, a], [, b]) => b.until - a.until)
+                      .flatMap(([accountKey, row]) =>
                           Object.values(row.pending).map(item => ({
+                              account_key: accountKey,
                               source: item.source,
                               contract_id: item.contractId,
                               lease_until: row.until,
@@ -393,6 +394,7 @@ function createAccountLocks({
                     )
                         ? row.source
                         : 'unknown',
+                    ...(includeAccountKey ? { accountKey: row.account_key } : {}),
                     contractId: /^[1-9][0-9]{0,19}$/.test(contractId) ? contractId : null,
                     leaseExpiredAt: new Date(row.lease_until).toISOString(),
                 };

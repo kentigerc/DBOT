@@ -557,7 +557,7 @@ function createAuthHandler({
             );
         return account;
     };
-    handle.requireAdmin = async req => {
+    handle.requireAdmin = async (req, { includeAccounts = false } = {}) => {
         if (!adminAccountIds.length)
             throw new HttpError(503, 'Admin access is not configured. Set NETO_ADMIN_ACCOUNT_IDS on the server.');
         const saved = await verifiedSession(req);
@@ -565,7 +565,9 @@ function createAuthHandler({
         await verifiedSession(req);
         if (!accounts.some(account => account.status === 'active' && adminAccountIds.includes(account.account_id)))
             throw new HttpError(403, 'This account does not have admin access.');
-        return saved;
+        return includeAccounts
+            ? { accounts: accounts.map(({ account_id, account_type }) => ({ account_id, account_type })) }
+            : saved;
     };
     handle.markupStatistics = async (req, from, to) => {
         await handle.requireAdmin(req);
