@@ -22,10 +22,27 @@ export function TermsContent() {
         </>
     );
 }
-export default function TermsGate({ children }: { children: React.ReactNode }) {
+export default function TermsGate({
+    children,
+    openingSeconds = 0,
+}: {
+    children: React.ReactNode;
+    openingSeconds?: number;
+}) {
     const location = useLocation();
     const [session, setSession] = useState(getDerivSession());
     const [ready, setReady] = useState(false);
+    const [openingRemaining, setOpeningRemaining] = useState(openingSeconds);
+    useEffect(() => {
+        if (!openingSeconds) return;
+        const deadline = Date.now() + openingSeconds * 1000;
+        const timer = window.setInterval(() => {
+            const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+            setOpeningRemaining(remaining);
+            if (!remaining) window.clearInterval(timer);
+        }, 1000);
+        return () => window.clearInterval(timer);
+    }, [openingSeconds]);
     const [checked, setChecked] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -88,7 +105,10 @@ export default function TermsGate({ children }: { children: React.ReactNode }) {
         };
     }, []);
     const required =
-        ready && session.authenticated && (!session.termsAccepted || session.termsVersion !== terms.version);
+        !openingRemaining &&
+        ready &&
+        session.authenticated &&
+        (!session.termsAccepted || session.termsVersion !== terms.version);
     useEffect(() => {
         if (!required || admin) return;
         if (dialog.current?.showModal) dialog.current.showModal();
@@ -98,11 +118,15 @@ export default function TermsGate({ children }: { children: React.ReactNode }) {
         };
     }, [required, admin]);
     if (admin) return <>{children}</>;
-    if (!ready)
+    if (openingRemaining > 0 || !ready)
         return (
             <div className='neto-terms neto-terms--loading' role='status'>
-                <p>{error || 'Checking your session…'}</p>
-                {error && (
+                <p>
+                    {openingRemaining
+                        ? `Opening NetoAcademy in ${openingRemaining}s…`
+                        : error || 'Checking your session…'}
+                </p>
+                {!openingRemaining && error && (
                     <button disabled={retrySeconds > 0} onClick={() => void refresh()}>
                         {retrySeconds > 0 ? `Try again in ${retrySeconds}s` : 'Try again'}
                     </button>

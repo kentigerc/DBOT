@@ -12,7 +12,7 @@ const i18nInstance = initializeI18n({
 
 export default function TradingLayout() {
     return (
-        <TermsGate>
+        <TermsGate openingSeconds={6}>
             <TranslationProvider defaultLang='EN' i18nInstance={i18nInstance}>
                 <StoreProvider>
                     <RoutePromptDialog />

@@ -9,10 +9,10 @@ jest.mock('@/utils/deriv-session', () => ({
     refreshDerivSession: jest.fn(),
     sessionRequest: jest.fn(),
 }));
-const show = () =>
+const show = (openingSeconds = 0) =>
     render(
         <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <TermsGate>
+            <TermsGate openingSeconds={openingSeconds}>
                 <p>Trading workspace</p>
             </TermsGate>
         </MemoryRouter>
@@ -95,6 +95,26 @@ it('disables repeated retry clicks while Deriv has requested a cooldown', async 
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         await act(async () => {});
         expect(screen.getByRole('checkbox')).toBeTruthy(); // Acceptance is still required.
+    } finally {
+        jest.useRealTimers();
+    }
+});
+
+it('counts down six seconds before opening a verified workspace', async () => {
+    jest.useFakeTimers();
+    try {
+        mockSession.termsAccepted = true;
+        show(6);
+        expect(screen.getByText('Opening NetoAcademy in 6s…')).toBeInTheDocument();
+        await act(async () => {
+            jest.advanceTimersByTime(5000);
+        });
+        expect(screen.getByText('Opening NetoAcademy in 1s…')).toBeInTheDocument();
+        expect(screen.queryByText('Trading workspace')).toBeNull();
+        await act(async () => {
+            jest.advanceTimersByTime(1000);
+        });
+        expect(screen.getByText('Trading workspace')).toBeInTheDocument();
     } finally {
         jest.useRealTimers();
     }
