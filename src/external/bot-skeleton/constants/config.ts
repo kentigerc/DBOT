@@ -216,7 +216,7 @@ export const config = () => ({
     procedureDefinitionBlocks: ['procedures_defnoreturn', 'procedures_defreturn'],
     single_instance_blocks: ['trade_definition', 'before_purchase', 'during_purchase', 'after_purchase'],
     TRADE_TYPE_TO_CONTRACT_CATEGORY_MAPPING: {
-        callput: ['callput', 'higherlower'],
+        callput: ['callput', 'callputequal', 'higherlower'],
         asian: ['asians'],
         digits: ['matchesdiffers', 'evenodd', 'overunder'],
     },
