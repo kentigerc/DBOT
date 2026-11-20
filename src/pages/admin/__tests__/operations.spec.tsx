@@ -21,7 +21,12 @@ it('shows private check results and unresolved-purchase warnings without claimin
             ],
             activeServerBots: 0,
             protectedAccounts: 1,
-            pendingPurchases: 1,
+            pendingPurchases: 2,
+            unresolvedPurchaseCount: 2,
+            unresolvedPurchases: [
+                { source: 'analysis', contractId: '1234567890123456789', leaseExpiredAt: new Date().toISOString() },
+                { source: 'higher_lower_xml', contractId: null, leaseExpiredAt: new Date().toISOString() },
+            ],
             connectionDrops: 2,
             scope: 'Checks apply to this instance.',
         }),
@@ -29,6 +34,8 @@ it('shows private check results and unresolved-purchase warnings without claimin
     render(<Operations />);
     await waitFor(() => expect(screen.getByText('Review')).toBeTruthy());
     expect(screen.getByText(/External email\/SMS notifications are not configured/)).toBeTruthy();
+    expect(screen.getByText(/analysis · Contract ID 1234567890123456789/)).toBeTruthy();
+    expect(screen.getByText(/higher_lower_xml · Contract ID not recorded/)).toBeTruthy();
     expect(fetch).toHaveBeenCalledWith(
         '/api/admin/health',
         expect.objectContaining({ credentials: 'same-origin', cache: 'no-store' })

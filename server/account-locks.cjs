@@ -362,6 +362,42 @@ function createAccountLocks({
                 return { mode: row?.mode, active: !!row && row.until > now() };
             });
         },
+        async unresolvedPurchases() {
+            await ensure();
+            const rows = pool
+                ? (
+                      await pool.query(`SELECT p.value->>'source' AS source,
+                        p.value->>'contractId' AS contract_id, l.lease_until
+                    FROM neto_account_locks l
+                    CROSS JOIN LATERAL jsonb_each(l.pending) p
+                    WHERE l.lease_until <= NOW()
+                    ORDER BY l.lease_until DESC, l.account_key, p.key
+                    LIMIT 50`)
+                  ).rows
+                : [...local.values()]
+                      .filter(row => row.until <= now())
+                      .sort((a, b) => b.until - a.until)
+                      .flatMap(row =>
+                          Object.values(row.pending).map(item => ({
+                              source: item.source,
+                              contract_id: item.contractId,
+                              lease_until: row.until,
+                          }))
+                      )
+                      .slice(0, 50);
+            return rows.map(row => {
+                const contractId = String(row.contract_id ?? '');
+                return {
+                    source: ['analysis', 'builder', 'higher_lower', 'higher_lower_xml', 'demo_pause'].includes(
+                        row.source
+                    )
+                        ? row.source
+                        : 'unknown',
+                    contractId: /^[1-9][0-9]{0,19}$/.test(contractId) ? contractId : null,
+                    leaseExpiredAt: new Date(row.lease_until).toISOString(),
+                };
+            });
+        },
         async summary() {
             await ensure();
             if (!pool)

@@ -152,6 +152,8 @@ function createOperations({
                     activeServerBots: state?.active ?? null,
                     protectedAccounts: state?.locks.active ?? null,
                     pendingPurchases: state?.locks.pending ?? null,
+                    unresolvedPurchases: state?.unresolvedPurchases ?? null,
+                    unresolvedPurchaseCount: state?.locks.unresolved ?? null,
                     connectionDrops: drops,
                     scope: 'Runtime checks are per server instance; PostgreSQL lock counts are shared. DNS, backups, MFA, WAF and external uptime are not verified.',
                 };

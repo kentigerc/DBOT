@@ -7,6 +7,8 @@ type Health = {
     activeServerBots: number | null;
     protectedAccounts: number | null;
     pendingPurchases: number | null;
+    unresolvedPurchaseCount: number | null;
+    unresolvedPurchases: { source: string; contractId: string | null; leaseExpiredAt: string }[] | null;
     connectionDrops: number;
     scope: string;
 };
@@ -89,6 +91,29 @@ export default function Operations() {
                         {data.pendingPurchases ?? 'Unavailable'} · Observed connection interruptions:{' '}
                         {data.connectionDrops}
                     </p>
+                    {(data.unresolvedPurchaseCount ?? 0) > 0 && (
+                        <>
+                            <h3>Unresolved purchases</h3>
+                            {data.unresolvedPurchases?.length ? (
+                                <>
+                                    <ul className='neto-admin__health-alerts'>
+                                        {data.unresolvedPurchases.map((purchase, index) => (
+                                            <li key={index}>
+                                                {purchase.source} · Contract ID {purchase.contractId ?? 'not recorded'}{' '}
+                                                · Lease expired {new Date(purchase.leaseExpiredAt).toLocaleString()}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <p>
+                                        Showing {data.unresolvedPurchases.length} of {data.unresolvedPurchaseCount}{' '}
+                                        records.
+                                    </p>
+                                </>
+                            ) : (
+                                <p>Purchase details are unavailable. Try Refresh health.</p>
+                            )}
+                        </>
+                    )}
                     <h3>Recent operational alerts</h3>
                     {data.alerts.length ? (
                         <ul className='neto-admin__health-alerts'>

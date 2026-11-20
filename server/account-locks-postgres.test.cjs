@@ -147,3 +147,18 @@ pgTest('reacquiring an idle account on the same server rotates the fencing token
     await server.protect(current, 'current-request');
     await server.cancel(current, 'current-request');
 });
+
+pgTest('owner diagnostics report expired purchase metadata without identifying the account', async t => {
+    const f = await fixture(t);
+    const locks = f.create();
+    const lease = await locks.claim(f.account, { mode: 'higher_lower_xml' });
+    await locks.protect(lease, 'private-purchase-nonce');
+    await locks.acknowledge(lease, 'private-purchase-nonce', 123456789);
+    await f.expire();
+    const rows = await locks.unresolvedPurchases();
+    const row = rows.find(item => item.contractId === '123456789' && item.source === 'higher_lower_xml');
+    assert.ok(row);
+    assert.deepEqual(Object.keys(row).sort(), ['contractId', 'leaseExpiredAt', 'source']);
+    assert.ok(Date.parse(row.leaseExpiredAt) <= Date.now());
+    assert.equal(JSON.stringify(rows).includes('private-purchase-nonce'), false);
+});

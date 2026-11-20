@@ -179,7 +179,10 @@ function createAnalysisService(
                 // request for later revocation checks after startup completes.
                 const request = value.request;
                 const lease = value.lease;
-                const broker = await connectBroker(await auth.connectionUrl(request, account.account_id), account.account_id);
+                const broker = await connectBroker(
+                    await auth.connectionUrl(request, account.account_id),
+                    account.account_id
+                );
                 broker.connection?.addEventListener(
                     'close',
                     () => {
@@ -728,10 +731,13 @@ function createAnalysisService(
                 storage.probe?.() || { mode: storage.mode || 'custom', failedAccounts: 0 },
                 locks.probe(),
             ]);
+            const summary = await locks.summary();
+            const unresolvedPurchases = summary.unresolved ? await locks.unresolvedPurchases().catch(() => null) : [];
             return {
                 journal,
                 protection,
-                locks: await locks.summary(),
+                locks: summary,
+                unresolvedPurchases,
                 active: [...sessions.values()].filter(value => value.engine.getSnapshot().active).length,
             };
         },
