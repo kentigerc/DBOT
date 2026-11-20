@@ -57,15 +57,21 @@ class DBot {
                     const symbol = market_block.getFieldValue('SYMBOL_LIST');
                     const category = this.getFieldValue('TRADETYPECAT_LIST');
                     const trade_type = this.getFieldValue('TRADETYPE_LIST');
+                    const isCurrentMarket = () =>
+                        this.workspace &&
+                        market_block.getFieldValue('MARKET_LIST') === market &&
+                        market_block.getFieldValue('SUBMARKET_LIST') === submarket &&
+                        market_block.getFieldValue('SYMBOL_LIST') === symbol;
                     const is_trade_type_accumulator = trade_type === 'accumulator';
                     if (!is_trade_type_accumulator) forgetAccumulatorsProposalRequest(that);
 
                     if (is_symbol_list_change) {
                         contracts_for?.getTradeTypeCategories?.(market, submarket, symbol).then(categories => {
+                            if (!isCurrentMarket()) return;
                             const category_field = this.getField('TRADETYPECAT_LIST');
                             if (category_field) {
                                 category_field.updateOptions(categories, {
-                                    default_value: category,
+                                    default_value: category_field.getValue(),
                                     should_pretend_empty: true,
                                     event_group: event.group,
                                 });
@@ -87,9 +93,10 @@ class DBot {
                         }
                     } else if (is_trade_type_cat_list_change && event.blockId === this.id) {
                         contracts_for?.getTradeTypes?.(market, submarket, symbol, category).then(trade_types => {
+                            if (!isCurrentMarket() || this.getFieldValue('TRADETYPECAT_LIST') !== category) return;
                             const trade_type_field = this.getField('TRADETYPE_LIST');
                             trade_type_field.updateOptions(trade_types, {
-                                default_value: trade_type,
+                                default_value: trade_type_field.getValue(),
                                 should_pretend_empty: true,
                                 event_group: event.group,
                             });

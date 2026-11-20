@@ -29,6 +29,7 @@ it('offers Rise/Fall for advertised CALL and PUT with sparse metadata', async ()
 it('lists only the Up/Down families advertised for each market', async () => {
     const quoted = (contract_type: string) => ({
         contract_type,
+        contract_category: 'up_down',
         min_contract_duration: '1t',
         max_contract_duration: '10t',
     });

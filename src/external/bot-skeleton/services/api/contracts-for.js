@@ -224,7 +224,7 @@ export default class ContractsFor {
 
             // We don't offer forward-starting contracts in bot.
             const filtered_contracts = contracts.filter(c => c.start_type !== 'forward').map(contract => {
-                if (!contract.contract_category && ['CALL', 'PUT', 'CALLE', 'PUTE', 'HIGHER', 'LOWER'].includes(contract.contract_type)) {
+                if (['CALL', 'PUT', 'CALLE', 'PUTE', 'HIGHER', 'LOWER'].includes(contract.contract_type)) {
                     return { ...contract, contract_category: 'callput' };
                 }
                 return contract;
