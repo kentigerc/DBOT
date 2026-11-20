@@ -13,6 +13,7 @@
 
   <!-- MANDATORY: TRADE PARAMETERS -->
   <block type="trade_definition" id="v5GxRWAGHpPT" deletable="false" x="0" y="50">
+    <data>netoacademy:hosted-bot:neto-risefall-alternating-recovery.xml</data>
     <statement name="TRADE_OPTIONS">
       <block type="trade_definition_market" id="Wh897g7duTnG" deletable="false" movable="false">
         <field name="MARKET_LIST">synthetic_index</field>
