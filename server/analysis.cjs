@@ -726,6 +726,20 @@ function createAnalysisService(
             await storage.close?.();
         },
         storageMode: storage.mode || 'custom',
+        async releaseExpiredBuilderPurchase(req, accountId, recordId) {
+            const broker = await connectBroker(await auth.connectionUrl(req, accountId), accountId);
+            try {
+                const result = await broker.send({ portfolio: 1 });
+                if (!Array.isArray(result.portfolio?.contracts))
+                    throw fail(503, 'Unable to verify open contracts with Deriv.');
+                if (result.portfolio.contracts.length)
+                    throw fail(409, 'Deriv still reports open contracts on this account.');
+                await auth.verifySession(req);
+                await locks.releaseExpiredBuilderPurchase(accountId, recordId);
+            } finally {
+                broker.disconnect();
+            }
+        },
         async health() {
             const [journal, protection] = await Promise.all([
                 storage.probe?.() || { mode: storage.mode || 'custom', failedAccounts: 0 },

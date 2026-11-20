@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Operations from '../operations';
 afterEach(() => jest.restoreAllMocks());
 it('shows private check results and unresolved-purchase warnings without claiming external monitoring', async () => {
@@ -49,4 +49,50 @@ it('does not retain private results when the server denies access', async () => 
     render(<Operations />);
     expect(await screen.findByRole('status')).toHaveTextContent('Owner access required');
     expect(screen.queryByText(/Protected accounts:/)).toBeNull();
+});
+
+it('requires confirmation and sends only the selected demo record for release', async () => {
+    const confirmation = jest.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const recordId = 'af000000-0000-4000-8000-000000000002';
+    global.fetch = jest.fn(async (_url, options) => ({
+        ok: true,
+        json: async () =>
+            options?.method === 'POST'
+                ? { released: true }
+                : {
+                      checks: [],
+                      alerts: [],
+                      unresolvedPurchaseCount: 2,
+                      pendingPurchases: 2,
+                      unresolvedPurchases: [
+                          {
+                              source: 'builder',
+                              contractId: null,
+                              leaseExpiredAt: new Date().toISOString(),
+                              releaseRecordId: recordId,
+                              sessionAccount: { id: 'DOT100', type: 'demo' },
+                          },
+                          {
+                              source: 'builder',
+                              contractId: null,
+                              leaseExpiredAt: new Date().toISOString(),
+                              sessionAccount: null,
+                          },
+                      ],
+                  },
+    })) as jest.Mock;
+    render(<Operations />);
+    const button = await screen.findByRole('button', { name: 'Release record' });
+    fireEvent.click(button);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    fireEvent.click(button);
+    expect(await screen.findByText('Purchase record released.')).toBeTruthy();
+    expect(confirmation).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledWith(
+        '/api/admin/health/release-purchase',
+        expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ accountId: 'DOT100', recordId, confirmed: true }),
+        })
+    );
 });

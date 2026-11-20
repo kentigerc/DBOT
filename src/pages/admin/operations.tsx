@@ -13,6 +13,7 @@ type Health = {
               source: string;
               contractId: string | null;
               leaseExpiredAt: string;
+              releaseRecordId?: string;
               sessionAccount?: { id: string; type: string } | null;
           }[]
         | null;
@@ -24,6 +25,37 @@ export default function Operations() {
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [refresh, setRefresh] = useState(0);
+    const [releasing, setReleasing] = useState(false);
+    const [releaseMessage, setReleaseMessage] = useState('');
+    const release = async (accountId: string, recordId: string) => {
+        if (
+            releasing ||
+            !window.confirm(
+                `Release this expired Bot Builder record for demo account ${accountId}? Confirm only if you checked Deriv Reports and found no matching purchase. Releasing it allows trading to resume on this account.`
+            )
+        )
+            return;
+        setReleasing(true);
+        setReleaseMessage('');
+        try {
+            const response = await fetch('/api/admin/health/release-purchase', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accountId, recordId, confirmed: true }),
+            });
+            const result = await response.json();
+            if (!response.ok || result.released !== true)
+                throw new Error(result.error || 'Unable to release this purchase record.');
+            setReleaseMessage('Purchase record released.');
+            setRefresh(value => value + 1);
+        } catch (reason) {
+            setReleaseMessage(reason instanceof Error ? reason.message : 'Unable to release this purchase record.');
+        } finally {
+            setReleasing(false);
+        }
+    };
     useEffect(() => {
         let live = true;
         const controller = new AbortController();
@@ -73,6 +105,7 @@ export default function Operations() {
                     {error}
                 </p>
             )}
+            {releaseMessage && <p role='status'>{releaseMessage}</p>}
             {data && (
                 <>
                     <p>
@@ -112,6 +145,21 @@ export default function Operations() {
                                                 · {purchase.source} · Contract ID{' '}
                                                 {purchase.contractId ?? 'not recorded'} · Lease expired{' '}
                                                 {new Date(purchase.leaseExpiredAt).toLocaleString()}
+                                                {purchase.releaseRecordId &&
+                                                    purchase.sessionAccount?.type === 'demo' && (
+                                                        <button
+                                                            type='button'
+                                                            disabled={releasing}
+                                                            onClick={() =>
+                                                                void release(
+                                                                    purchase.sessionAccount!.id,
+                                                                    purchase.releaseRecordId!
+                                                                )
+                                                            }
+                                                        >
+                                                            Release record
+                                                        </button>
+                                                    )}
                                             </li>
                                         ))}
                                     </ul>

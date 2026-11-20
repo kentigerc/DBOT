@@ -367,7 +367,7 @@ function createAccountLocks({
             const rows = pool
                 ? (
                       await pool.query(`SELECT p.value->>'source' AS source,
-                        p.value->>'contractId' AS contract_id, l.lease_until, l.account_key
+                        p.value->>'contractId' AS contract_id, l.lease_until, l.account_key, p.key AS record_id
                     FROM neto_account_locks l
                     CROSS JOIN LATERAL jsonb_each(l.pending) p
                     WHERE l.lease_until <= NOW()
@@ -394,10 +394,27 @@ function createAccountLocks({
                     )
                         ? row.source
                         : 'unknown',
-                    ...(includeAccountKey ? { accountKey: row.account_key } : {}),
+                    ...(includeAccountKey
+                        ? { accountKey: row.account_key, recordId: pool ? row.record_id : undefined }
+                        : {}),
                     contractId: /^[1-9][0-9]{0,19}$/.test(contractId) ? contractId : null,
                     leaseExpiredAt: new Date(row.lease_until).toISOString(),
                 };
+            });
+        },
+        releaseExpiredBuilderPurchase(account, recordId) {
+            if (!pool) throw unavailable();
+            return serial(account, async accountKey => {
+                const result = await pool.query(
+                    `UPDATE neto_account_locks SET pending = pending - $2::text
+                     WHERE account_key = $1 AND lease_until <= NOW()
+                       AND pending ? $2::text
+                       AND (pending -> ($2::text))->>'source' = 'builder'
+                       AND (pending -> ($2::text))->>'contractId' IS NULL
+                     RETURNING account_key`,
+                    [accountKey, recordId]
+                );
+                if (!result.rows.length) throw conflict();
             });
         },
         async summary() {

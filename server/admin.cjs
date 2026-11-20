@@ -359,7 +359,45 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
                 return json(res, 200, { ok: true });
             }
             const healthRequest = url.pathname === '/api/admin/health';
-            const owner = await auth.requireAdmin(req, { includeAccounts: healthRequest });
+            const releaseRequest = url.pathname === '/api/admin/health/release-purchase';
+            const owner = await auth.requireAdmin(req, { includeAccounts: healthRequest || releaseRequest });
+            if (releaseRequest) {
+                if (req.method !== 'POST') throw Object.assign(new Error('Method not allowed.'), { status: 405 });
+                if (req.headers.origin !== auth.publicOrigin)
+                    throw Object.assign(new Error('Invalid request origin.'), { status: 403 });
+                if (!req.headers['content-type']?.startsWith('application/json'))
+                    throw Object.assign(new Error('JSON required.'), { status: 415 });
+                let raw = '';
+                for await (const part of req) {
+                    raw += part;
+                    if (Buffer.byteLength(raw) > 1024)
+                        throw Object.assign(new Error('Request too large.'), { status: 413 });
+                }
+                let body;
+                try {
+                    body = JSON.parse(raw);
+                } catch {
+                    throw Object.assign(new Error('Invalid JSON.'), { status: 400 });
+                }
+                if (
+                    body?.confirmed !== true ||
+                    typeof body.recordId !== 'string' ||
+                    !/^[a-f0-9-]{36}$/i.test(body.recordId)
+                )
+                    throw Object.assign(new Error('Select and confirm a purchase record.'), { status: 400 });
+                const account = owner?.accounts?.find(
+                    item => item.account_id === body.accountId && item.account_type === 'demo'
+                );
+                if (!account)
+                    throw Object.assign(new Error('This demo account is unavailable in your session.'), {
+                        status: 403,
+                    });
+                if (!operations?.releasePurchase)
+                    throw Object.assign(new Error('Purchase release is unavailable.'), { status: 503 });
+                await operations.releasePurchase(req, account.account_id, body.recordId);
+                console.info(JSON.stringify({ event: 'owner_expired_builder_purchase_released' }));
+                return json(res, 200, { released: true });
+            }
             if (req.method !== 'GET') throw Object.assign(new Error('Method not allowed.'), { status: 405 });
             if (url.pathname === '/api/admin/access') return json(res, 200, { admin: true });
             if (url.pathname === '/api/admin/health') {
@@ -373,9 +411,12 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
                     ])
                 );
                 const unresolvedPurchases =
-                    health.unresolvedPurchases?.map(({ accountKey, source, contractId, leaseExpiredAt }) => {
+                    health.unresolvedPurchases?.map(({ accountKey, recordId, source, contractId, leaseExpiredAt }) => {
                         const account = accountsByKey.get(accountKey);
                         return {
+                            ...(account?.account_type === 'demo' && source === 'builder' && contractId === null
+                                ? { releaseRecordId: recordId }
+                                : {}),
                             source,
                             contractId,
                             leaseExpiredAt,

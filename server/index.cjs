@@ -52,7 +52,13 @@ admin = createAdminAnalytics({
     auth: handleAuth,
     store: analyticsStore,
     secret,
-    operations: { get: () => operations.get() },
+    operations: {
+        get: () => operations.get(),
+        releasePurchase: async (req, accountId, recordId) => {
+            await analysis.releaseExpiredBuilderPurchase(req, accountId, recordId);
+            await operations.invalidate().catch(() => {});
+        },
+    },
     activeBots: () =>
         [...(analysis?.sessions.values() || [])].filter(value => value.engine.getSnapshot().active).length,
 });

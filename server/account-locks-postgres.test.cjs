@@ -162,3 +162,19 @@ pgTest('owner diagnostics report expired purchase metadata without identifying t
     assert.ok(Date.parse(row.leaseExpiredAt) <= Date.now());
     assert.equal(JSON.stringify(rows).includes('private-purchase-nonce'), false);
 });
+
+pgTest('releases only the selected expired Builder intent without a contract receipt', async t => {
+    const f = await fixture(t);
+    const locks = f.create();
+    const lease = await locks.claim(f.account, { mode: 'builder' });
+    await locks.protect(lease, 'unknown-purchase');
+    await locks.protect(lease, 'known-purchase');
+    await locks.acknowledge(lease, 'known-purchase', 1234567);
+    await assert.rejects(locks.releaseExpiredBuilderPurchase(f.account, 'unknown-purchase'), { status: 409 });
+    await f.expire();
+    await assert.rejects(locks.releaseExpiredBuilderPurchase(f.account, 'known-purchase'), { status: 409 });
+    await locks.releaseExpiredBuilderPurchase(f.account, 'unknown-purchase');
+    await assert.rejects(locks.releaseExpiredBuilderPurchase(f.account, 'unknown-purchase'), { status: 409 });
+    const { rows } = await f.pool.query('SELECT pending FROM neto_account_locks WHERE account_key = $1', [f.hash]);
+    assert.deepEqual(Object.keys(rows[0].pending), ['known-purchase']);
+});

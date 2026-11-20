@@ -29,6 +29,13 @@ function createOperations({
         } catch {}
     };
     return {
+        async invalidate() {
+            try {
+                await pending;
+            } finally {
+                cached = undefined;
+            }
+        },
         record(event) {
             cached = undefined;
             if (event === 'account_lock_lost') {
