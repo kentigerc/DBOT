@@ -168,8 +168,10 @@ pgTest('releases only the selected expired Builder intent without a contract rec
     const locks = f.create();
     const lease = await locks.claim(f.account, { mode: 'builder' });
     await locks.protect(lease, 'unknown-purchase');
-    await locks.protect(lease, 'known-purchase');
-    await locks.acknowledge(lease, 'known-purchase', 1234567);
+    await f.pool.query(
+        "UPDATE neto_account_locks SET pending = jsonb_set(pending, ARRAY['known-purchase'], $2::jsonb) WHERE account_key = $1",
+        [f.hash, JSON.stringify({ source: 'builder', contractId: 1234567 })]
+    );
     await assert.rejects(locks.releaseExpiredBuilderPurchase(f.account, 'unknown-purchase'), { status: 409 });
     await f.expire();
     await assert.rejects(locks.releaseExpiredBuilderPurchase(f.account, 'known-purchase'), { status: 409 });
