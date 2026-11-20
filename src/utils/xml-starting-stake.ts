@@ -1,6 +1,5 @@
 type Block = {
     type: string;
-    isEnabled?: () => boolean;
     getFieldValue: (name: string) => string | null;
     getInputTargetBlock?: (name: string) => Block | null;
 };

@@ -44,30 +44,6 @@ function createAuthHandler({
     const renewed = new Map();
     const renewing = new Map();
     const providerCooldowns = new Map();
-    const connectionBudgets = new Map();
-    function admitConnection(saved, accountId) {
-        for (const [key, value] of connectionBudgets) if (now() - value.at > 600000) connectionBudgets.delete(key);
-        for (const key of [`session:${saved.sid}`, `account:${accountId}`]) {
-            let value = connectionBudgets.get(key);
-            if (!value) {
-                if (connectionBudgets.size >= 10000)
-                    throw new HttpError(503, 'Connection verification is busy. Please try again shortly.');
-                value = { tokens: 8, at: now() };
-                connectionBudgets.set(key, value);
-            }
-            value.tokens = Math.min(8, value.tokens + Math.max(0, now() - value.at) / 10000);
-            value.at = now();
-            if (value.tokens < 1) {
-                const error = new HttpError(
-                    429,
-                    'Too many trading connection attempts for this login or account. Please wait before reconnecting.'
-                );
-                error.retryAfter = Math.max(1, Math.ceil((1 - value.tokens) * 10));
-                throw error;
-            }
-            value.tokens--;
-        }
-    }
     let lastRateNotice = -Infinity;
     const redirectUri = publicOrigin + configuration.callbackPath;
     // One-time flow consumption is shared across instances using an encrypted cookie
@@ -353,7 +329,6 @@ function createAuthHandler({
         if (!accounts.some(account => account.account_id === account_id && account.status === 'active')) {
             throw new HttpError(403, 'This trading account is not available in your Deriv session.');
         }
-        admitConnection(saved, account_id);
         const result = await requestJson(
             `${API_ORIGIN}/trading/v1/options/accounts/${encodeURIComponent(account_id)}/otp`,
             {
@@ -508,9 +483,8 @@ function createAuthHandler({
             if (url.pathname === '/api/session' && req.method === 'GET') {
                 const saved = await browserSession(req, res);
                 if (!saved?.access_token) return json(res, 200, { authenticated: false, accounts: [] });
-                const accounts = await cachedAccounts(saved, true);
+                const accounts = await cachedAccounts(saved);
                 await verifiedSession(req);
-                const accountRefreshRetryAfter = credentialRetryAfter(saved);
                 const adminAccounts = accounts
                     .filter(account => account.status === 'active' && adminAccountIds.includes(account.account_id))
                     .map(account => account.account_id);
@@ -519,7 +493,6 @@ function createAuthHandler({
                     termsAccepted: termsAccepted(req, saved),
                     termsVersion: terms.version,
                     accounts,
-                    ...(accountRefreshRetryAfter ? { accountRefreshRetryAfter } : {}),
                     isAdmin: adminAccounts.length > 0,
                     adminAccounts,
                     expiresAt: saved.expires,
@@ -542,42 +515,24 @@ function createAuthHandler({
     const accountCache = new Map();
     const accountRequests = new Map();
     const reportCache = new Map();
-    const credentialRetryAfter = saved => {
-        const scope = API_ORIGIN + ':' + createHash('sha256').update(`Bearer ${saved.access_token}`).digest('hex');
-        return Math.max(0, Math.ceil(((providerCooldowns.get(scope) || 0) - now()) / 1000));
-    };
-    const cachedAccounts = async (saved, displayOnly = false) => {
+    const cachedAccounts = async saved => {
         const cacheKey = createHash('sha256').update(saved.access_token).digest('hex');
         const cached = accountCache.get(cacheKey);
-        // Display snapshots never authorize a socket, trade or owner-only API.
-        // Those callers retain the short ownership-verification window.
-        if (cached && (displayOnly ? cached.displayUntil : cached.until) > now()) return cached.accounts;
+        if (cached && cached.until > now()) return cached.accounts;
         if (!accountRequests.has(cacheKey)) {
             if (accountRequests.size >= 1000)
                 throw new HttpError(503, 'Account verification is busy. Please try again shortly.');
             const task = getAccounts(saved.access_token)
                 .then(accounts => {
-                    for (const [key, value] of accountCache) if (value.staleUntil <= now()) accountCache.delete(key);
+                    for (const [key, value] of accountCache) if (value.until <= now()) accountCache.delete(key);
                     if (accountCache.size >= 1000) accountCache.delete(accountCache.keys().next().value);
-                    accountCache.set(cacheKey, {
-                        accounts,
-                        until: now() + 30000,
-                        displayUntil: now() + 300000,
-                        staleUntil: now() + 900000,
-                    });
+                    accountCache.set(cacheKey, { accounts, until: now() + 30000 });
                     return accounts;
                 })
                 .finally(() => accountRequests.delete(cacheKey));
             accountRequests.set(cacheKey, task);
         }
-        try {
-            return await accountRequests.get(cacheKey);
-        } catch (error) {
-            // An explicitly marked, bounded display snapshot can keep the workspace
-            // available during throttling. Never fall back for trading authorization.
-            if (displayOnly && error.status === 429 && cached?.staleUntil > now()) return cached.accounts;
-            throw error;
-        }
+        return accountRequests.get(cacheKey);
     };
     handle.requireTerms = req => requireTerms(req, session(req));
     handle.authorizeAccount = async (req, accountId) => {

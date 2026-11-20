@@ -35,12 +35,7 @@ function createTradingStateStorage({ databaseUrl = process.env.DATABASE_URL, leg
         )
             throw storageError();
         const data = JSON.parse(value);
-        if (
-            !data ||
-            Array.isArray(data) ||
-            data.version !== 1 ||
-            key.slice(key.lastIndexOf('.') + 1) !== data.accountId
-        )
+        if (!data || Array.isArray(data) || data.version !== 1 || `neto.digit-strategy.v1.${data.accountId}` !== key)
             throw storageError();
         return data;
     };

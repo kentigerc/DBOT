@@ -5,7 +5,7 @@ import { ProposalOpenContract } from '@deriv/api-types';
 import { TPortfolioPosition, TStores } from '@deriv/stores/types';
 import { TContractInfo } from '../components/summary/summary-card.types';
 import { transaction_elements } from '../constants/transactions';
-import { getStoredItemsByKey, setStoredItemsByKey } from '../utils/session-storage';
+import { getStoredItemsByKey, getStoredItemsByUser, setStoredItemsByKey } from '../utils/session-storage';
 import RootStore from './root-store';
 
 type TTransaction = {
@@ -25,9 +25,9 @@ export default class TransactionsStore {
     constructor(root_store: RootStore, core: TStores) {
         this.root_store = root_store;
         this.core = core;
-        const saved = getStoredItemsByKey(this.TRANSACTION_CACHE, {});
-        this.elements = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
         this.is_transaction_details_modal_open = false;
+        this.disposeReactionsFn = this.registerReactions();
+
         makeObservable(this, {
             elements: observable,
             active_transaction_id: observable,
@@ -45,11 +45,10 @@ export default class TransactionsStore {
             sortOutPositionsBeforeAction: action.bound,
             recoverPendingContractsById: action.bound,
         });
-        this.disposeReactionsFn = this.registerReactions();
     }
     TRANSACTION_CACHE = 'transaction_cache';
 
-    elements: TElement = {};
+    elements: TElement = getStoredItemsByUser(this.TRANSACTION_CACHE, this.core?.client?.loginid, []);
     active_transaction_id: null | number = null;
     recovered_completed_transactions: number[] = [];
     recovered_transactions: number[] = [];
@@ -73,11 +72,10 @@ export default class TransactionsStore {
                 if (is_completed) {
                     if (profit > 0) {
                         stats.won_contracts += 1;
-                    } else if (profit < 0) {
+                        stats.total_payout += payout ?? bid_price ?? 0;
+                    } else {
                         stats.lost_contracts += 1;
                     }
-                    stats.total_payout +=
-                        (data as TContractInfo).sell_price ?? (profit > 0 ? (payout ?? bid_price ?? 0) : 0);
                     stats.total_profit += profit;
                     stats.total_stake += buy_price;
                     total_runs += 1;
@@ -114,7 +112,7 @@ export default class TransactionsStore {
             ...data,
             is_completed,
             run_id,
-            date_start: data.date_start && formatDate(data.date_start, 'YYYY-M-D HH:mm:ss [GMT]'),
+            date_start: formatDate(data.date_start, 'YYYY-M-D HH:mm:ss [GMT]'),
             entry_tick: data.entry_tick_display_value,
             entry_tick_time: data.entry_tick_time && formatDate(data.entry_tick_time, 'YYYY-M-D HH:mm:ss [GMT]'),
             exit_tick: data.exit_tick_display_value,
@@ -133,13 +131,11 @@ export default class TransactionsStore {
             if (typeof c.data === 'string') return false;
             return (
                 c.type === transaction_elements.CONTRACT &&
-                ((data.contract_id && c.data?.contract_id === data.contract_id) ||
-                    (data.transaction_ids?.buy && c.data?.transaction_ids?.buy === data.transaction_ids.buy))
+                c.data?.transaction_ids &&
+                c.data.transaction_ids.buy === data.transaction_ids?.buy
             );
         });
 
-        const previous = this.elements[current_account]?.[same_contract_index];
-        if (previous && typeof previous.data === 'object' && previous.data.is_completed && !is_completed) return;
         if (same_contract_index === -1) {
             // Render a divider if the "run_id" for this contract is different.
             if (this.elements[current_account]?.length > 0) {
@@ -166,10 +162,7 @@ export default class TransactionsStore {
             // If data belongs to existing contract in memory, update it.
             this.elements[current_account]?.splice(same_contract_index, 1, {
                 type: transaction_elements.CONTRACT,
-                data: {
-                    ...(typeof previous?.data === 'object' ? previous.data : {}),
-                    ...Object.fromEntries(Object.entries(contract).filter(([, value]) => value !== undefined)),
-                } as TContractInfo,
+                data: contract,
             });
         }
 
@@ -187,9 +180,10 @@ export default class TransactionsStore {
 
     registerReactions() {
         const { client } = this.core;
+
         // Write transactions to session storage on each change in transaction elements.
         const disposeTransactionElementsListener = reaction(
-            () => this.elements[client?.loginid as string]?.slice(),
+            () => this.elements[client?.loginid as string],
             elements => {
                 const stored_transactions = getStoredItemsByKey(this.TRANSACTION_CACHE, {});
                 stored_transactions[client.loginid as string] = elements?.slice(0, 5000) ?? [];

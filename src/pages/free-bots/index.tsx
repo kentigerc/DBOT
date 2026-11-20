@@ -50,14 +50,6 @@ const BOTS: Bot[] = [
         category: 'Over/Under',
         icon: '📉',
     },
-    {
-        id: '16',
-        name: 'Rise and fall Auto V1',
-        description: 'Trades Rise and Fall on Volatility 10 (1s) Index and alternates direction during recovery.',
-        fileName: 'neto-risefall-alternating-recovery.xml',
-        category: 'Rise/Fall',
-        icon: '📈',
-    },
 ];
 
 const FreeBots = observer(() => {

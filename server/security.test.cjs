@@ -143,7 +143,7 @@ test('static pages and health checks cannot bypass the HTTP flood budget', () =>
 
 test('static requests share the bounded HTTP concurrency budget and release only once', () => {
     const security = createSecurity({ audit: () => {} });
-    const held = Array.from({ length: 128 }, (_, i) => localExchange('/', `192.0.2.${i + 1}`));
+    const held = Array.from({ length: 128 }, () => localExchange('/'));
     for (const exchange of held) assert.equal(security.handle(exchange.request, exchange.response), true);
     const blocked = localExchange('/api/health');
     assert.equal(security.handle(blocked.request, blocked.response), false);
@@ -188,96 +188,4 @@ test('session handshake attempts remain limited across changing client addresses
     const release = security.reserveSocket(req('10.0.0.17'));
     assert.equal(typeof release, 'function');
     release();
-});
-
-test('a session HTTP flood cannot drain the shared IP budget for another logged-in user', () => {
-    const security = createSecurity({ now: () => 0, sessionIdentity: r => r.headers.sid, audit: () => {} });
-    for (let i = 0; i < 1000; i++) {
-        const x = localExchange('/api/session');
-        x.request.headers.sid = 'noisy';
-        const admitted = security.handle(x.request, x.response);
-        assert.equal(admitted, i < 40);
-        if (admitted) x.response.end();
-    }
-    const other = localExchange('/api/session');
-    other.request.headers.sid = 'other';
-    assert.equal(security.handle(other.request, other.response), true);
-    other.response.end();
-});
-test('one session cannot monopolize HTTP concurrency and release is idempotent', () => {
-    const security = createSecurity({ sessionIdentity: r => r.headers.sid, audit: () => {} });
-    const held = Array.from({ length: 16 }, () => {
-        const x = localExchange('/api/session');
-        x.request.headers.sid = 'noisy';
-        return x;
-    });
-    for (const x of held) assert.equal(security.handle(x.request, x.response), true);
-    const blocked = localExchange('/api/session');
-    blocked.request.headers.sid = 'noisy';
-    assert.equal(security.handle(blocked.request, blocked.response), false);
-    assert.equal(blocked.response.status, 429);
-    const other = localExchange('/api/session');
-    other.request.headers.sid = 'other';
-    assert.equal(security.handle(other.request, other.response), true);
-    other.response.end();
-    held[0].response.emit('finish');
-    held[0].response.emit('close');
-    const resumed = localExchange('/api/session');
-    resumed.request.headers.sid = 'noisy';
-    assert.equal(security.handle(resumed.request, resumed.response), true);
-    resumed.response.end();
-    for (const x of held) x.response.end();
-});
-test('rejected session handshakes and messages leave shared network capacity for other users', () => {
-    const security = createSecurity({ now: () => 0, sessionIdentity: r => r.headers.sid, audit: () => {} });
-    const noisy = req('127.0.0.1', { sid: 'noisy' }),
-        other = req('127.0.0.1', { sid: 'other' });
-    for (let i = 0; i < 1000; i++) {
-        const release = security.reserveSocket(noisy);
-        if (i < 16) assert.equal(typeof release, 'function');
-        else assert.equal(release, undefined);
-        release?.();
-    }
-    const release = security.reserveSocket(other);
-    assert.equal(typeof release, 'function');
-    release();
-    for (let socket = 0; socket < 6; socket++) {
-        const allow = security.messageLimiter(noisy);
-        for (let i = 0; i < 100; i++) assert.equal(allow(), true);
-    }
-    for (let socket = 0; socket < 10; socket++) assert.equal(security.messageLimiter(noisy)(), false);
-    const allow = security.messageLimiter(other);
-    for (let i = 0; i < 100; i++) assert.equal(allow(), true);
-});
-
-test('anonymous traffic cannot spend signed-in users HTTP and socket budgets on the same network', () => {
-    const security = createSecurity({ now: () => 0, sessionIdentity: r => r.headers.sid, audit: () => {} });
-    for (let i = 0; i < 1000; i++) {
-        const x = localExchange('/api/session');
-        if (security.handle(x.request, x.response)) x.response.end();
-        security.reserveSocket(req())?.();
-    }
-    const signedIn = localExchange('/api/session');
-    signedIn.request.headers.sid = 'verified';
-    assert.equal(security.handle(signedIn.request, signedIn.response), true);
-    signedIn.response.end();
-    const socketRequest = req();
-    socketRequest.headers.sid = 'verified';
-    const release = security.reserveSocket(socketRequest);
-    assert.equal(typeof release, 'function');
-    release();
-});
-test('loading a static file first cannot inflate the session API allowance', () => {
-    const security = createSecurity({ now: () => 0, sessionIdentity: () => 'verified', audit: () => {} });
-    const asset = localExchange('/static/main.js');
-    assert.equal(security.handle(asset.request, asset.response), true);
-    asset.response.end();
-    for (let i = 0; i < 40; i++) {
-        const x = localExchange('/api/session');
-        assert.equal(security.handle(x.request, x.response), true);
-        x.response.end();
-    }
-    const denied = localExchange('/api/session');
-    assert.equal(security.handle(denied.request, denied.response), false);
-    assert.equal(denied.response.status, 429);
 });

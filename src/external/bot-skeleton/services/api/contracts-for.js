@@ -1,4 +1,5 @@
 import { config } from '../../constants/config';
+import PendingPromise from '../../utils/pending-promise';
 import { api_base } from './api-base';
 
 export default class ContractsFor {
@@ -178,14 +179,6 @@ export default class ContractsFor {
 
         return contracts.filter(contract => {
             const has_matching_category = contract.contract_category === contract_category;
-            if (contract_category === 'callput') {
-                const types = {
-                    callput: ['CALL', 'PUT'],
-                    callputequal: ['CALLE', 'PUTE'],
-                    higherlower: ['CALL', 'PUT', 'HIGHER', 'LOWER'],
-                };
-                if (!types[trade_type]?.includes(contract.contract_type)) return false;
-            }
             const has_matching_barrier = this.matchesBarrierCategory(contract, barrier_category);
 
             return has_matching_category && has_matching_barrier;
@@ -196,12 +189,7 @@ export default class ContractsFor {
         if (contract.barrier_category) return contract.barrier_category === category;
         // New API removed barrier_category. Classify using returned contract metadata.
         if (contract.contract_category === 'callput') {
-            const hasBarrier =
-                contract.barriers == null
-                    ? Boolean(contract.barrier || contract.high_barrier || contract.low_barrier) ||
-                      ['HIGHER', 'LOWER'].includes(contract.contract_type)
-                    : Number(contract.barriers) > 0;
-            return category === (hasBarrier ? 'euro_non_atm' : 'euro_atm');
+            return category === (Number(contract.barriers) === 0 ? 'euro_atm' : 'euro_non_atm');
         }
         const categories = { digits: 'non_financial', asian: 'asian', accumulator: 'accumulator',
             reset: 'reset', lookback: 'lookback', callputspread: 'euro_non_atm' };
@@ -217,34 +205,35 @@ export default class ContractsFor {
             return [];
         }
 
-        const fetchContracts = async () => {
+        const getContractsForFromApi = async () => {
+            if (this.retrieving_contracts_for[symbol]) {
+                await this.retrieving_contracts_for[symbol];
+                return this.contracts_for[symbol].contracts;
+            }
+
+            this.retrieving_contracts_for[symbol] = new PendingPromise();
             const response = await api_base.api.send({ contracts_for: symbol });
-            const contracts = response?.contracts_for?.available;
-            if (response?.error || !Array.isArray(contracts)) return [];
+
+            if (response.error) {
+                return [];
+            }
+
+            const {
+                contracts_for: { available: contracts },
+            } = response;
 
             // We don't offer forward-starting contracts in bot.
-            const filtered_contracts = contracts.filter(c => c.start_type !== 'forward').map(contract => {
-                if (['CALL', 'PUT', 'CALLE', 'PUTE', 'HIGHER', 'LOWER'].includes(contract.contract_type)) {
-                    return { ...contract, contract_category: 'callput' };
-                }
-                return contract;
-            });
+            const filtered_contracts = contracts.filter(c => c.start_type !== 'forward');
 
             this.contracts_for[symbol] = {
                 contracts: filtered_contracts,
                 timestamp: this.server_time.unix(),
             };
 
-            return filtered_contracts;
-        };
+            this.retrieving_contracts_for[symbol].resolve();
+            delete this.retrieving_contracts_for[symbol];
 
-        const getContractsForFromApi = () => {
-            if (!this.retrieving_contracts_for[symbol]) {
-                this.retrieving_contracts_for[symbol] = fetchContracts().finally(() => {
-                    delete this.retrieving_contracts_for[symbol];
-                });
-            }
-            return this.retrieving_contracts_for[symbol];
+            return filtered_contracts;
         };
 
         if (this.contracts_for[symbol]) {
@@ -252,7 +241,7 @@ export default class ContractsFor {
             const is_expired = this.server_time.unix() - timestamp > this.cache_age_in_min * 60;
 
             if (is_expired) {
-                void getContractsForFromApi().catch(() => {});
+                getContractsForFromApi();
             }
 
             return contracts;

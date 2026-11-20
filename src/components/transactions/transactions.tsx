@@ -29,7 +29,7 @@ type TTransactionItem = {
 };
 
 const TransactionItem = ({ row = false, onClickTransaction, active_transaction_id }: TTransactionItem) => {
-    switch (row?.type) {
+    switch (row.type) {
         case transaction_elements.CONTRACT: {
             const { data: contract } = row;
             return (
@@ -146,13 +146,12 @@ const Transactions = observer(({ is_drawer_open }: TTransactions) => {
                                 />
                             )}
                             keyMapper={row => {
-                                switch (row?.type) {
+                                switch (row.type) {
                                     case transaction_elements.CONTRACT: {
-                                        const id = row.data?.contract_id ?? row.data?.transaction_ids?.buy;
-                                        return id == null ? undefined : `contract:${id}`;
+                                        return row.data.transaction_ids.buy;
                                     }
                                     case transaction_elements.DIVIDER: {
-                                        return `divider:${row.data}`;
+                                        return row.data;
                                     }
                                     default: {
                                         return null;
@@ -161,7 +160,7 @@ const Transactions = observer(({ is_drawer_open }: TTransactions) => {
                             }}
                             getRowSize={({ index }) => {
                                 const row = transaction_list?.[index];
-                                switch (row?.type) {
+                                switch (row.type) {
                                     case transaction_elements.CONTRACT: {
                                         return 50;
                                     }

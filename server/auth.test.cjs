@@ -724,9 +724,7 @@ test('parallel session checks share one account read and connection checks reuse
     assert.equal(otpCalls, 2); // OTPs remain single-use and are never cached.
     clock += 30000;
     assert.equal((await app.request('/api/session')).status, 200);
-    assert.equal(accountCalls, 1); // Page refresh uses the display cache.
-    assert.equal((await app.connection('DOT100')).status, 200);
-    assert.equal(accountCalls, 2); // A trading connection still verifies after 30 seconds.
+    assert.equal(accountCalls, 2);
     await app.request('/api/auth/logout', {});
     assert.equal((await app.request('/api/session')).status, 200);
     assert.equal(accountCalls, 2); // Cached accounts cannot restore a logged-out session.
@@ -832,9 +830,8 @@ test('an OTP rate limit also pauses account discovery until that credential cool
     assert.equal(accountCalls, 1);
     clock += 31000; // Ownership cache expired, but the provider cooldown has not.
     const blocked = await app.request('/api/session');
-    assert.equal(blocked.status, 200);
-    assert.equal((await blocked.json()).accountRefreshRetryAfter, 270);
-    assert.equal((await app.connection('DOT100')).status, 429);
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.headers.get('retry-after'), '270');
     assert.equal(accountCalls, 1);
     assert.equal(otpCalls, 1);
     assert.deepEqual(notices, [{ endpoint: '/trading/v1/options/accounts/:account/otp', retryAfter: 301 }]);
