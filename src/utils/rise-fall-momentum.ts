@@ -1,9 +1,11 @@
 export const RISE_FALL_BOT_FILE = 'neto-risefall-alternating-recovery.xml';
 export const RISE_FALL_BOT_NAME = 'NETO Rise/Fall Alternating Recovery';
 export const MOMENTUM_MARKER = 'netoacademy:rise-fall-momentum';
+export const DEMO_MOMENTUM_MARKER = MOMENTUM_MARKER + ':demo';
 export const MOMENTUM_HISTORY = 1000;
 export type MomentumDirection = 'CALL' | 'PUT';
 export type MomentumDuration = 1 | 5;
+export type MomentumMode = 'demo' | 'strict';
 
 type MarketRequest = (request: Record<string, unknown>) => Promise<{
     history?: { prices?: number[]; times?: number[] };
@@ -59,13 +61,14 @@ export async function checkMomentumEntry(
     duration: MomentumDuration,
     currency: string,
     amount: number,
-    requiredDirection?: MomentumDirection
+    requiredDirection?: MomentumDirection,
+    mode: MomentumMode = 'strict'
 ) {
     const { history } = await request(send, { ticks_history: symbol, count: MOMENTUM_HISTORY, end: 'latest', style: 'ticks' });
     const prices = history?.prices?.map(Number);
     const epoch = Number(history?.times?.slice(-1)[0]);
     if (!prices) throw new Error('Fresh price history is unavailable.');
-    return quoteMomentumEntry(send, symbol, duration, currency, amount, prices, epoch, requiredDirection);
+    return quoteMomentumEntry(send, symbol, duration, currency, amount, prices, epoch, requiredDirection, mode);
 }
 
 export async function quoteMomentumEntry(
@@ -76,7 +79,8 @@ export async function quoteMomentumEntry(
     amount: number,
     prices: readonly number[],
     epoch: number,
-    requiredDirection?: MomentumDirection
+    requiredDirection?: MomentumDirection,
+    mode: MomentumMode = 'strict'
 ) {
     const fresh = () => Date.now() / 1000 - epoch >= -2 && Date.now() / 1000 - epoch <= 4;
     if (!prices || !prices.every(Number.isFinite) || !fresh())
@@ -92,10 +96,11 @@ export async function quoteMomentumEntry(
     if (!Number.isFinite(price) || !Number.isFinite(payout) || price <= 0 || payout <= price)
         throw new Error('Deriv did not return an available Rise/Fall quote.');
     const breakEven = price / payout;
-    return { ...reading, breakEven, qualified: fresh() && reading.lowerBound > breakEven + 0.01, fresh };
+    const threshold = mode === 'demo' ? reading.winRate : reading.lowerBound - 0.01;
+    return { ...reading, breakEven, margin: threshold - breakEven, qualified: fresh() && threshold > breakEven, fresh };
 }
 
-export function configureMomentumBot(content: string, direction: unknown, duration: unknown) {
+export function configureMomentumBot(content: string, direction: unknown, duration: unknown, mode?: unknown) {
     if ((direction !== 'CALL' && direction !== 'PUT') || (duration !== 1 && duration !== 5))
         throw new Error('Invalid Rise/Fall momentum selection.');
     const document = new DOMParser().parseFromString(content, 'text/xml');
@@ -106,6 +111,6 @@ export function configureMomentumBot(content: string, direction: unknown, durati
     if (!initialDirection || !ticks || !marker) throw new Error('The Rise/Fall bot has incomplete settings.');
     initialDirection.textContent = direction === 'CALL' ? '0' : '1';
     ticks.textContent = String(duration);
-    marker.textContent += ' ' + MOMENTUM_MARKER;
+    marker.textContent += ' ' + (mode === 'demo' ? DEMO_MOMENTUM_MARKER : MOMENTUM_MARKER);
     return new XMLSerializer().serializeToString(document);
 }

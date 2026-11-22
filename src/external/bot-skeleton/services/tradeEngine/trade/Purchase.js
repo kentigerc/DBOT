@@ -1,4 +1,4 @@
-import { checkMomentumEntry, MOMENTUM_MARKER } from '@/utils/rise-fall-momentum';
+import { checkMomentumEntry, DEMO_MOMENTUM_MARKER, MOMENTUM_MARKER } from '@/utils/rise-fall-momentum';
 import { getDerivAccount } from '@/utils/deriv-session';
 import { checkTradingBalance } from '@/services/digit-strategy/balance';
 import { scanXmlParityRecovery, refreshXmlParityRecovery } from '@/utils/xml-parity-recovery';
@@ -27,7 +27,8 @@ export default Engine =>
 
             const workspace = window.Blockly?.derivWorkspace;
             const momentum = workspace?.getAllBlocks(false).find(block =>
-                block.type === 'trade_definition' && block.data?.endsWith(' ' + MOMENTUM_MARKER)
+                block.type === 'trade_definition' &&
+                [MOMENTUM_MARKER, DEMO_MOMENTUM_MARKER].some(marker => block.data?.endsWith(' ' + marker))
             );
             let waitForMomentum;
             if (momentum) {
@@ -50,7 +51,8 @@ export default Engine =>
                     while (active()) {
                         const entry = await checkMomentumEntry(
                             body => api_base.api.send(body), options.symbol, Number(options.duration),
-                            options.currency, options.amount, contract_type
+                            options.currency, options.amount, contract_type,
+                            momentum.data.endsWith(DEMO_MOMENTUM_MARKER) ? 'demo' : 'strict'
                         ).catch(() => undefined);
                         if (entry?.qualified && entry.fresh()) return active();
                         if (active()) await new Promise(resolve => setTimeout(resolve, 1500));

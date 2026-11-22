@@ -12,6 +12,7 @@ import {
     RISE_FALL_BOT_FILE,
     RISE_FALL_BOT_NAME,
     type MomentumDuration,
+    type MomentumMode,
 } from '@/utils/rise-fall-momentum';
 import { observeVolatilityMarkets, type VolatilityMarket } from '@/utils/live-volatility-markets';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
@@ -22,6 +23,7 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
     const { dashboard, run_panel } = useStore();
     const navigate = useNavigate();
     const [duration, setDuration] = useState<MomentumDuration>(1);
+    const [mode, setMode] = useState<MomentumMode>('demo');
     type Quote = NonNullable<Awaited<ReturnType<typeof quoteMomentumEntry>>>;
     type Entry = { market: VolatilityMarket; quote: Quote };
     const [entry, setEntry] = useState<Entry>();
@@ -43,8 +45,8 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
         const publish = () => {
             if (signal.aborted) return;
             const best = [...entries.values()]
-                .filter(({ quote }) => quote.qualified && quote.fresh())
-                .sort((a, b) => (b.quote.lowerBound - b.quote.breakEven) - (a.quote.lowerBound - a.quote.breakEven) ||
+                .filter(({ quote }) => quote.fresh())
+                .sort((a, b) => b.quote.margin - a.quote.margin ||
                     a.market.symbol.localeCompare(b.market.symbol))[0];
             setEntry(best);
         };
@@ -56,10 +58,10 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
                 if (inFlight.has(symbol) || now < (nextCheck.get(symbol) ?? 0)) continue;
                 inFlight.add(symbol);
                 nextCheck.set(symbol, now + 3000);
-                void quoteMomentumEntry(body => api!.send(body), symbol, duration, 'USD', 3, feed.prices, feed.epoch)
+                void quoteMomentumEntry(body => api!.send(body), symbol, duration, 'USD', 3, feed.prices, feed.epoch, undefined, mode)
                     .then(quote => {
                         if (signal.aborted || !feeds.has(symbol)) return;
-                        if (quote?.qualified && quote.fresh()) entries.set(symbol, { market: feed.market, quote });
+                        if (quote?.fresh()) entries.set(symbol, { market: feed.market, quote });
                         else entries.delete(symbol);
                     })
                     .catch(() => {
@@ -109,7 +111,7 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
             clearInterval(timer);
             clearTimeout(retry);
         };
-    }, [active, duration]);
+    }, [active, duration, mode]);
 
     const load = () => {
         setError('');
@@ -122,7 +124,7 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
             return setError('Stop and settle the current bot first.');
         sessionStorage.setItem('neto.pendingBot', JSON.stringify({
             fileName: RISE_FALL_BOT_FILE, name: RISE_FALL_BOT_NAME,
-            symbol: market.symbol, submarket: market.submarket, momentum: { direction: quote.direction, duration },
+            symbol: market.symbol, submarket: market.submarket, momentum: { direction: quote.direction, duration, mode },
         }));
         window.dispatchEvent(new Event('neto-pending-bot'));
         dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
@@ -137,6 +139,16 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
                     <p>Scan open Volatility markets for momentum that clears a live Deriv quote.</p>
                 </div>
                 <div className='manual-trader__controls'>
+                    <label>Entry filter
+                        <select value={mode} onChange={event => {
+                            setEntry(undefined);
+                            setError('');
+                            setMode(event.target.value === 'strict' ? 'strict' : 'demo');
+                        }}>
+                            <option value='demo'>Demo exploration</option>
+                            <option value='strict'>Strict</option>
+                        </select>
+                    </label>
                     <label>Duration
                         <select value={duration} onChange={event => { setEntry(undefined); setError(''); setDuration(event.target.value === '5' ? 5 : 1); }}>
                             <option value='1'>1 tick</option>
@@ -145,7 +157,9 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
                     </label>
                 </div>
             </header>
-            <p className='manual-trader__status' role='status'>{entry ? 'Qualifying entry found' : status}</p>
+            <p className='manual-trader__status' role='status'>
+                {entry?.quote.qualified ? 'Qualifying entry found' : entry ? 'No entry · closest market shown' : status}
+            </p>
             <section className='manual-trader__match' aria-label='Momentum estimate'>
                 {entry && (
                     <dl className='manual-trader__metrics'>
@@ -159,7 +173,7 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
                 <button type='button' onClick={load} disabled={!entry?.quote.qualified}>Load Rise/Fall Bot</button>
                 {error && <p role='alert'>{error}</p>}
             </section>
-            <p className='manual-trader__note'>Demo only. Historical results can occur by chance. The bot rechecks each entry after you press Run.</p>
+            <p className='manual-trader__note'>Demo only. Exploration compares the historical win rate with the quote. Strict also accounts for sampling uncertainty. The bot rechecks each entry after you press Run.</p>
         </section>
     );
 });

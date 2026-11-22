@@ -82,7 +82,7 @@ const BotBuilder = observer(() => {
                 if (bot.momentum) {
                     if (bot.fileName !== RISE_FALL_BOT_FILE || automatic || !bot.symbol)
                         throw new Error('Invalid Rise/Fall momentum bot selection.');
-                    configuredContent = configureMomentumBot(configuredContent, bot.momentum.direction, bot.momentum.duration);
+                    configuredContent = configureMomentumBot(configuredContent, bot.momentum.direction, bot.momentum.duration, bot.momentum.mode);
                 }
                 const result = await load({
                     block_string: configuredContent,
