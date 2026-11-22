@@ -39,12 +39,14 @@ export async function observeVolatilityMarkets(
         prepare?: (market: VolatilityMarket) => Promise<boolean>;
         stale?: (symbol: string) => void;
         ready?: () => void;
+        prices?: (market: VolatilityMarket, prices: readonly number[], epoch: number) => void;
         clock?: MarketClock;
     } = {}
 ): Promise<void> {
     type Feed = {
         market: VolatilityMarket;
         digits: number[];
+        prices?: number[];
         epoch: number;
         arrival: number;
         ready: boolean;
@@ -95,6 +97,7 @@ export async function observeVolatilityMarkets(
     };
     const publish = (feed: Feed, live: boolean) => {
         if (finished || signal.aborted || feed.failed) return;
+        if (feed.prices) options.prices?.(feed.market, feed.prices, feed.epoch);
         sample({ market: feed.market, digits: [...feed.digits], epoch: feed.epoch, live });
     };
     const accept = (feed: Feed, tick: Tick) => {
@@ -107,6 +110,7 @@ export async function observeVolatilityMarkets(
         feed.epoch = tick.epoch;
         feed.arrival = Date.now();
         feed.digits = [...feed.digits, digit].slice(-sampleSize);
+        if (feed.prices) feed.prices = [...feed.prices, Number(tick.quote)].slice(-sampleSize);
         publish(feed, true);
     };
     const request = async (body: Record<string, unknown>) => {
@@ -207,6 +211,7 @@ export async function observeVolatilityMarkets(
             const digits = prices.slice(-sampleSize).map(price => lastDigit(price, h.pip_size!));
             if (digits.some(d => d === null)) throw new Error('Invalid market digits.');
             feed.digits = digits as number[];
+            if (options.prices) feed.prices = prices.slice(-sampleSize).map(Number);
             feed.epoch = epoch;
             feed.arrival = Date.now();
             feed.ready = true;

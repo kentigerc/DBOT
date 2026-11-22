@@ -7,12 +7,13 @@ import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
 import { getDerivAccount } from '@/utils/deriv-session';
 import {
-    checkMomentumEntry,
+    MOMENTUM_HISTORY,
+    quoteMomentumEntry,
     RISE_FALL_BOT_FILE,
     RISE_FALL_BOT_NAME,
     type MomentumDuration,
 } from '@/utils/rise-fall-momentum';
-import type { VolatilityMarket } from '@/utils/live-volatility-markets';
+import { observeVolatilityMarkets, type VolatilityMarket } from '@/utils/live-volatility-markets';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import '../manual-trader/manual-trader.scss';
 
@@ -20,74 +21,100 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
     const panel = useMarketPanelHeight<HTMLElement>({ enabled: active });
     const { dashboard, run_panel } = useStore();
     const navigate = useNavigate();
-    const [markets, setMarkets] = useState<VolatilityMarket[]>([]);
-    const [symbol, setSymbol] = useState('');
     const [duration, setDuration] = useState<MomentumDuration>(1);
-    const [entry, setEntry] = useState<Awaited<ReturnType<typeof checkMomentumEntry>>>();
+    type Quote = NonNullable<Awaited<ReturnType<typeof quoteMomentumEntry>>>;
+    type Entry = { market: VolatilityMarket; quote: Quote };
+    const [entry, setEntry] = useState<Entry>();
     const [status, setStatus] = useState('Connecting to Deriv…');
     const [error, setError] = useState('');
-    const market = markets.find(item => item.symbol === symbol);
-
-    useEffect(() => {
-        if (!active) return;
-        let cancelled = false;
-        let api: Awaited<ReturnType<typeof generateDerivApiInstance>> | undefined;
-        void (async () => {
-            try {
-                api = await generateDerivApiInstance({ publicOnly: true });
-                if (cancelled) return api.disconnect();
-                const response = await api.send({ active_symbols: 'brief' });
-                if (cancelled) return;
-                const available: VolatilityMarket[] = (response.active_symbols ?? []).filter(
-                    (item: VolatilityMarket) => /^(R_\d+|1HZ\d+V)$/.test(item.symbol) &&
-                        item.exchange_is_open && !item.is_trading_suspended
-                );
-                setMarkets(available);
-                setSymbol(value => available.some(item => item.symbol === value) ? value : available[0]?.symbol ?? '');
-                setStatus(available.length ? 'Select a market and duration.' : 'No open Volatility markets were returned.');
-            } catch {
-                if (!cancelled) setStatus('Could not load Volatility markets.');
-            }
-        })();
-        return () => {
-            cancelled = true;
-            api?.disconnect();
-        };
-    }, [active]);
 
     useEffect(() => {
         setEntry(undefined);
-        if (!active || !symbol) return;
-        let cancelled = false;
+        if (!active) return;
+        const controller = new AbortController();
+        const { signal } = controller;
+        const feeds = new Map<string, { market: VolatilityMarket; prices: readonly number[]; epoch: number }>();
+        const entries = new Map<string, Entry>();
+        const inFlight = new Set<string>();
+        const nextCheck = new Map<string, number>();
         let api: Awaited<ReturnType<typeof generateDerivApiInstance>> | undefined;
-        let timer: ReturnType<typeof setTimeout>;
-        const scan = async () => {
-            try {
-                api ??= await generateDerivApiInstance({ publicOnly: true });
-                if (cancelled) return api.disconnect();
-                const result = await checkMomentumEntry(body => api!.send(body), symbol, duration, 'USD', 3);
-                if (cancelled) return;
-                setEntry(result);
-                setStatus(result?.qualified ? 'Qualifying momentum signal' : 'No trade');
-            } catch (reason) {
-                if (cancelled) return;
-                setEntry(undefined);
-                setStatus(reason instanceof Error ? reason.message : 'Market data unavailable.');
+        let retry: ReturnType<typeof setTimeout>;
+
+        const publish = () => {
+            if (signal.aborted) return;
+            const best = [...entries.values()]
+                .filter(({ quote }) => quote.qualified && quote.fresh())
+                .sort((a, b) => (b.quote.lowerBound - b.quote.breakEven) - (a.quote.lowerBound - a.quote.breakEven) ||
+                    a.market.symbol.localeCompare(b.market.symbol))[0];
+            setEntry(best);
+        };
+        const scan = () => {
+            if (!api || signal.aborted) return;
+            const now = Date.now();
+            for (const [symbol, feed] of feeds) {
+                if (inFlight.size >= 4) break;
+                if (inFlight.has(symbol) || now < (nextCheck.get(symbol) ?? 0)) continue;
+                inFlight.add(symbol);
+                nextCheck.set(symbol, now + 3000);
+                void quoteMomentumEntry(body => api!.send(body), symbol, duration, 'USD', 3, feed.prices, feed.epoch)
+                    .then(quote => {
+                        if (signal.aborted || !feeds.has(symbol)) return;
+                        if (quote?.qualified && quote.fresh()) entries.set(symbol, { market: feed.market, quote });
+                        else entries.delete(symbol);
+                    })
+                    .catch(() => {
+                        entries.delete(symbol);
+                        nextCheck.set(symbol, Date.now() + 5000);
+                    })
+                    .finally(() => {
+                        inFlight.delete(symbol);
+                        publish();
+                    });
             }
-            timer = setTimeout(scan, 2000);
+            publish();
         };
-        setStatus('Checking price momentum…');
-        void scan();
+        const connect = async () => {
+            setStatus('Connecting to Deriv…');
+            try {
+                const connection = await generateDerivApiInstance({ publicOnly: true });
+                if (signal.aborted) return connection.disconnect();
+                api = connection;
+                await observeVolatilityMarkets(connection, MOMENTUM_HISTORY, signal, () => {}, setStatus, {
+                    prices: (market, prices, epoch) => {
+                        feeds.set(market.symbol, { market, prices, epoch });
+                    },
+                    stale: symbol => {
+                        feeds.delete(symbol);
+                        entries.delete(symbol);
+                        publish();
+                    },
+                });
+            } catch {
+                if (signal.aborted) return;
+                feeds.clear();
+                entries.clear();
+                publish();
+                setStatus('Market connection interrupted. Reconnecting…');
+                retry = setTimeout(connect, 3000);
+            } finally {
+                api?.disconnect();
+                api = undefined;
+            }
+        };
+
+        const timer = setInterval(scan, 250);
+        void connect();
         return () => {
-            cancelled = true;
-            clearTimeout(timer);
-            api?.disconnect();
+            controller.abort();
+            clearInterval(timer);
+            clearTimeout(retry);
         };
-    }, [active, symbol, duration]);
+    }, [active, duration]);
 
     const load = () => {
         setError('');
-        if (!entry?.qualified || !entry.fresh() || !market) return setError('Wait for a fresh qualifying signal.');
+        if (!entry?.quote.qualified || !entry.quote.fresh()) return setError('Wait for a fresh qualifying signal.');
+        const { market, quote } = entry;
         const account = getDerivAccount();
         if (account?.account_type !== 'demo' || account.status !== 'active' || account.currency !== 'USD')
             return setError('Select an active USD Deriv demo account to load this momentum setup.');
@@ -95,7 +122,7 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
             return setError('Stop and settle the current bot first.');
         sessionStorage.setItem('neto.pendingBot', JSON.stringify({
             fileName: RISE_FALL_BOT_FILE, name: RISE_FALL_BOT_NAME,
-            symbol, submarket: market.submarket, momentum: { direction: entry.direction, duration },
+            symbol: market.symbol, submarket: market.submarket, momentum: { direction: quote.direction, duration },
         }));
         window.dispatchEvent(new Event('neto-pending-bot'));
         dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER);
@@ -107,14 +134,9 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
             <header className='manual-trader__heading'>
                 <div>
                     <h1 id='rise-fall-momentum-title'>Rise/Fall Momentum</h1>
-                    <p>Compare recent price direction with the win rate required by a live Deriv quote.</p>
+                    <p>Scan open Volatility markets for momentum that clears a live Deriv quote.</p>
                 </div>
                 <div className='manual-trader__controls'>
-                    <label>Volatility market
-                        <select value={symbol} onChange={event => { setEntry(undefined); setError(''); setSymbol(event.target.value); }}>
-                            {markets.map(item => <option key={item.symbol} value={item.symbol}>{item.display_name || item.symbol}</option>)}
-                        </select>
-                    </label>
                     <label>Duration
                         <select value={duration} onChange={event => { setEntry(undefined); setError(''); setDuration(event.target.value === '5' ? 5 : 1); }}>
                             <option value='1'>1 tick</option>
@@ -123,17 +145,18 @@ const MomentumAnalyzer = observer(({ active }: { active: boolean }) => {
                     </label>
                 </div>
             </header>
-            <p className='manual-trader__status' role='status'>{status}</p>
+            <p className='manual-trader__status' role='status'>{entry ? 'Qualifying entry found' : status}</p>
             <section className='manual-trader__match' aria-label='Momentum estimate'>
                 {entry && (
                     <dl className='manual-trader__metrics'>
-                        <div><dt>Direction</dt><dd>{entry.direction === 'CALL' ? 'Rise' : 'Fall'}</dd></div>
-                        <div><dt>Historical win rate</dt><dd>{(entry.winRate * 100).toFixed(1)}% ({entry.samples} samples)</dd></div>
-                        <div><dt>Conservative estimate</dt><dd>{(entry.lowerBound * 100).toFixed(1)}%</dd></div>
-                        <div><dt>Quote break-even</dt><dd>{(entry.breakEven * 100).toFixed(1)}%</dd></div>
+                        <div><dt>Market</dt><dd>{entry.market.display_name || entry.market.symbol}</dd></div>
+                        <div><dt>Direction</dt><dd>{entry.quote.direction === 'CALL' ? 'Rise' : 'Fall'}</dd></div>
+                        <div><dt>Historical win rate</dt><dd>{(entry.quote.winRate * 100).toFixed(1)}% ({entry.quote.samples} samples)</dd></div>
+                        <div><dt>Conservative estimate</dt><dd>{(entry.quote.lowerBound * 100).toFixed(1)}%</dd></div>
+                        <div><dt>Quote break-even</dt><dd>{(entry.quote.breakEven * 100).toFixed(1)}%</dd></div>
                     </dl>
                 )}
-                <button type='button' onClick={load} disabled={!entry?.qualified}>Load Rise/Fall Bot</button>
+                <button type='button' onClick={load} disabled={!entry?.quote.qualified}>Load Rise/Fall Bot</button>
                 {error && <p role='alert'>{error}</p>}
             </section>
             <p className='manual-trader__note'>Demo only. Historical results can occur by chance. The bot rechecks each entry after you press Run.</p>
