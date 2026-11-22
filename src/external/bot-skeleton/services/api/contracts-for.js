@@ -2,6 +2,18 @@ import { config } from '../../constants/config';
 import PendingPromise from '../../utils/pending-promise';
 import { api_base } from './api-base';
 
+const UP_DOWN_BARRIER_CATEGORIES = {
+    CALL: 'euro_atm',
+    PUT: 'euro_atm',
+    CALLE: 'euro_atm',
+    PUTE: 'euro_atm',
+    HIGHER: 'euro_non_atm',
+    LOWER: 'euro_non_atm',
+};
+
+const getContractCategory = contract =>
+    Object.hasOwn(UP_DOWN_BARRIER_CATEGORIES, contract.contract_type) ? 'callput' : contract.contract_category;
+
 export default class ContractsFor {
     constructor({ ws, server_time }) {
         this.cache_age_in_min = 10;
@@ -65,7 +77,7 @@ export default class ContractsFor {
                         BARRIER_CATEGORIES[b].includes(trade_type)
                     );
 
-                    const has_matching_category = c.contract_category === real_trade_type;
+                    const has_matching_category = getContractCategory(c) === real_trade_type;
                     const has_matching_duration = durations.findIndex(d => d.unit === duration) !== -1;
                     const has_matching_barrier_category = this.matchesBarrierCategory(c, barrier_category);
                     const has_matching_barrier_type =
@@ -183,7 +195,7 @@ export default class ContractsFor {
                 : null;
 
         return contracts.filter(contract => {
-            const has_matching_category = contract.contract_category === contract_category;
+            const has_matching_category = getContractCategory(contract) === contract_category;
             const has_matching_barrier = this.matchesBarrierCategory(contract, barrier_category);
             const has_matching_type = !atm_types || atm_types.includes(contract.contract_type);
 
@@ -194,16 +206,8 @@ export default class ContractsFor {
     matchesBarrierCategory(contract, category) {
         if (contract.barrier_category) return contract.barrier_category === category;
         // New API removed barrier_category. Classify using returned contract metadata.
-        if (contract.contract_category === 'callput') {
-            // The entry spot is itself a barrier. A count alone does not identify a user-set barrier.
-            const has_price_barrier =
-                ['HIGHER', 'LOWER'].includes(contract.contract_type) ||
-                (contract.barriers !== 0 &&
-                    contract.barriers !== '0' &&
-                    [contract.barrier, contract.high_barrier, contract.low_barrier].some(
-                        barrier => barrier != null && barrier !== ''
-                    ));
-            return category === (has_price_barrier ? 'euro_non_atm' : 'euro_atm');
+        if (Object.hasOwn(UP_DOWN_BARRIER_CATEGORIES, contract.contract_type)) {
+            return category === UP_DOWN_BARRIER_CATEGORIES[contract.contract_type];
         }
         const categories = { digits: 'non_financial', asian: 'asian', accumulator: 'accumulator',
             reset: 'reset', lookback: 'lookback', callputspread: 'euro_non_atm' };
@@ -424,8 +428,8 @@ export default class ContractsFor {
         for (let i = 0; i < contracts.length; i++) {
             const market = contracts[i].market;
             const submarket = contracts[i].submarket;
-            const trade_type_category = this.getTradeTypeCategoryByTradeType(contracts[i].contract_category);
-            const trade_type_category_name = this.getTradeTypeCategoryNameByTradeType(contracts[i].contract_category);
+            const trade_type_category = this.getTradeTypeCategoryByTradeType(getContractCategory(contracts[i]));
+            const trade_type_category_name = this.getTradeTypeCategoryNameByTradeType(getContractCategory(contracts[i]));
             // eslint-disable-next-line no-await-in-loop
             const trade_types = await this.getTradeTypeByTradeCategory(market, submarket, symbol, trade_type_category);
 
@@ -579,8 +583,8 @@ export default class ContractsFor {
         const trade_type_categories = [];
 
         contracts.forEach(contract => {
-            const trade_type_category = this.getTradeTypeCategoryByTradeType(contract.contract_category);
-            const trade_type_category_name = this.getTradeTypeCategoryNameByTradeType(contract.contract_category);
+            const trade_type_category = this.getTradeTypeCategoryByTradeType(getContractCategory(contract));
+            const trade_type_category_name = this.getTradeTypeCategoryNameByTradeType(getContractCategory(contract));
 
             if (trade_type_category_name) {
                 const is_disabled = this.isDisabledOption({

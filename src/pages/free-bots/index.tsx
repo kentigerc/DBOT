@@ -54,7 +54,7 @@ const BOTS: Bot[] = [
         id: '16',
         name: 'NETO Rise/Fall Alternating Recovery',
         description:
-            'Trades Rise and Fall on Volatility 10 (1s) Index. Switches direction and raises the stake after a loss.',
+            'Trades Rise and Fall on supported Volatility indices. Defaults to Volatility 10 (1s).',
         fileName: 'neto-risefall-alternating-recovery.xml',
         category: 'Rise/Fall',
         icon: '↕️',

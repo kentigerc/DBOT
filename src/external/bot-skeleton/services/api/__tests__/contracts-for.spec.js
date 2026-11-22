@@ -21,9 +21,9 @@ function makeContractsFor(contracts) {
 
 it.each([undefined, 0, 1, '1'])('offers Rise/Fall and Higher/Lower independently with barrier count %s', async barriers => {
     const contractsFor = makeContractsFor([
-        { ...tick_contract, contract_type: 'CALL', barriers },
+        { ...tick_contract, contract_type: 'CALL', contract_category: 'risefall', barriers, barrier: '+0.00' },
         { ...tick_contract, contract_type: 'PUT', barriers },
-        { ...tick_contract, contract_type: 'HIGHER', min_contract_duration: '5t' },
+        { ...tick_contract, contract_type: 'HIGHER', contract_category: 'higherlower', min_contract_duration: '5t' },
         { ...tick_contract, contract_type: 'LOWER', min_contract_duration: '5t' },
     ]);
 
@@ -35,7 +35,7 @@ it.each([undefined, 0, 1, '1'])('offers Rise/Fall and Higher/Lower independently
 
 it('keeps barrier-based CALL/PUT and Rise Equals/Fall Equals out of ordinary Rise/Fall', async () => {
     const contractsFor = makeContractsFor([
-        { ...tick_contract, contract_type: 'CALL', barrier: '+0.2' },
+        { ...tick_contract, contract_type: 'CALL', barrier: '+0.2', barrier_category: 'euro_non_atm' },
         { ...tick_contract, contract_type: 'PUT', barriers: 1, barrier_category: 'euro_non_atm' },
         { ...tick_contract, contract_type: 'CALLE', barriers: 0 },
         { ...tick_contract, contract_type: 'PUTE', barrier_category: 'euro_atm' },
