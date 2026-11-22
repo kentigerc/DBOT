@@ -32,7 +32,7 @@ import './main.scss';
 
 const ChartPage = lazy(() => import('../chart/chart-page'));
 const DigitAnalysis = lazy(() => import('../digit-analysis'));
-const MomentumAnalyzer = lazy(() => import('../rise-fall-momentum'));
+const ManualTrader = lazy(() => import('../manual-trader'));
 const DerivCharts = lazy(() => import('../deriv-charts'));
 const FreeBots = lazy(() => import('../free-bots'));
 const AnalysisTool = lazy(() => import('../analysis-tool'));
@@ -343,13 +343,13 @@ const AppWrapper = observer(() => {
                                 label={
                                     <>
                                         <span aria-hidden='true'>▥</span>
-                                        <Localize i18n_default_text='Rise/Fall Momentum' />
+                                        <Localize i18n_default_text='Manual Trader' />
                                     </>
                                 }
                                 id='id-manual-trader'
                             >
-                                <Suspense fallback={<ChunkLoader message={localize('Loading Rise/Fall Momentum...')} />}>
-                                    <MomentumAnalyzer active={active_tab === DBOT_TABS.MANUAL_TRADER} />
+                                <Suspense fallback={<ChunkLoader message={localize('Loading Manual Trader...')} />}>
+                                    <ManualTrader active={active_tab === DBOT_TABS.MANUAL_TRADER} />
                                 </Suspense>
                             </div>
                             <div

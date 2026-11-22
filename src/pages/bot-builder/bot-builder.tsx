@@ -13,7 +13,6 @@ import {
     hostedBotMarket,
     waitForHostedBotReady,
 } from '@/utils/hosted-bot-market';
-import { configureMomentumBot, RISE_FALL_BOT_FILE } from '@/utils/rise-fall-momentum';
 import { setScannerWatch } from '@/utils/scanner-watch';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import { manualTraderGate } from '@/utils/manual-trader-gate';
@@ -74,16 +73,11 @@ const BotBuilder = observer(() => {
                 )
                     throw new Error('This bot does not contain valid XML.');
                 if (automatic && !xmlScannerCycle.valid(bot.autoGeneration)) return;
-                let configuredContent = hostedBotLivePrediction(
+                const configuredContent = hostedBotLivePrediction(
                     automatic
                         ? hostedBotForAuto(content, bot.symbol, bot.submarket, xmlScannerCycle.getSnapshot().settings)
                         : hostedBotMarket(content, bot.symbol, bot.submarket)
                 );
-                if (bot.momentum) {
-                    if (bot.fileName !== RISE_FALL_BOT_FILE || automatic || !bot.symbol)
-                        throw new Error('Invalid Rise/Fall momentum bot selection.');
-                    configuredContent = configureMomentumBot(configuredContent, bot.momentum.direction, bot.momentum.duration, bot.momentum.mode);
-                }
                 const result = await load({
                     block_string: configuredContent,
                     file_name: bot.name,
