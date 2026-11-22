@@ -176,12 +176,18 @@ export default class ContractsFor {
         const contracts = await this.getContractsFor(symbol);
         const contract_category = this.getContractCategoryByTradeType(trade_type);
         const barrier_category = this.getBarrierCategoryByTradeType(trade_type);
+        const { opposites } = config();
+        const atm_types =
+            barrier_category === 'euro_atm'
+                ? opposites[trade_type.toUpperCase()].map(option => Object.keys(option)[0])
+                : null;
 
         return contracts.filter(contract => {
             const has_matching_category = contract.contract_category === contract_category;
             const has_matching_barrier = this.matchesBarrierCategory(contract, barrier_category);
+            const has_matching_type = !atm_types || atm_types.includes(contract.contract_type);
 
-            return has_matching_category && has_matching_barrier;
+            return has_matching_category && has_matching_barrier && has_matching_type;
         });
     }
 
@@ -189,7 +195,15 @@ export default class ContractsFor {
         if (contract.barrier_category) return contract.barrier_category === category;
         // New API removed barrier_category. Classify using returned contract metadata.
         if (contract.contract_category === 'callput') {
-            return category === (Number(contract.barriers) === 0 ? 'euro_atm' : 'euro_non_atm');
+            const has_barrier_count = contract.barriers != null && contract.barriers !== '';
+            const has_price_barrier =
+                ['HIGHER', 'LOWER'].includes(contract.contract_type) ||
+                (has_barrier_count
+                    ? Number(contract.barriers) > 0
+                    : [contract.barrier, contract.high_barrier, contract.low_barrier].some(
+                          barrier => barrier != null && barrier !== ''
+                      ));
+            return category === (has_price_barrier ? 'euro_non_atm' : 'euro_atm');
         }
         const categories = { digits: 'non_financial', asian: 'asian', accumulator: 'accumulator',
             reset: 'reset', lookback: 'lookback', callputspread: 'euro_non_atm' };
