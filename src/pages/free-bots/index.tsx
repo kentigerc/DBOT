@@ -10,7 +10,7 @@ import './free-bots.scss';
 interface Bot {
     id: string;
     name: string;
-    description: string;
+    description?: string;
     fileName: string;
     category: string;
     icon: string;
@@ -53,8 +53,6 @@ const BOTS: Bot[] = [
     {
         id: '16',
         name: 'NETO Rise/Fall Alternating Recovery',
-        description:
-            'Trades Rise and Fall on supported Volatility indices. Defaults to Volatility 10 (1s).',
         fileName: 'neto-risefall-alternating-recovery.xml',
         category: 'Rise/Fall',
         icon: '↕️',
@@ -157,7 +155,7 @@ const FreeBots = observer(() => {
                             <span className='free-bots__card-category'>{bot.category}</span>
                         </div>
                         <h3 className='free-bots__card-title'>{bot.name}</h3>
-                        <p className='free-bots__card-description'>{bot.description}</p>
+                        {bot.description && <p className='free-bots__card-description'>{bot.description}</p>}
                         {bot.unavailableReason && <p>{bot.unavailableReason}</p>}
                         <button
                             className='free-bots__card-btn'
