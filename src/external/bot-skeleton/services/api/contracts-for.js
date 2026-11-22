@@ -195,14 +195,14 @@ export default class ContractsFor {
         if (contract.barrier_category) return contract.barrier_category === category;
         // New API removed barrier_category. Classify using returned contract metadata.
         if (contract.contract_category === 'callput') {
-            const has_barrier_count = contract.barriers != null && contract.barriers !== '';
+            // The entry spot is itself a barrier. A count alone does not identify a user-set barrier.
             const has_price_barrier =
                 ['HIGHER', 'LOWER'].includes(contract.contract_type) ||
-                (has_barrier_count
-                    ? Number(contract.barriers) > 0
-                    : [contract.barrier, contract.high_barrier, contract.low_barrier].some(
-                          barrier => barrier != null && barrier !== ''
-                      ));
+                (contract.barriers !== 0 &&
+                    contract.barriers !== '0' &&
+                    [contract.barrier, contract.high_barrier, contract.low_barrier].some(
+                        barrier => barrier != null && barrier !== ''
+                    ));
             return category === (has_price_barrier ? 'euro_non_atm' : 'euro_atm');
         }
         const categories = { digits: 'non_financial', asian: 'asian', accumulator: 'accumulator',

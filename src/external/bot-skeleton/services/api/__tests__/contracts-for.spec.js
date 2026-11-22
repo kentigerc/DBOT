@@ -19,10 +19,10 @@ function makeContractsFor(contracts) {
     return contractsFor;
 }
 
-it('offers Rise/Fall with tick durations alongside Higher/Lower when the barrier count is omitted', async () => {
+it.each([undefined, 0, 1, '1'])('offers Rise/Fall and Higher/Lower independently with barrier count %s', async barriers => {
     const contractsFor = makeContractsFor([
-        { ...tick_contract, contract_type: 'CALL' },
-        { ...tick_contract, contract_type: 'PUT' },
+        { ...tick_contract, contract_type: 'CALL', barriers },
+        { ...tick_contract, contract_type: 'PUT', barriers },
         { ...tick_contract, contract_type: 'HIGHER', min_contract_duration: '5t' },
         { ...tick_contract, contract_type: 'LOWER', min_contract_duration: '5t' },
     ]);
@@ -36,7 +36,7 @@ it('offers Rise/Fall with tick durations alongside Higher/Lower when the barrier
 it('keeps barrier-based CALL/PUT and Rise Equals/Fall Equals out of ordinary Rise/Fall', async () => {
     const contractsFor = makeContractsFor([
         { ...tick_contract, contract_type: 'CALL', barrier: '+0.2' },
-        { ...tick_contract, contract_type: 'PUT', barriers: 1 },
+        { ...tick_contract, contract_type: 'PUT', barriers: 1, barrier_category: 'euro_non_atm' },
         { ...tick_contract, contract_type: 'CALLE', barriers: 0 },
         { ...tick_contract, contract_type: 'PUTE', barrier_category: 'euro_atm' },
     ]);
