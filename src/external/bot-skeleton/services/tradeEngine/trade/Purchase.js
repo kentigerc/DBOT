@@ -1,3 +1,5 @@
+import { checkMomentumEntry, MOMENTUM_MARKER } from '@/utils/rise-fall-momentum';
+import { getDerivAccount } from '@/utils/deriv-session';
 import { checkTradingBalance } from '@/services/digit-strategy/balance';
 import { scanXmlParityRecovery, refreshXmlParityRecovery } from '@/utils/xml-parity-recovery';
 import { generateDerivApiInstance } from '../../api/appId';
@@ -23,6 +25,39 @@ export default Engine =>
                 return Promise.resolve();
             }
 
+            const workspace = window.Blockly?.derivWorkspace;
+            const momentum = workspace?.getAllBlocks(false).find(block =>
+                block.type === 'trade_definition' && block.data?.endsWith(' ' + MOMENTUM_MARKER)
+            );
+            let waitForMomentum;
+            if (momentum) {
+                const options = this.tradeOptions;
+                const reference = this.getPurchaseReference();
+                const accountId = getDerivAccount()?.account_id;
+                const active = () =>
+                    !api_base.is_stopping &&
+                    this.store.getState().scope === BEFORE_PURCHASE &&
+                    this.tradeOptions === options &&
+                    this.getPurchaseReference() === reference &&
+                    getDerivAccount()?.account_id === accountId &&
+                    workspace.getBlockById(momentum.id) === momentum;
+                if (getDerivAccount()?.account_type !== 'demo' || options.currency !== 'USD' ||
+                    !['CALL', 'PUT'].includes(contract_type) || options.duration_unit !== 't' ||
+                    ![1, 5].includes(Number(options.duration))) {
+                    throw new Error('Momentum entries require a USD demo account and a one- or five-tick Rise/Fall contract.');
+                }
+                waitForMomentum = async () => {
+                    while (active()) {
+                        const entry = await checkMomentumEntry(
+                            body => api_base.api.send(body), options.symbol, Number(options.duration),
+                            options.currency, options.amount, contract_type
+                        ).catch(() => undefined);
+                        if (entry?.qualified && entry.fresh()) return active();
+                        if (active()) await new Promise(resolve => setTimeout(resolve, 1500));
+                    }
+                    return false;
+                };
+            }
             const entryContract =
                 ['DIGITOVER', 'DIGITUNDER'].includes(contract_type) && !xmlScannerCycle.isRecovering()
                     ? { direction: contract_type, barrier: Number(prediction ?? this.tradeOptions.prediction) }
@@ -98,7 +133,7 @@ export default Engine =>
                 return;
             if (this.store.getState().scope !== BEFORE_PURCHASE) return;
             const heldPrice =
-                this.is_proposal_subscription_required && !parityRecovery && prediction === undefined
+                this.is_proposal_subscription_required && !momentum && !parityRecovery && prediction === undefined
                     ? this.selectProposal(contract_type).askPrice
                     : purchaseOptions.amount;
             if (
@@ -142,7 +177,7 @@ export default Engine =>
                 });
             };
 
-            if (this.is_proposal_subscription_required && !parityRecovery && prediction === undefined) {
+            if (this.is_proposal_subscription_required && !momentum && !parityRecovery && prediction === undefined) {
                 const { id, askPrice } = this.selectProposal(contract_type);
 
                 const action = async () => {
@@ -196,6 +231,7 @@ export default Engine =>
                 if (!(await manualTraderGate.beforePurchase(purchaseOptions.symbol, contract_type)))
                     return manualCancelled;
                 if (this.store.getState().scope !== BEFORE_PURCHASE) return manualCancelled;
+                if (waitForMomentum && !(await waitForMomentum())) return manualCancelled;
                 contractStatus({ id: 'contract.purchase_sent', data: purchaseOptions.amount });
                 return api_base.api.send(trade_option);
             };
