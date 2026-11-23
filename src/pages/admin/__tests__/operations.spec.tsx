@@ -96,3 +96,37 @@ it('requires confirmation and sends only the selected demo record for release', 
         })
     );
 });
+
+it('shows progress for a known contract and reports a failed settlement check beside the record', async () => {
+    let finish!: (response: unknown) => void;
+    global.fetch = jest.fn(async (_url, options) => {
+        if (options?.method === 'POST')
+            return new Promise(resolve => {
+                finish = resolve;
+            });
+        return {
+            ok: true,
+            json: async () => ({
+                checks: [],
+                alerts: [],
+                unresolvedPurchaseCount: 1,
+                unresolvedPurchases: [
+                    {
+                        source: 'builder',
+                        contractId: '21549999879',
+                        leaseExpiredAt: new Date().toISOString(),
+                        releaseRecordId: 'af000000-0000-4000-8000-000000000002',
+                        sessionAccount: { id: 'DOT100', type: 'demo' },
+                    },
+                ],
+            }),
+        };
+    }) as jest.Mock;
+    render(<Operations />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Verify settlement' }));
+    expect(screen.getByRole('button', { name: 'Checking Deriv…' })).toBeDisabled();
+    expect(screen.getByText('Checking settlement with Deriv…')).toBeTruthy();
+    finish({ ok: false, status: 409, json: async () => ({ error: 'Deriv did not confirm settlement.' }) });
+    expect(await screen.findByText('Deriv did not confirm settlement.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Verify settlement' })).toBeEnabled();
+});
