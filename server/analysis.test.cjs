@@ -913,3 +913,64 @@ test('expired Builder release requires Deriv settlement evidence for the exact c
         });
     }
 });
+
+test('Builder trade retries the lock claim only after verifying an expired purchase', async t => {
+    for (const settled of [true, false]) {
+        await t.test(settled ? 'settled purchase' : 'unconfirmed purchase', async () => {
+            const calls = [];
+            const req = {};
+            const handle = {};
+            const account = 'DOT123';
+            const contractId = 501;
+            let released = false;
+            const service = createAnalysisService(
+                {
+                    connectionUrl: async (request, id) => {
+                        assert.equal(request, req);
+                        assert.equal(id, account);
+                        return 'verified-account';
+                    },
+                    verifySession: async request => assert.equal(request, req),
+                },
+                {
+                    storage: { getItem: () => null },
+                    locks: {
+                        claim: async () => {
+                            calls.push('claim');
+                            if (!released) throw Object.assign(new Error('Blocked'), { status: 409 });
+                            return handle;
+                        },
+                        expiredBuilderContract: async id => {
+                            assert.equal(id, account);
+                            return { id: 'expired', contractId };
+                        },
+                        releaseExpiredBuilderPurchase: async (...args) => {
+                            assert.deepEqual(args, [account, 'expired', contractId]);
+                            calls.push('release');
+                            released = true;
+                        },
+                        protect: async lease => {
+                            assert.equal(lease, handle);
+                            calls.push('protect');
+                        },
+                    },
+                    brokerFactory: async () => ({
+                        send: async request =>
+                            request.proposal_open_contract
+                                ? { proposal_open_contract: { contract_id: contractId, is_sold: settled ? 1 : 0 } }
+                                : { profit_table: { transactions: [] } },
+                        disconnect() {},
+                    }),
+                }
+            );
+            const buy = service.authorizeBuilderBuy(account, { buy: 1, req_id: 1 }, 'device', req);
+            if (settled) {
+                assert.ok((await buy).passthrough.neto_lock_order);
+                assert.deepEqual(calls, ['claim', 'release', 'claim', 'protect']);
+            } else {
+                await assert.rejects(buy, /record is still protected/);
+                assert.deepEqual(calls, ['claim']);
+            }
+        });
+    }
+});

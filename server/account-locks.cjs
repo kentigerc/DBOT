@@ -362,6 +362,23 @@ function createAccountLocks({
                 return { mode: row?.mode, active: !!row && row.until > now() };
             });
         },
+        expiredBuilderContract(account) {
+            return serial(account, async accountKey => {
+                if (!pool) return null;
+                const { rows } = await pool.query(
+                    `SELECT p.key AS id, p.value->>'contractId' AS contract_id
+                     FROM neto_account_locks l CROSS JOIN LATERAL jsonb_each(l.pending) p
+                     WHERE l.account_key=$1 AND l.lease_until <= NOW()
+                       AND p.value->>'source' = 'builder' AND p.value->>'contractId' IS NOT NULL
+                     ORDER BY p.key LIMIT 1`,
+                    [accountKey]
+                );
+                const contractId = Number(rows[0]?.contract_id);
+                return Number.isSafeInteger(contractId) && contractId > 0
+                    ? { id: rows[0].id, contractId }
+                    : null;
+            });
+        },
         async unresolvedPurchases({ includeAccountKey = false } = {}) {
             await ensure();
             const rows = pool

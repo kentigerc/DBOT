@@ -10,6 +10,32 @@ const { createAccountLocks, DEFINITIVE } = require('./account-locks.cjs');
 const { randomUUID } = require('node:crypto');
 const { createDemoPause } = require('./demo-pause.cjs');
 
+const fail = (status, message) => Object.assign(new Error(message), { status });
+
+async function verifyBuilderSettlement(broker, contractId) {
+    const result = await broker.send({ proposal_open_contract: 1, contract_id: contractId });
+    const contract = result.proposal_open_contract;
+    if (Number(contract?.contract_id) !== contractId || ![1, true].includes(contract.is_sold)) {
+        const history = await broker.send({ profit_table: 1, limit: 100, sort: 'DESC' });
+        const transactions = history.profit_table?.transactions;
+        const settled =
+            Array.isArray(transactions) &&
+            transactions.some(transaction => {
+                const soldAt = transaction?.sell_time;
+                return (
+                    Number(transaction?.contract_id) === contractId &&
+                    Number.isSafeInteger(soldAt) &&
+                    soldAt > 0
+                );
+            });
+        if (!settled)
+            throw fail(
+                409,
+                'Deriv did not confirm settlement in contract status or the latest 100 profit-table entries. The record is still protected.'
+            );
+    }
+}
+
 function fileStorage(directory) {
     const filename = key => path.join(directory, createHash('sha256').update(key).digest('hex') + '.json');
     return {
@@ -96,6 +122,36 @@ function createAnalysisService(
     const key = id => `neto.digit-strategy.v1.${id}`;
     const prepareAccount = async id => {
         await storage.load?.(key(id));
+    };
+    const builderRecovery = new Map();
+    const recoverExpiredBuilder = async (req, accountId) => {
+        if (!req || !locks.expiredBuilderContract) return;
+        const existing = builderRecovery.get(accountId);
+        if (existing) return existing;
+        const task = (async () => {
+            const record = await locks.expiredBuilderContract(accountId);
+            if (!record) return;
+            const broker = await connectBroker(await auth.connectionUrl(req, accountId), accountId);
+            try {
+                await verifyBuilderSettlement(broker, record.contractId);
+                await auth.verifySession(req);
+                await locks.releaseExpiredBuilderPurchase(accountId, record.id, record.contractId);
+            } finally {
+                broker.disconnect();
+            }
+        })().catch(error => {
+            throw error instanceof Error ? error : fail(503, 'Deriv could not verify the interrupted purchase.');
+        });
+        builderRecovery.set(accountId, task);
+        try {
+            await task;
+            builderRecovery.delete(accountId);
+        } catch (error) {
+            // A stuck record must not cause a new Deriv connection on every buy attempt.
+            const timer = setTimeout(() => builderRecovery.delete(accountId), 30000);
+            timer.unref?.();
+            throw error;
+        }
     };
     let demoPauses;
     const sessionBusy = id => {
@@ -302,7 +358,6 @@ function createAnalysisService(
         }
         return value;
     };
-    const fail = (status, message) => Object.assign(new Error(message), { status });
     async function handle(req, res) {
         const json = (status, value) => {
             res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -504,10 +559,18 @@ function createAnalysisService(
                         try {
                             const fresh = storage.peek ? await storage.peek(key(id)) : storage.getItem(key(id));
                             const pending = fresh && JSON.parse(fresh).pending;
-                            value.lease = await locks.claim(id, {
+                            const claim = () => locks.claim(id, {
                                 mode: 'analysis',
                                 reconcile: pending?.nonce ? [pending.nonce] : [],
                             });
+                            try {
+                                value.lease = await claim();
+                            } catch (error) {
+                                if (error.status !== 409 || value.cancelled) throw error;
+                                await recoverExpiredBuilder(req, id);
+                                if (value.cancelled) throw new Error('Start cancelled.');
+                                value.lease = await claim();
+                            }
                             locks.hold(value.lease, {
                                 onLost: () => {
                                     onOperationalEvent('account_lock_lost');
@@ -633,7 +696,7 @@ function createAnalysisService(
         handle,
         busy,
         prepareAccount,
-        async authorizeBuilderBuy(id, body, clientKey) {
+        async authorizeBuilderBuy(id, body, clientKey, req) {
             if (!Number.isSafeInteger(body.req_id) || body.req_id < 0)
                 throw fail(400, 'A valid purchase request identifier is required.');
             if (builderOrders.has(`${id}:${clientKey}:${body.req_id}`))
@@ -643,7 +706,13 @@ function createAnalysisService(
             try {
                 await this.prepareBuilder(id);
                 this.beforeBuilder(id, body, clientKey);
-                lease = await locks.claim(id, { mode: 'builder' });
+                try {
+                    lease = await locks.claim(id, { mode: 'builder' });
+                } catch (error) {
+                    if (error.status !== 409 || !req) throw error;
+                    await recoverExpiredBuilder(req, id);
+                    lease = await locks.claim(id, { mode: 'builder' });
+                }
                 const shared = storage.peek ? await storage.peek(key(id)) : null;
                 if (shared) {
                     const state = JSON.parse(shared);
@@ -730,27 +799,7 @@ function createAnalysisService(
             const broker = await connectBroker(await auth.connectionUrl(req, accountId), accountId);
             try {
                 if (contractId != null) {
-                    const result = await broker.send({ proposal_open_contract: 1, contract_id: contractId });
-                    const contract = result.proposal_open_contract;
-                    if (Number(contract?.contract_id) !== contractId || ![1, true].includes(contract.is_sold)) {
-                        const history = await broker.send({ profit_table: 1, limit: 100, sort: 'DESC' });
-                        const transactions = history.profit_table?.transactions;
-                        const settled =
-                            Array.isArray(transactions) &&
-                            transactions.some(transaction => {
-                                const soldAt = transaction?.sell_time;
-                                return (
-                                    Number(transaction?.contract_id) === contractId &&
-                                    Number.isSafeInteger(soldAt) &&
-                                    soldAt > 0
-                                );
-                            });
-                        if (!settled)
-                            throw fail(
-                                409,
-                                'Deriv did not confirm settlement in contract status or the latest 100 profit-table entries. The record is still protected.'
-                            );
-                    }
+                    await verifyBuilderSettlement(broker, contractId);
                 } else {
                     const result = await broker.send({ portfolio: 1 });
                     if (!Array.isArray(result.portfolio?.contracts))

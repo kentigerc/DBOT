@@ -136,7 +136,7 @@ function attachSockets(
                                 if (account) await auth.verifySession?.(req);
                                 if (account && body.buy) auth.requireTerms?.(req);
                                 if (account && body.buy && analysis?.authorizeBuilderBuy)
-                                    outgoing = await analysis.authorizeBuilderBuy(account, body, clientKey);
+                                    outgoing = await analysis.authorizeBuilderBuy(account, body, clientKey, req);
                                 else if (account && body.buy) await analysis?.prepareBuilder?.(account);
                                 // Shared-lock/journal work may outlive a logout or session expiry.
                                 // Cancel the unsent permit through the existing error path if authorization changed.
