@@ -179,4 +179,8 @@ pgTest('releases only the selected expired Builder intent without a contract rec
     await assert.rejects(locks.releaseExpiredBuilderPurchase(f.account, 'unknown-purchase'), { status: 409 });
     const { rows } = await f.pool.query('SELECT pending FROM neto_account_locks WHERE account_key = $1', [f.hash]);
     assert.deepEqual(Object.keys(rows[0].pending), ['known-purchase']);
+    await assert.rejects(locks.releaseExpiredBuilderPurchase(f.account, 'known-purchase', 7654321), { status: 409 });
+    await locks.releaseExpiredBuilderPurchase(f.account, 'known-purchase', 1234567);
+    const final = await f.pool.query('SELECT pending FROM neto_account_locks WHERE account_key = $1', [f.hash]);
+    assert.deepEqual(final.rows[0].pending, {});
 });

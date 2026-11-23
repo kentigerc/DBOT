@@ -394,7 +394,10 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
                     });
                 if (!operations?.releasePurchase)
                     throw Object.assign(new Error('Purchase release is unavailable.'), { status: 503 });
-                await operations.releasePurchase(req, account.account_id, body.recordId);
+                const contractId = body.contractId == null ? null : Number(body.contractId);
+                if (contractId !== null && (!Number.isSafeInteger(contractId) || contractId <= 0))
+                    throw Object.assign(new Error('Invalid contract ID.'), { status: 400 });
+                await operations.releasePurchase(req, account.account_id, body.recordId, contractId);
                 console.info(JSON.stringify({ event: 'owner_expired_builder_purchase_released' }));
                 return json(res, 200, { released: true });
             }
@@ -414,7 +417,7 @@ function createAdminAnalytics({ auth, store, secret, activeBots = () => 0, now =
                     health.unresolvedPurchases?.map(({ accountKey, recordId, source, contractId, leaseExpiredAt }) => {
                         const account = accountsByKey.get(accountKey);
                         return {
-                            ...(account?.account_type === 'demo' && source === 'builder' && contractId === null
+                            ...(account?.account_type === 'demo' && source === 'builder'
                                 ? { releaseRecordId: recordId }
                                 : {}),
                             source,

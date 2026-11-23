@@ -726,16 +726,30 @@ function createAnalysisService(
             await storage.close?.();
         },
         storageMode: storage.mode || 'custom',
-        async releaseExpiredBuilderPurchase(req, accountId, recordId) {
+        async releaseExpiredBuilderPurchase(req, accountId, recordId, contractId) {
             const broker = await connectBroker(await auth.connectionUrl(req, accountId), accountId);
             try {
-                const result = await broker.send({ portfolio: 1 });
-                if (!Array.isArray(result.portfolio?.contracts))
-                    throw fail(503, 'Unable to verify open contracts with Deriv.');
-                if (result.portfolio.contracts.length)
-                    throw fail(409, 'Deriv still reports open contracts on this account.');
+                if (contractId != null) {
+                    const result = await broker.send({ proposal_open_contract: 1, contract_id: contractId });
+                    const contract = result.proposal_open_contract;
+                    if (
+                        !contract ||
+                        Number(contract.contract_id) !== contractId ||
+                        ![1, true].includes(contract.is_sold)
+                    )
+                        throw fail(
+                            409,
+                            'Deriv did not confirm settlement for this contract. The record is still protected.'
+                        );
+                } else {
+                    const result = await broker.send({ portfolio: 1 });
+                    if (!Array.isArray(result.portfolio?.contracts))
+                        throw fail(503, 'Unable to verify open contracts with Deriv.');
+                    if (result.portfolio.contracts.length)
+                        throw fail(409, 'Deriv still reports open contracts on this account.');
+                }
                 await auth.verifySession(req);
-                await locks.releaseExpiredBuilderPurchase(accountId, recordId);
+                await locks.releaseExpiredBuilderPurchase(accountId, recordId, contractId);
             } finally {
                 broker.disconnect();
             }

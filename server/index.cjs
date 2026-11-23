@@ -54,8 +54,8 @@ admin = createAdminAnalytics({
     secret,
     operations: {
         get: () => operations.get(),
-        releasePurchase: async (req, accountId, recordId) => {
-            await analysis.releaseExpiredBuilderPurchase(req, accountId, recordId);
+        releasePurchase: async (req, accountId, recordId, contractId) => {
+            await analysis.releaseExpiredBuilderPurchase(req, accountId, recordId, contractId);
             await operations.invalidate().catch(() => {});
         },
     },

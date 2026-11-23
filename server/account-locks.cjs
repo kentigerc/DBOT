@@ -402,7 +402,7 @@ function createAccountLocks({
                 };
             });
         },
-        releaseExpiredBuilderPurchase(account, recordId) {
+        releaseExpiredBuilderPurchase(account, recordId, settledContractId = null) {
             if (!pool) throw unavailable();
             return serial(account, async accountKey => {
                 const result = await pool.query(
@@ -410,9 +410,9 @@ function createAccountLocks({
                      WHERE account_key = $1 AND lease_until <= NOW()
                        AND pending ? $2::text
                        AND (pending -> ($2::text))->>'source' = 'builder'
-                       AND (pending -> ($2::text))->>'contractId' IS NULL
+                       AND (pending -> ($2::text))->>'contractId' IS NOT DISTINCT FROM $3::text
                      RETURNING account_key`,
-                    [accountKey, recordId]
+                    [accountKey, recordId, settledContractId]
                 );
                 if (!result.rows.length) throw conflict();
             });

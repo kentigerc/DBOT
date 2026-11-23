@@ -27,12 +27,13 @@ export default function Operations() {
     const [refresh, setRefresh] = useState(0);
     const [releasing, setReleasing] = useState(false);
     const [releaseMessage, setReleaseMessage] = useState('');
-    const release = async (accountId: string, recordId: string) => {
+    const release = async (accountId: string, recordId: string, contractId: string | null) => {
         if (
             releasing ||
-            !window.confirm(
-                `Release this expired Bot Builder record for demo account ${accountId}? Confirm only if you checked Deriv Reports and found no matching purchase. Releasing it allows trading to resume on this account.`
-            )
+            (!contractId &&
+                !window.confirm(
+                    `Release this expired Bot Builder record for demo account ${accountId}? Confirm only if you checked Deriv Reports and found no matching purchase. Releasing it allows trading to resume on this account.`
+                ))
         )
             return;
         setReleasing(true);
@@ -43,7 +44,7 @@ export default function Operations() {
                 credentials: 'same-origin',
                 cache: 'no-store',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accountId, recordId, confirmed: true }),
+                body: JSON.stringify({ accountId, recordId, confirmed: true, ...(contractId ? { contractId } : {}) }),
             });
             const result = await response.json();
             if (!response.ok || result.released !== true)
@@ -153,11 +154,14 @@ export default function Operations() {
                                                             onClick={() =>
                                                                 void release(
                                                                     purchase.sessionAccount!.id,
-                                                                    purchase.releaseRecordId!
+                                                                    purchase.releaseRecordId!,
+                                                                    purchase.contractId
                                                                 )
                                                             }
                                                         >
-                                                            Release record
+                                                            {purchase.contractId
+                                                                ? 'Verify settlement'
+                                                                : 'Release record'}
                                                         </button>
                                                     )}
                                             </li>
