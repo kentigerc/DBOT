@@ -732,15 +732,25 @@ function createAnalysisService(
                 if (contractId != null) {
                     const result = await broker.send({ proposal_open_contract: 1, contract_id: contractId });
                     const contract = result.proposal_open_contract;
-                    if (
-                        !contract ||
-                        Number(contract.contract_id) !== contractId ||
-                        ![1, true].includes(contract.is_sold)
-                    )
-                        throw fail(
-                            409,
-                            'Deriv did not confirm settlement for this contract. The record is still protected.'
-                        );
+                    if (Number(contract?.contract_id) !== contractId || ![1, true].includes(contract.is_sold)) {
+                        const history = await broker.send({ profit_table: 1, limit: 100, sort: 'DESC' });
+                        const transactions = history.profit_table?.transactions;
+                        const settled =
+                            Array.isArray(transactions) &&
+                            transactions.some(transaction => {
+                                const soldAt = transaction?.sell_time;
+                                return (
+                                    Number(transaction?.contract_id) === contractId &&
+                                    Number.isSafeInteger(soldAt) &&
+                                    soldAt > 0
+                                );
+                            });
+                        if (!settled)
+                            throw fail(
+                                409,
+                                'Deriv did not confirm settlement in contract status or the latest 100 profit-table entries. The record is still protected.'
+                            );
+                    }
                 } else {
                     const result = await broker.send({ portfolio: 1 });
                     if (!Array.isArray(result.portfolio?.contracts))

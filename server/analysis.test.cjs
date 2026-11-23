@@ -852,3 +852,64 @@ test('retains the real lease until an interrupted demo pause has finished settli
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(value.lease.held, false);
 });
+
+test('expired Builder release requires Deriv settlement evidence for the exact contract', async t => {
+    const contractId = 21549999879;
+    const account = 'DOT123';
+    const record = 'expired-record';
+    const sold = { contract_id: contractId, sell_time: 1795438900 };
+    const cases = [
+        { name: 'contract status confirms settlement', status: { contract_id: contractId, is_sold: 1 }, released: true },
+        { name: 'profit table confirms settlement', transactions: [sold], released: true },
+        { name: 'different contract is settled', transactions: [{ ...sold, contract_id: contractId + 1 }] },
+        { name: 'matching contract has no sale time', transactions: [{ ...sold, sell_time: null }] },
+        { name: 'profit table has no transactions' },
+    ];
+
+    for (const { name, status, transactions, released } of cases) {
+        await t.test(name, async () => {
+            const requests = [];
+            const releaseCalls = [];
+            let disconnected = false;
+            const req = {};
+            const service = createAnalysisService(
+                {
+                    connectionUrl: async (request, id) => {
+                        assert.equal(request, req);
+                        assert.equal(id, account);
+                        return 'account-connection';
+                    },
+                    verifySession: async request => assert.equal(request, req),
+                },
+                {
+                    storage: {},
+                    locks: {
+                        releaseExpiredBuilderPurchase: async (...args) => releaseCalls.push(args),
+                    },
+                    brokerFactory: async url => {
+                        assert.equal(url, 'account-connection');
+                        return {
+                            send: async request => {
+                                requests.push(request);
+                                return request.proposal_open_contract
+                                    ? { proposal_open_contract: status }
+                                    : { profit_table: { transactions } };
+                            },
+                            disconnect: () => { disconnected = true; },
+                        };
+                    },
+                }
+            );
+
+            const result = service.releaseExpiredBuilderPurchase(req, account, record, contractId);
+            if (released) await result;
+            else await assert.rejects(result, /The record is still protected/);
+            assert.deepEqual(releaseCalls, released ? [[account, record, contractId]] : []);
+            assert.deepEqual(requests, [
+                { proposal_open_contract: 1, contract_id: contractId },
+                ...(status ? [] : [{ profit_table: 1, limit: 100, sort: 'DESC' }]),
+            ]);
+            assert.equal(disconnected, true);
+        });
+    }
+});
