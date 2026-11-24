@@ -241,9 +241,9 @@ function createAnalysisService(
                 );
                 broker.connection?.addEventListener(
                     'close',
-                    () => {
+                    event => {
                         if (value.engine.getSnapshot().active && value.engine.getSnapshot().wantsRun)
-                            onOperationalEvent('trading_connection_lost');
+                            onOperationalEvent(event.reason || 'trading_connection_lost');
                     },
                     { once: true }
                 );
@@ -795,6 +795,7 @@ function createAnalysisService(
             await storage.close?.();
         },
         storageMode: storage.mode || 'custom',
+        recoverExpiredBuilder,
         async releaseExpiredBuilderPurchase(req, accountId, recordId, contractId) {
             const broker = await connectBroker(await auth.connectionUrl(req, accountId), accountId);
             try {

@@ -52,3 +52,30 @@ test('a synchronous send failure does not crash the server timer', () => {
     };
     assert.doesNotThrow(() => f.tick());
 });
+
+test('closes a silent provider once and cancels a deadline on its matching pong', () => {
+    let tick, deadline, expired = 0;
+    const socket = { readyState: 1, send() {} };
+    const keepalive = startUpstreamKeepalive(socket, {
+        schedule: callback => { tick = callback; },
+        cancel() {},
+        setDeadline: (callback, ms) => {
+            assert.equal(ms, 10000);
+            deadline = callback;
+            return 1;
+        },
+        clearDeadline: () => { deadline = undefined; },
+        onTimeout: () => { expired++; },
+    });
+    tick();
+    assert.ok(deadline);
+    assert.equal(keepalive.consume({ msg_type: 'ping', ping: 'pong', req_id: 42 }), false);
+    assert.ok(deadline);
+    assert.equal(keepalive.consume({ msg_type: 'ping', ping: 'pong' }), true);
+    assert.equal(deadline, undefined);
+    tick();
+    deadline();
+    assert.equal(expired, 1);
+    tick();
+    assert.equal(deadline, undefined);
+});

@@ -308,34 +308,40 @@ function createAccountLocks({
             });
         },
         async heartbeat() {
-            for (const handle of handles.values())
-                if (handle.held && !handle.lost) {
+            const held = [...handles.values()].filter(handle => handle.held && !handle.lost);
+            await Promise.all(held.map(async handle => {
+                try {
+                    const row = await serial(handle.account, async accountKey => {
+                        if (!handle.held || handle.lost) return;
+                        if (pool)
+                            return (
+                                await pool.query(
+                                    `UPDATE neto_account_locks SET lease_until=NOW()+($4 * INTERVAL '1 second')
+                                     WHERE account_key=$1 AND owner=$2 AND token=$3 AND lease_until>NOW() RETURNING stop_requested`,
+                                    [accountKey, owner, handle.token, leaseSeconds]
+                                )
+                            ).rows[0];
+                        const record = local.get(accountKey);
+                        if (valid(record, handle) && record.until > now()) {
+                            record.until = now() + leaseSeconds * 1000;
+                            return record;
+                        }
+                    });
+                    if (!handle.held || handle.lost) return;
+                    if (!row) throw conflict();
+                    if (row.stop_requested) handle.onStop?.();
+                } catch (error) {
+                    if (!handle.held || handle.lost) return;
+                    handle.lost = true;
+                    handle.held = false;
                     try {
-                        const row = await serial(handle.account, async accountKey => {
-                            if (pool)
-                                return (
-                                    await pool.query(
-                                        `UPDATE neto_account_locks SET lease_until=NOW()+($4 * INTERVAL '1 second')
-                            WHERE account_key=$1 AND owner=$2 AND token=$3 AND lease_until>NOW() RETURNING stop_requested`,
-                                        [accountKey, owner, handle.token, leaseSeconds]
-                                    )
-                                ).rows[0];
-                            const record = local.get(accountKey);
-                            if (valid(record, handle) && record.until > now()) {
-                                record.until = now() + leaseSeconds * 1000;
-                                return record;
-                            }
-                        });
-                        if (!row) throw conflict();
-                        if (row.stop_requested) handle.onStop?.();
-                    } catch {
-                        handle.lost = true;
-                        handle.held = false;
-                        try {
-                            handle.onLost?.();
-                        } catch {}
-                    }
+                        if (error.status === 503) onFailure('account_lease_renewal_failed');
+                    } catch {}
+                    try {
+                        handle.onLost?.();
+                    } catch {}
                 }
+            }));
         },
         async probe() {
             await ensure();

@@ -47,7 +47,9 @@ function createOperations({
                 );
                 return;
             }
-            if (event === 'trading_connection_lost') {
+            if (event === 'trading_connection_lost' || event === 'trading_pong_timeout') {
+                if (event === 'trading_pong_timeout')
+                    record('deriv_heartbeat', 'warning', 'A Deriv socket missed its heartbeat and was closed.');
                 drops++;
                 lastDrop = now();
                 record(
@@ -55,7 +57,9 @@ function createOperations({
                     'warning',
                     'A trading connection was interrupted. Check open contracts in Reports.'
                 );
-            } else if (event === 'account_lock_storage')
+            } else if (event === 'account_lease_renewal_failed')
+                record('lease_renewal', 'warning', 'A database error interrupted lease renewal. New entries were stopped.');
+            else if (event === 'account_lock_storage')
                 record(
                     'account_locks',
                     'error',

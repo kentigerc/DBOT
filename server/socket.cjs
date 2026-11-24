@@ -82,10 +82,23 @@ function attachSockets(
                     }
                     sockets.handleUpgrade(req, socket, head, client => {
                         const clientKey = randomUUID();
-                        const upstreamKeepalive = startUpstreamKeepalive(upstream);
+                        let providerFailed = false;
+                        const reportProviderFailure = reason => {
+                            if (!account || providerFailed) return;
+                            providerFailed = true;
+                            onProviderFailure(reason);
+                        };
+                        const upstreamKeepalive = startUpstreamKeepalive(upstream, {
+                            onTimeout: () => {
+                                reportProviderFailure('trading_pong_timeout');
+                                client.close(1011, 'Deriv heartbeat timed out. Reconnect to check open contracts.');
+                                upstream.close();
+                            },
+                        });
                         if (account) {
                             try {
                                 onConnection(account, clientKey, true);
+                                void analysis?.recoverExpiredBuilder?.(req, account)?.catch(() => {});
                             } catch {}
                         }
                         const stopExpiry = account
@@ -227,7 +240,7 @@ function attachSockets(
                         });
                         upstream.addEventListener('close', event => {
                             const code = Number(event.code);
-                            if (code !== 1000 && code !== 1001) onProviderFailure();
+                            if (code !== 1000 && code !== 1001) reportProviderFailure('trading_connection_lost');
                             const validCode =
                                 Number.isInteger(code) &&
                                 ((code >= 1000 && code <= 1014 && ![1004, 1005, 1006].includes(code)) ||
@@ -238,7 +251,10 @@ function attachSockets(
                                 `Deriv connection closed (upstream ${Number.isInteger(code) ? code : 'unknown'}).`
                             );
                         });
-                        upstream.addEventListener('error', () => client.close(1011, 'Deriv connection failed.'));
+                        upstream.addEventListener('error', () => {
+                            reportProviderFailure('trading_connection_lost');
+                            client.close(1011, 'Deriv connection failed.');
+                        });
                         client.on('close', () => {
                             if (account) {
                                 try {

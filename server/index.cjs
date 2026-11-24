@@ -122,7 +122,7 @@ attachSockets(server, handleAuth, dispatcher, {
     security,
     onConnection: (account, key, open) => admin.connection(account, key, open),
     onTrade: (account, value) => admin.trade(account, 'bot_builder', value),
-    onProviderFailure: () => operations.record('trading_connection_lost'),
+    onProviderFailure: reason => operations.record(reason),
 });
 process.once('SIGTERM', () => {
     clearInterval(operationsTimer);
@@ -134,5 +134,5 @@ process.once('SIGTERM', () => {
     setTimeout(() => process.exit(0), 10000).unref();
 });
 server.listen(Number(process.env.PORT || (development ? 3001 : 5000)), development ? '127.0.0.1' : '0.0.0.0', () => {
-    console.log(`NetoAcademy ${development ? 'API' : 'server'} started.`);
+    console.log(JSON.stringify({ event: 'neto_process_started', mode: development ? 'development' : 'production' }));
 });

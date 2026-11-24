@@ -11,18 +11,20 @@ async function createBroker(
     const streams = new Map();
     const connection = new EventTarget();
     let sequence = 0;
-    let ping;
-    const fail = () => {
+    let ping, failed = false;
+    const fail = (reason = 'trading_connection_lost') => {
+        if (failed) return;
+        failed = true;
         clearInterval(ping);
         for (const request of pending.values()) {
             clearTimeout(request.timer);
             request.reject(new Error('Deriv connection closed.'));
         }
         pending.clear();
-        connection.dispatchEvent(new Event('close'));
+        connection.dispatchEvent(Object.assign(new Event('close'), { reason }));
     };
-    socket.addEventListener('close', fail);
-    socket.addEventListener('error', fail);
+    socket.addEventListener('close', () => fail());
+    socket.addEventListener('error', () => fail());
     socket.addEventListener('message', event => {
         let data;
         try {
@@ -70,7 +72,7 @@ async function createBroker(
             },
         }),
         send(body) {
-            if (socket.readyState !== 1) return Promise.reject(new Error('Deriv connection is closed.'));
+            if (failed || socket.readyState !== 1) return Promise.reject(new Error('Deriv connection is closed.'));
             const req_id = ++sequence;
             return new Promise((resolve, reject) => {
                 const timer = setTimeout(() => {
@@ -93,7 +95,16 @@ async function createBroker(
             socket.close();
         },
     };
-    ping = setInterval(() => broker.send({ ping: 1 }).catch(() => {}), 30000);
+    ping = setInterval(() => {
+        void broker.send({ ping: 1 }).then(packet => {
+            if (packet.ping !== 'pong') throw new Error('Deriv heartbeat response mismatch.');
+        }).catch(() => {
+            if (failed || socket.readyState !== 1) return;
+            fail('trading_pong_timeout');
+            socket.close();
+        });
+    }, 30000);
+    ping.unref?.();
     return broker;
 }
 module.exports = { createBroker };
