@@ -189,3 +189,11 @@ test('session handshake attempts remain limited across changing client addresses
     assert.equal(typeof release, 'function');
     release();
 });
+
+test('socket validation permits one approved operation within the correct account scope', () => {
+    assert.doesNotThrow(() => validateSocketMessage({ ping: 1, req_id: 1 }, null));
+    assert.doesNotThrow(() => validateSocketMessage({ proposal_open_contract: 1, contract_id: 7 }, 'demo'));
+    assert.throws(() => validateSocketMessage({ proposal_open_contract: 1, contract_id: 7 }, null));
+    assert.throws(() => validateSocketMessage({ unsupported_operation: 1 }, 'demo'));
+    assert.throws(() => validateSocketMessage({ ping: 1, time: 1 }, 'demo'));
+});

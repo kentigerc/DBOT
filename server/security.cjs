@@ -208,17 +208,53 @@ function createSecurity({
     };
 }
 
+// Forward only operations supported by the site. Keep operation names separate
+// from parameters so a request can never contain a second operation.
+const PUBLIC_SOCKET_FIELDS = {
+    active_symbols: 'contract_type',
+    asset_index: '',
+    contracts_for: '',
+    exchange_rates: 'base_currency target_currency',
+    forget: '',
+    forget_all: '',
+    payout_currencies: '',
+    ping: '',
+    proposal: 'amount barrier barrier2 basis cancellation contract_type currency date_expiry duration duration_unit limit_order multiplier selected_tick symbol underlying_symbol growth_rate',
+    ticks: '',
+    ticks_history: 'adjust_start_time count end granularity start style',
+    time: '',
+    trading_times: '',
+    website_status: '',
+};
+const PRIVATE_SOCKET_FIELDS = {
+    balance: '',
+    buy: 'price parameters',
+    contract_update: 'contract_id limit_order',
+    portfolio: '',
+    profit_table: 'date_from date_to description limit offset sort',
+    proposal_open_contract: 'contract_id',
+    sell: 'price',
+    statement: 'action_type date_from date_to description limit offset',
+    tnc_approval: '',
+    transaction: '',
+};
+const SOCKET_FIELDS = new Map(
+    Object.entries({ ...PUBLIC_SOCKET_FIELDS, ...PRIVATE_SOCKET_FIELDS }).map(([operation, fields]) => [
+        operation,
+        new Set([operation, 'req_id', 'passthrough', 'subscribe', ...fields.split(' ').filter(Boolean)]),
+    ])
+);
+
 function validateSocketMessage(body, account) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('A JSON API object is required.');
-    // The upstream is bound to the server-authorized account. A client may not re-authorize it.
-    if (['authorize', 'login', 'logout', 'api_token'].some(key => Object.hasOwn(body, key)))
-        throw new Error('Authentication is managed by NetoAcademy.');
-    if (
-        !account &&
-        ['buy', 'sell', 'balance', 'portfolio', 'statement', 'profit_table', 'transaction'].some(key =>
-            Object.hasOwn(body, key)
-        )
-    )
+    const keys = Object.keys(body);
+    const operations = keys.filter(key => SOCKET_FIELDS.has(key));
+    if (operations.length !== 1 || !keys.every(key => SOCKET_FIELDS.get(operations[0]).has(key)))
+        throw new Error('A single supported Deriv API operation is required.');
+    const [operation] = operations;
+    if (!account && Object.hasOwn(PRIVATE_SOCKET_FIELDS, operation))
         throw new Error('Log in and select an account before sending private trading requests.');
+    if (['buy', 'sell', 'contract_update'].includes(operation) && !body[operation])
+        throw new Error('A valid trading operation is required.');
 }
 module.exports = { createSecurity, clientAddress, tokenBucket, validateSocketMessage, CSP };

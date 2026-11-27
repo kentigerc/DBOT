@@ -20,7 +20,7 @@ function privatePath(pathname) {
         pathname.split('/').some(part => part.startsWith('.')) ||
         /^\/(?:src|server|node_modules)(?:\/|$)/i.test(pathname) ||
         /\.(?:map|bak|old|orig|zip|tar|tgz|gz|sql|sqlite|db|log|env|ini|ya?ml|lock|cjs|[cm]?tsx?)$/i.test(pathname) ||
-        pathname.toLowerCase() === '/test-offline.html'
+        /(?:^|\/)(?:package(?:-lock)?\.json|npm-shrinkwrap\.json|test-offline\.html)$/i.test(pathname)
     );
 }
 async function serveStatic(req, res, { root, origin, authorizeAdmin }) {
@@ -38,7 +38,7 @@ async function serveStatic(req, res, { root, origin, authorizeAdmin }) {
             res.writeHead(404);
             return res.end();
         }
-        const adminPage = /^\/admin(?:\/|$)/i.test(pathname);
+        const adminPage = /^\/admin(?:\.html?$|\/|$)/i.test(pathname);
         if (adminPage) {
             res.setHeader('Vary', 'Cookie');
             let allowed = false;
@@ -82,6 +82,15 @@ async function serveStatic(req, res, { root, origin, authorizeAdmin }) {
         file = await realpath(file);
         if (!file.startsWith(canonicalRoot + path.sep)) {
             res.writeHead(403);
+            return res.end();
+        }
+        const canonicalPath = '/' + path.relative(canonicalRoot, file).split(path.sep).join('/');
+        if (
+            privatePath(canonicalPath) ||
+            /^\/bots(?:\/|$)/i.test(canonicalPath) ||
+            (!adminPage && /^\/admin(?:\.html?$|\/|$)/i.test(canonicalPath))
+        ) {
+            res.writeHead(404);
             return res.end();
         }
         const size = (await stat(file)).size;

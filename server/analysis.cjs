@@ -741,7 +741,12 @@ function createAnalysisService(
             if (order?.lease && data.buy?.contract_id) {
                 await locks.acknowledge(order.lease, order.nonce, Number(data.buy.contract_id));
                 builderOrders.delete(`${id}:${clientKey}:${data.req_id}`);
-            } else if (order?.lease && data.error && DEFINITIVE.has(data.error.code)) {
+            } else if (
+                order?.lease &&
+                data.error &&
+                (data.msg_type === 'buy' || (data.msg_type == null && data.echo_req?.buy)) &&
+                DEFINITIVE.has(data.error.code)
+            ) {
                 await locks.cancel(order.lease, order.nonce);
                 builderOrders.delete(`${id}:${clientKey}:${data.req_id}`);
             }

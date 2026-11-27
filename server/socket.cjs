@@ -22,6 +22,7 @@ function attachSockets(
     // Only receipts from purchases on Builder sockets establish Builder ownership.
     // Share this bounded set across sockets so reconnects can report known settlements.
     const builderContracts = new Set();
+    let authenticatedMessages = 0;
     const sockets = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024, perMessageDeflate: false });
     server.on('upgrade', async (req, socket, head) => {
         const reject = (status = 403) => {
@@ -126,6 +127,7 @@ function attachSockets(
                         client.on('pong', () => {
                             client.isAlive = true;
                         });
+                        let activeMessages = 0;
                         client.on('message', async (data, binary) => {
                             if (!allowMessage()) {
                                 security?.log('socket_message_limit', req);
@@ -140,6 +142,15 @@ function attachSockets(
                                 client.close(1013, 'Connection is busy.');
                                 return;
                             }
+                            if (account && (activeMessages >= 24 || authenticatedMessages >= 128)) {
+                                security?.log('socket_inflight_limit', req);
+                                client.close(1013, 'Too many pending requests. Reconnect to check open contracts.');
+                                return;
+                            }
+                            if (account) {
+                                activeMessages++;
+                                authenticatedMessages++;
+                            }
                             let body,
                                 outgoing,
                                 attempted = false;
@@ -147,7 +158,7 @@ function attachSockets(
                                 body = JSON.parse(data.toString());
                                 validateSocketMessage(body, account);
                                 if (account) await auth.verifySession?.(req);
-                                if (account && body.buy) auth.requireTerms?.(req);
+                                if (account && (body.buy || body.sell || body.contract_update)) auth.requireTerms?.(req);
                                 if (account && body.buy && analysis?.authorizeBuilderBuy)
                                     outgoing = await analysis.authorizeBuilderBuy(account, body, clientKey, req);
                                 else if (account && body.buy) await analysis?.prepareBuilder?.(account);
@@ -160,7 +171,7 @@ function attachSockets(
                                 }
                                 if (account && !outgoing) analysis?.beforeBuilder(account, body, clientKey);
                                 attempted = true;
-                                upstream.send(outgoing ? JSON.stringify(outgoing) : data.toString());
+                                upstream.send(JSON.stringify(outgoing || body));
                             } catch (error) {
                                 if (outgoing && !attempted)
                                     await analysis.cancelBuilderBuy(account, body, clientKey).catch(() => {});
@@ -178,12 +189,21 @@ function attachSockets(
                                         echo_req: body,
                                     })
                                 );
-                                return;
+                            } finally {
+                                if (account) {
+                                    activeMessages--;
+                                    authenticatedMessages--;
+                                }
                             }
                         });
                         let incoming = Promise.resolve();
                         let queuedIncoming = 0;
                         upstream.addEventListener('message', event => {
+                            try {
+                                if (upstreamKeepalive.consume(JSON.parse(event.data))) return;
+                            } catch {
+                                // Leave malformed upstream packets to the existing journal error handling.
+                            }
                             if (queuedIncoming >= 256) {
                                 client.close(1013, 'Trading messages are delayed. Check Reports before continuing.');
                                 upstream.close();
@@ -192,11 +212,6 @@ function attachSockets(
                             queuedIncoming++;
                             incoming = incoming
                                 .then(async () => {
-                                    try {
-                                        if (upstreamKeepalive.consume(JSON.parse(event.data))) return;
-                                    } catch {
-                                        /* Preserve existing invalid-packet forwarding behavior. */
-                                    }
                                     if (client.readyState === 1 || account) {
                                         try {
                                             if (account) {
