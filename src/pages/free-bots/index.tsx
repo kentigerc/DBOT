@@ -21,7 +21,6 @@ const BOTS: Bot[] = [
     {
         id: '12',
         name: 'Over Punisher',
-        description: 'Trades Digit Over 0, Over 1 and Over 2 contracts on Volatility indices.',
         fileName: 'over-punisher.xml',
         category: 'Over/Under',
         icon: '📈',
@@ -29,7 +28,6 @@ const BOTS: Bot[] = [
     {
         id: '13',
         name: 'Over Switcher',
-        description: 'Trades Digit Over 1 and Over 0 contracts on Volatility indices.',
         fileName: 'over-1-over-0.xml',
         category: 'Over/Under',
         icon: '📈',
@@ -37,7 +35,6 @@ const BOTS: Bot[] = [
     {
         id: '14',
         name: 'Under Punisher',
-        description: 'Trades Digit Under 8 and Under 9 contracts on Volatility indices.',
         fileName: 'under-punisher.xml',
         category: 'Over/Under',
         icon: '📉',
@@ -45,7 +42,6 @@ const BOTS: Bot[] = [
     {
         id: '15',
         name: 'Under Switcher',
-        description: 'Trades Digit Under 9 and Under 8 contracts on Volatility indices.',
         fileName: 'under-8-under-9.xml',
         category: 'Over/Under',
         icon: '📉',
