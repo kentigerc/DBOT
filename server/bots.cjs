@@ -1,8 +1,5 @@
 const { readFile, readdir } = require('node:fs/promises');
 const path = require('node:path');
-
-const ownerOnlyBots = new Set(['over-punisher.xml', 'over-1-over-0.xml', 'under-punisher.xml', 'under-8-under-9.xml']);
-
 function createBotLoader(auth, directory = path.join(__dirname, 'bots')) {
     return async (req, res) => {
         res.setHeader('Cache-Control', 'no-store, private');
@@ -15,14 +12,6 @@ function createBotLoader(auth, directory = path.join(__dirname, 'bots')) {
             const file = new URL(req.url, auth.publicOrigin).searchParams.get('file');
             const allowed = await readdir(directory);
             if (!file || !file.endsWith('.xml') || !allowed.includes(file)) return end(404, 'Bot not found.');
-            if (ownerOnlyBots.has(file)) {
-                if (typeof auth.requireAdmin !== 'function') return end(404, 'Bot not found.');
-                try {
-                    await auth.requireAdmin(req);
-                } catch {
-                    return end(404, 'Bot not found.');
-                }
-            }
             const content = await readFile(path.join(directory, file));
             res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Content-Disposition': 'inline' });
             res.end(content);

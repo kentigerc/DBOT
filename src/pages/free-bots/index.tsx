@@ -1,10 +1,10 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useNavigate } from 'react-router-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
-import { getDerivSession, subscribeToDerivSession } from '@/utils/deriv-session';
+import { getDerivSession } from '@/utils/deriv-session';
 import './free-bots.scss';
 
 interface Bot {
@@ -69,16 +69,12 @@ const FreeBots = observer(() => {
 
     const [search, setSearch] = useState('');
 
-    const session = useSyncExternalStore(subscribeToDerivSession, getDerivSession);
-    const isOwner = session.authenticated && session.isAdmin === true;
-    const visibleBots = isOwner ? BOTS : BOTS.filter(bot => bot.category !== 'Over/Under');
-    const categories = ['All', ...Array.from(new Set(visibleBots.map(bot => bot.category)))];
-    const category = categories.includes(selectedCategory) ? selectedCategory : 'All';
+    const categories = ['All', ...Array.from(new Set(BOTS.map(bot => bot.category)))];
 
     const query = search.trim().toLowerCase();
-    const filteredBots = visibleBots.map((bot, index) => ({ ...bot, number: index + 1 })).filter(
+    const filteredBots = BOTS.map((bot, index) => ({ ...bot, number: index + 1 })).filter(
         bot =>
-            (category === 'All' || bot.category === category) &&
+            (selectedCategory === 'All' || bot.category === selectedCategory) &&
             (!query || bot.name.toLowerCase().includes(query) || String(bot.number) === query.replace(/^#/, ''))
     );
 
@@ -132,13 +128,13 @@ const FreeBots = observer(() => {
                 />
             </div>
             <div className='free-bots__categories'>
-                {categories.map(option => (
+                {categories.map(category => (
                     <button
-                        key={option}
-                        className={`free-bots__category-btn ${category === option ? 'free-bots__category-btn--active' : ''}`}
-                        onClick={() => setSelectedCategory(option)}
+                        key={category}
+                        className={`free-bots__category-btn ${selectedCategory === category ? 'free-bots__category-btn--active' : ''}`}
+                        onClick={() => setSelectedCategory(category)}
                     >
-                        {option}
+                        {category}
                     </button>
                 ))}
             </div>

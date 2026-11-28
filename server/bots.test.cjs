@@ -8,12 +8,9 @@ test('hosted XML requires login, rejects traversal and is never cacheable', asyn
     const auth = {
         publicOrigin: 'http://localhost',
         verifySession: async req => {
-            if (!['test=authenticated', 'test=owner'].includes(req.headers.cookie))
+            if (req.headers.cookie !== 'test=authenticated')
                 throw Object.assign(new Error('Unauthorized'), { status: 401 });
             return Date.now() + 1000;
-        },
-        requireAdmin: async req => {
-            if (req.headers.cookie !== 'test=owner') throw Object.assign(new Error('Forbidden'), { status: 403 });
         },
     };
     const server = http.createServer(createBotLoader(auth));
@@ -24,7 +21,7 @@ test('hosted XML requires login, rejects traversal and is never cacheable', asyn
     });
     const base = `http://127.0.0.1:${server.address().port}/api/bots/load?file=`;
     const files = await fs.readdir(path.join(__dirname, 'bots'));
-    const file = 'neto-risefall-alternating-recovery.xml';
+    const file = files.find(file => file.endsWith('.xml'));
     assert.equal((await fetch(base + encodeURIComponent(file))).status, 401);
     const headers = { cookie: 'test=authenticated' };
     const loaded = await fetch(base + encodeURIComponent(file), { headers });
@@ -39,10 +36,6 @@ test('hosted XML requires login, rejects traversal and is never cacheable', asyn
         403
     );
     assert.equal((await fetch(base + encodeURIComponent(file), { method: 'POST', headers })).status, 405);
-    for (const filename of ['over-punisher.xml', 'over-1-over-0.xml', 'under-punisher.xml', 'under-8-under-9.xml']) {
-        assert.equal((await fetch(base + filename, { headers })).status, 404);
-        assert.equal((await fetch(base + filename, { headers: { cookie: 'test=owner' } })).status, 200);
-    }
     for (const filename of files) {
         const content = await fs.readFile(path.join(__dirname, 'bots', filename), 'utf8');
         assert.match(content, /netoacademy:hosted-bot:/, filename);
@@ -84,7 +77,7 @@ test('hosted bot access rejects a replayed session after shared logout revocatio
         .getSetCookie()
         .find(value => value.startsWith('neto_session='))
         .split(';')[0];
-    const file = 'neto-risefall-alternating-recovery.xml';
+    const file = (await fs.readdir(path.join(__dirname, 'bots'))).find(value => value.endsWith('.xml'));
     const request = () => fetch(base + '/api/bots/load?file=' + encodeURIComponent(file), { headers: { cookie } });
     assert.equal((await request()).status, 200);
     revoked = true; // Models logout saved by a different server instance.

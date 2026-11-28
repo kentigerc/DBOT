@@ -35,7 +35,6 @@ export default function MarketScanner({
     onLoad,
     active = true,
     onAutoStart,
-    canUseHostedBots = true,
 }: {
     sampleSize: number;
     onSelect: (symbol: string) => void;
@@ -47,7 +46,6 @@ export default function MarketScanner({
         autoGeneration?: number
     ) => boolean;
     active?: boolean;
-    canUseHostedBots?: boolean;
     onAutoStart?: (settings: XmlAutoSettings) => void;
 }) {
     const auto = useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
@@ -248,7 +246,7 @@ export default function MarketScanner({
                 while scanning.
             </p>
             <div className='digit-scanner__controls'>
-                {canUseHostedBots && (
+                {(
                     [
                         ['stake', 'Stake ($)', '0.35', '0.01'],
                         ['stopLoss', 'Session stop loss ($)', '0.35', '0.01'],
@@ -273,71 +271,65 @@ export default function MarketScanner({
                 <button disabled={auto.enabled} onClick={() => setEnabled(value => !value)}>
                     {enabled ? 'PAUSE' : 'RESUME'}
                 </button>
-                {canUseHostedBots && (
-                    <button
-                        disabled={auto.enabled || preparing}
-                        onClick={async () => {
-                            const attempt = ++startAttempt.current;
-                            setPreparing(true);
+                <button
+                    disabled={auto.enabled || preparing}
+                    onClick={async () => {
+                        const attempt = ++startAttempt.current;
+                        setPreparing(true);
+                        try {
+                            const settings = validateXmlAutoSettings({
+                                stake: Number(draft.stake),
+                                stopLoss: Number(draft.stopLoss),
+                                takeProfit: Number(draft.takeProfit),
+                                multiplier: Number(draft.multiplier),
+                            });
+                            const account = getDerivAccount();
+                            if (!account) throw new Error('Log in with Deriv and select an account first.');
+                            if (isAnalysisTrading() || (await checkServerAnalysis()))
+                                throw new Error('Stop and settle the Analysis Tool before starting XML Auto.');
+                            const balanceApi = await generateDerivApiInstance();
                             try {
-                                const settings = validateXmlAutoSettings({
-                                    stake: Number(draft.stake),
-                                    stopLoss: Number(draft.stopLoss),
-                                    takeProfit: Number(draft.takeProfit),
-                                    multiplier: Number(draft.multiplier),
-                                });
-                                const account = getDerivAccount();
-                                if (!account) throw new Error('Log in with Deriv and select an account first.');
-                                if (isAnalysisTrading() || (await checkServerAnalysis()))
-                                    throw new Error('Stop and settle the Analysis Tool before starting XML Auto.');
-                                const balanceApi = await generateDerivApiInstance();
-                                try {
-                                    await checkTradingBalance(
-                                        body => balanceApi.send(body),
-                                        account.currency,
-                                        settings.stake
-                                    );
-                                } finally {
-                                    balanceApi.disconnect();
-                                }
-                                if (
-                                    attempt !== startAttempt.current ||
-                                    getDerivAccount()?.account_id !== account.account_id
-                                )
-                                    return;
-                                if (!onAutoStart) throw new Error('XML Auto is unavailable here.');
-                                onAutoStart(settings);
-                                setEnabled(true);
-                                setLoadError('');
-                            } catch (error) {
-                                if (attempt === startAttempt.current)
-                                    setLoadError(error instanceof Error ? error.message : 'Unable to start XML Auto.');
+                                await checkTradingBalance(
+                                    body => balanceApi.send(body),
+                                    account.currency,
+                                    settings.stake
+                                );
                             } finally {
-                                if (attempt === startAttempt.current) setPreparing(false);
+                                balanceApi.disconnect();
                             }
-                        }}
-                    >
-                        START XML AUTO
-                    </button>
-                )}
-                {canUseHostedBots && (
-                    <button
-                        disabled={!auto.enabled && !preparing}
-                        onClick={() => {
-                            startAttempt.current++;
-                            setPreparing(false);
-                            xmlScannerCycle.stop();
-                        }}
-                    >
-                        STOP XML AUTO
-                    </button>
-                )}
+                            if (
+                                attempt !== startAttempt.current ||
+                                getDerivAccount()?.account_id !== account.account_id
+                            )
+                                return;
+                            if (!onAutoStart) throw new Error('XML Auto is unavailable here.');
+                            onAutoStart(settings);
+                            setEnabled(true);
+                            setLoadError('');
+                        } catch (error) {
+                            if (attempt === startAttempt.current)
+                                setLoadError(error instanceof Error ? error.message : 'Unable to start XML Auto.');
+                        } finally {
+                            if (attempt === startAttempt.current) setPreparing(false);
+                        }
+                    }}
+                >
+                    START XML AUTO
+                </button>
+                <button
+                    disabled={!auto.enabled && !preparing}
+                    onClick={() => {
+                        startAttempt.current++;
+                        setPreparing(false);
+                        xmlScannerCycle.stop();
+                    }}
+                >
+                    STOP XML AUTO
+                </button>
             </div>
-            {canUseHostedBots && (
-                <p className='digit-analysis__note'>
-                    XML Auto runs three-win batches with Even/Odd recovery. Keep this tab open and connected.
-                </p>
-            )}
+            <p className='digit-analysis__note'>
+                XML Auto runs three-win batches with Even/Odd recovery. Keep this tab open and connected.
+            </p>
             {auto.phase !== 'idle' && (
                 <p role='status'>
                     {auto.message} · Batch wins {auto.wins}/3 · Batches {auto.batches} · Session P/L{' '}
@@ -398,48 +390,44 @@ export default function MarketScanner({
                             <p>
                                 Last matched {new Date(result.checkedAt).toLocaleTimeString()}. Conditions may change.
                             </p>
-                            {canUseHostedBots && (
-                                <p>
-                                    Suggested bot:{' '}
-                                    <strong>{result.side === 'over' ? 'Over Punisher' : 'Under Punisher'}</strong>
-                                </p>
-                            )}
+                            <p>
+                                Suggested bot:{' '}
+                                <strong>{result.side === 'over' ? 'Over Punisher' : 'Under Punisher'}</strong>
+                            </p>
                             <div className='digit-scanner__actions'>
                                 <button disabled={auto.enabled} onClick={() => onSelect(result.symbol)}>
                                     View digits
                                 </button>
-                                {canUseHostedBots && (
-                                    <button
-                                        disabled={auto.enabled}
-                                        onClick={() => {
-                                            try {
-                                                if (
-                                                    onLoad(
-                                                        result.side,
-                                                        result.symbol,
-                                                        result.submarket || 'random_index',
-                                                        digitFrequencies(result.digits).map(item => item.count)
-                                                    )
-                                                ) {
-                                                    setLoadError('');
-                                                }
-                                            } catch (error) {
-                                                setLoadError(
-                                                    error instanceof Error ? error.message : 'Unable to load this bot.'
-                                                );
+                                <button
+                                    disabled={auto.enabled}
+                                    onClick={() => {
+                                        try {
+                                            if (
+                                                onLoad(
+                                                    result.side,
+                                                    result.symbol,
+                                                    result.submarket || 'random_index',
+                                                    digitFrequencies(result.digits).map(item => item.count)
+                                                )
+                                            ) {
+                                                setLoadError('');
                                             }
-                                        }}
-                                    >
-                                        Load Bot
-                                    </button>
-                                )}
+                                        } catch (error) {
+                                            setLoadError(
+                                                error instanceof Error ? error.message : 'Unable to load this bot.'
+                                            );
+                                        }
+                                    }}
+                                >
+                                    Load Bot
+                                </button>
                             </div>
                         </article>
                     ))}
             </div>
             <p>
-                Manual scanning pauses when you leave this section.
-                {canUseHostedBots && ' XML Auto continues until stopped or a limit is reached.'}
+                Manual scanning pauses when you leave this section. XML Auto continues until stopped or a limit is
+                reached. Manual Load Bot lets you review the XML before running it.
             </p>
         </section>
     );

@@ -37,10 +37,6 @@ class SessionRequestError extends Error {
     }
 }
 export const getDerivSession = () => current;
-export function subscribeToDerivSession(update: () => void) {
-    window.addEventListener('neto-session', update);
-    return () => window.removeEventListener('neto-session', update);
-}
 export const getDerivAccount = () =>
     current.accounts.find(account => account.account_id === localStorage.getItem('neto.account_id'));
 export const startDerivLogin = () => window.location.assign('/api/auth/login');
