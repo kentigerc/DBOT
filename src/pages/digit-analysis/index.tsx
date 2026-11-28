@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DBOT_TABS } from '@/constants/bot-contents';
 import useMarketPanelHeight from '@/hooks/useMarketPanelHeight';
 import { useStore } from '@/hooks/useStore';
-import { getDerivAccount, getDerivSession } from '@/utils/deriv-session';
+import { getDerivAccount, getDerivSession, subscribeToDerivSession } from '@/utils/deriv-session';
 import { xmlScannerCycle } from '@/utils/xml-scanner-cycle';
 import DigitCycle from './digit-cycle';
 import Momentum from './momentum';
@@ -18,6 +18,8 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
     const panelRef = useMarketPanelHeight<HTMLElement>({ enabled: active });
     const [markets, setMarkets] = useState<DigitMarket[]>([]);
     const [symbol, setSymbol] = useState('R_100');
+    const session = useSyncExternalStore(subscribeToDerivSession, getDerivSession);
+    const canUseHostedBots = session.authenticated && session.isAdmin === true;
     const automatic = useSyncExternalStore(xmlScannerCycle.subscribe, xmlScannerCycle.getSnapshot);
     const [sampleSize, setSampleSize] = useState(() => (automatic.enabled ? automatic.sampleSize : 1000));
     useEffect(() => {
@@ -112,8 +114,10 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
             <MarketScanner
                 sampleSize={sampleSize}
                 onSelect={setSymbol}
+                canUseHostedBots={canUseHostedBots}
                 active={active}
                 onAutoStart={settings => {
+                    if (!canUseHostedBots) throw new Error('This bot is unavailable.');
                     if (run_panel.is_running || run_panel.has_open_contract)
                         throw new Error('Stop and settle Bot Builder first.');
                     const account = getDerivAccount();
@@ -134,8 +138,7 @@ export default function DigitAnalysis({ active = true }: { active?: boolean }) {
                     );
                 }}
                 onLoad={(side, matchedSymbol, submarket, baselineCounts, autoGeneration) => {
-                    if (!getDerivSession().authenticated)
-                        throw new Error('Log in with Deriv to load a NetoAcademy bot.');
+                    if (!canUseHostedBots) throw new Error('This bot is unavailable.');
                     if (run_panel.is_running) throw new Error('Stop your running bot before loading another bot.');
                     sessionStorage.setItem(
                         'neto.pendingBot',

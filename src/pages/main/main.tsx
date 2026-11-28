@@ -16,7 +16,7 @@ import { CONNECTION_STATUS } from '@/external/bot-skeleton/services/api/observab
 import { isDbotRTL } from '@/external/bot-skeleton/utils/workspace';
 import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
-import { startDerivLogin } from '@/utils/deriv-session';
+import { getDerivSession, startDerivLogin, subscribeToDerivSession } from '@/utils/deriv-session';
 import {
     LabelPairedChartLineCaptionRegularIcon,
     LabelPairedObjectsColumnCaptionRegularIcon,
@@ -33,6 +33,11 @@ import './main.scss';
 const ChartPage = lazy(() => import('../chart/chart-page'));
 const DigitAnalysis = lazy(() => import('../digit-analysis'));
 const ManualTrader = lazy(() => import('../manual-trader'));
+function OwnerManualTrader({ active }: { active: boolean }) {
+    const session = React.useSyncExternalStore(subscribeToDerivSession, getDerivSession);
+    return session.authenticated && session.isAdmin === true ? <ManualTrader active={active} /> : null;
+}
+
 const DerivCharts = lazy(() => import('../deriv-charts'));
 const FreeBots = lazy(() => import('../free-bots'));
 const AnalysisTool = lazy(() => import('../analysis-tool'));
@@ -349,7 +354,7 @@ const AppWrapper = observer(() => {
                                 id='id-manual-trader'
                             >
                                 <Suspense fallback={<ChunkLoader message={localize('Loading Manual Trader...')} />}>
-                                    <ManualTrader active={active_tab === DBOT_TABS.MANUAL_TRADER} />
+                                    <OwnerManualTrader active={active_tab === DBOT_TABS.MANUAL_TRADER} />
                                 </Suspense>
                             </div>
                             <div
